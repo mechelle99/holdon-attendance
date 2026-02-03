@@ -1,8 +1,5 @@
 <script>
-  // ①  LIFF ID
   const LIFF_ID = "2009036245-XmZMSuuS";
-
-  // ② GAS Web App /exec
   const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbz0YAlbpIYDqN6UC99TmaksEfzylud1QzuwTaupCp9zGdpUlReuRxaG8cvryxziHli_/exec";
 
   let userId = "";
@@ -12,10 +9,10 @@
   const $ = (id) => document.getElementById(id);
 
   function log(msg){
-    $("debug").innerText = ($("debug").innerText || "") + "\n" + msg;
+    $("debug").innerText += "\n" + msg;
   }
   function setStatus(msg){ $("status").innerText = msg; }
-  function setButtonsEnabled(on){
+  function setButtons(on){
     $("btnIn").disabled  = !on;
     $("btnOut").disabled = !on;
     $("btnOT").disabled  = !on;
@@ -23,80 +20,68 @@
 
   async function init(){
     try{
-      setButtonsEnabled(false);
       $("debug").innerText = "debug: start";
       setStatus("初始化中...");
+      setButtons(false);
 
-      log("has liff=" + (typeof liff));
-      log("origin=" + location.origin);
-      log("search=" + location.search);
-
-      log("liff.init start");
       await liff.init({ liffId: LIFF_ID });
-      log("liff.init ok");
 
-      log("isLoggedIn=" + liff.isLoggedIn());
       if(!liff.isLoggedIn()){
-        log("calling liff.login()");
         liff.login();
         return;
       }
 
-      log("getProfile start");
       const profile = await liff.getProfile();
-      log("getProfile ok");
-
       userId = profile.userId || "";
       displayName = profile.displayName || "";
 
       $("user").innerText = "你好，" + displayName;
 
-      // 綁定按鈕
       $("btnIn").onclick  = () => sendLog("上班");
       $("btnOut").onclick = () => sendLog("下班");
       $("btnOT").onclick  = () => sendLog("加班");
 
       ready = true;
-      setButtonsEnabled(true);
+      setButtons(true);
       setStatus("可以打卡了 ✅");
       log("ready=true");
     }catch(e){
-      setStatus("初始化失敗：" + (e.message || e));
-      log("ERROR: " + (e.stack || e.message || e));
+      setStatus("初始化失敗");
+      log("ERROR: " + (e?.message || e));
     }
   }
 
   async function sendLog(type){
     if(!ready){
-      setStatus("尚未初始化完成，請稍等...");
+      setStatus("尚未初始化完成");
       return;
     }
 
-    setStatus("寫入中...");
-    log("sendLog type=" + type);
+    setStatus("送出中...");
+    log("sendLog=" + type);
+
+    const body = new URLSearchParams({
+      type,
+      userId,
+      displayName,
+      ts: String(Date.now())
+    }).toString();
 
     try{
-      const body = new URLSearchParams({
-        type,
-        userId,
-        displayName,
-        ts: String(Date.now())
-      }).toString();
-
       await fetch(GAS_WEBAPP_URL, {
         method: "POST",
         mode: "no-cors",
-        headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
+        },
         body
       });
 
-      // no-cors 讀不到回應是正常的
-      setStatus("已送出 ✅（請到 Sheet 確認是否寫入）");
-      log("sent (no-cors)");
+      setStatus("已送出 ✅（請查看 Sheet）");
+      log("sent");
     }catch(err){
-      log("errName=" + (err?.name || "unknown"));
-      log("errMsg=" + (err?.message || String(err)));
-      setStatus("寫入失敗：" + (err?.message || String(err)));
+      setStatus("送出失敗");
+      log("ERR: " + (err?.message || err));
     }
   }
 

@@ -3,123 +3,307 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>HOLDON 打卡</title>
+  <title>HOLDON 出勤系統</title>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; padding: 14px; }
-    button { margin: 6px 6px 0 0; padding: 10px 12px; }
-    #debug { margin-top: 12px; padding: 10px; border: 1px solid #ddd; white-space: pre-wrap; font-size: 12px; }
-    .muted { color:#666; font-size:12px; }
+    body{font-family:Arial,sans-serif;padding:16px;color:#111;}
+    h2{margin:0 0 8px;}
+    .muted{color:#666;font-size:12px;margin:6px 0 14px;}
+    .tabs{display:flex;gap:8px;margin:12px 0;}
+    .tab{padding:8px 12px;border:1px solid #ddd;border-radius:999px;background:#fff;cursor:pointer;font-size:13px;}
+    .tab.active{border-color:#111;}
+    .card{border:1px solid #eee;border-radius:14px;padding:14px;margin:12px 0;box-shadow:0 8px 24px rgba(0,0,0,.05);}
+    .row{display:flex;gap:10px;flex-wrap:wrap;}
+    .btn{padding:10px 12px;border-radius:999px;border:1px solid #ddd;background:#fff;cursor:pointer;}
+    .btn.primary{border-color:#111;}
+    .btn:disabled{opacity:.45;cursor:not-allowed;}
+    label{font-size:12px;color:#444;display:block;margin:10px 0 4px;}
+    input,select,textarea{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #ddd;border-radius:10px;font-size:14px;}
+    textarea{min-height:70px;resize:vertical;}
+    .status{font-size:13px;margin-top:10px;}
+    .ok{color:#0a7a2f;}
+    .err{color:#b00020;}
+    .hidden{display:none;}
+    .item{border-top:1px solid #eee;padding-top:10px;margin-top:10px;}
+    .pill{display:inline-block;font-size:12px;padding:3px 8px;border:1px solid #ddd;border-radius:999px;color:#444;margin-left:6px;}
   </style>
 </head>
 <body>
-  <h2>HOLDON 出勤打卡</h2>
-  <div class="muted">如果你看得到這行字，代表頁面載入正常（不是空白）。</div>
+  <h2>HOLDON 出勤系統</h2>
+  <div class="muted">上/下班立即生效；加班與請假需主管核准。</div>
 
-  <p id="user">載入中...</p>
-  <p id="status" class="muted"></p>
+  <div class="card">
+    <div id="user">載入中...</div>
+    <div id="status" class="status muted"></div>
 
-  <button id="btnIn"  disabled>🟢 上班打卡</button>
-  <button id="btnOut" disabled>🔴 下班打卡</button>
-  <button id="btnOT"  disabled>🕒 加班打卡</button>
+    <div class="row" style="margin-top:10px;">
+      <button id="btnIn"  class="btn primary" disabled>🟢 上班打卡</button>
+      <button id="btnOut" class="btn primary" disabled>🔴 下班打卡</button>
+    </div>
 
-  <div id="debug">debug: start</div>
+    <div class="tabs">
+      <button class="tab active" id="tabApply">申請</button>
+      <button class="tab" id="tabMine">我的申請</button>
+      <button class="tab hidden" id="tabMgr">主管核准</button>
+    </div>
+  </div>
+
+  <div id="panelApply" class="card">
+    <h3 style="margin:0 0 8px;">🕒 加班申請（需核准）</h3>
+    <label>加班日期</label><input id="otDate" type="date"/>
+    <label>加班時數（小時）</label><input id="otHours" type="number" min="0.5" step="0.5" placeholder="例如：2"/>
+    <label>原因說明</label><textarea id="otReason" placeholder="簡述加班原因"></textarea>
+    <div class="row" style="margin-top:10px;">
+      <button id="btnOTApply" class="btn" disabled>送出加班申請</button>
+    </div>
+
+    <hr style="border:none;border-top:1px solid #eee;margin:14px 0;"/>
+
+    <h3 style="margin:0 0 8px;">📝 請假申請（需核准）</h3>
+    <label>假別</label>
+    <select id="leaveType">
+      <option value="事假">事假</option>
+      <option value="病假">病假</option>
+      <option value="特休">特休</option>
+      <option value="生日假">生日假</option>
+    </select>
+    <label>請假日期</label><input id="leaveDate" type="date"/>
+    <label>請假時數（小時）</label><input id="leaveHours" type="number" min="0.5" step="0.5" placeholder="例如：4"/>
+    <label>原因說明</label><textarea id="leaveReason" placeholder="簡述請假原因"></textarea>
+    <div class="row" style="margin-top:10px;">
+      <button id="btnLeaveApply" class="btn" disabled>送出請假申請</button>
+    </div>
+  </div>
+
+  <div id="panelMine" class="card hidden">
+    <h3 style="margin:0 0 8px;">📄 我的申請</h3>
+    <div class="row">
+      <button class="btn" id="btnReloadMine" disabled>重新整理</button>
+    </div>
+    <div id="mineList" class="muted" style="margin-top:10px;">尚無資料</div>
+  </div>
+
+  <div id="panelMgr" class="card hidden">
+    <h3 style="margin:0 0 8px;">📥 待核准清單</h3>
+    <div class="row">
+      <button class="btn" id="btnReloadPending" disabled>重新整理</button>
+    </div>
+    <div id="pendingList" class="muted" style="margin-top:10px;">尚無資料</div>
+  </div>
 
 <script>
   const LIFF_ID = "2009036245-XmZMSuuS";
-  const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbz0YAlbpIYDqN6UC99TmaksEfzylud1QzuwTaupCp9zGdpUlReuRxaG8cvryxziHli_/exec";
+  const GAS_URL = "https://script.google.com/macros/s/你的exec/exec";
 
-  let userId = "";
-  let displayName = "";
-  let ready = false;
+  let userId="", displayName="", ready=false, isManager=false;
 
-  const $ = (id) => document.getElementById(id);
-
-  function log(msg){
-    $("debug").innerText += "\n" + msg;
+  const $ = (id)=>document.getElementById(id);
+  function setStatus(msg,type="muted"){
+    $("status").className="status "+(type==="ok"?"ok":type==="err"?"err":"muted");
+    $("status").innerText=msg||"";
   }
-  function setStatus(msg){ $("status").innerText = msg; }
-  function setButtons(on){
-    $("btnIn").disabled  = !on;
-    $("btnOut").disabled = !on;
-    $("btnOT").disabled  = !on;
+  function enableAll(on){
+    ["btnIn","btnOut","btnOTApply","btnLeaveApply","btnReloadMine","btnReloadPending"].forEach(id=>{
+      if($(id)) $(id).disabled=!on;
+    });
+  }
+  function traceId_(){ return "liff-"+Date.now()+"-"+Math.random().toString(16).slice(2); }
+
+  // ✅ 最穩送出：GET ping
+  function ping_(paramsObj, okMsg){
+    const params = new URLSearchParams(paramsObj).toString();
+    const url = GAS_URL + "?" + params;
+    return new Promise((resolve,reject)=>{
+      const img=new Image();
+      img.onload=()=>resolve(true);
+      img.onerror=()=>reject(new Error("blocked"));
+      img.src=url;
+    }).then(()=>setStatus(okMsg,"ok"))
+      .catch(()=>setStatus("送出失敗，請重試","err"));
   }
 
-  window.onerror = function(message, source, lineno, colno, error) {
-    log("window.onerror: " + message + " @ " + lineno + ":" + colno);
-  };
+  // ✅ JSONP 讀取：避免 CORS
+  function jsonp_(paramsObj){
+    return new Promise((resolve,reject)=>{
+      const cb = "cb_" + Date.now() + "_" + Math.random().toString(16).slice(2);
+      paramsObj.callback = cb;
+      const url = GAS_URL + "?" + new URLSearchParams(paramsObj).toString();
+
+      window[cb] = (data)=>{
+        try{ resolve(data); }
+        finally{
+          delete window[cb];
+          script.remove();
+        }
+      };
+
+      const script = document.createElement("script");
+      script.src = url;
+      script.onerror = ()=>{ reject(new Error("jsonp failed")); delete window[cb]; script.remove(); };
+      document.body.appendChild(script);
+
+      // timeout
+      setTimeout(()=>{ if(window[cb]){ reject(new Error("jsonp timeout")); delete window[cb]; script.remove(); } }, 8000);
+    });
+  }
+
+  function showTab(which){
+    ["tabApply","tabMine","tabMgr"].forEach(id=>$(id).classList.remove("active"));
+    $("tab"+which).classList.add("active");
+
+    $("panelApply").classList.toggle("hidden", which!=="Apply");
+    $("panelMine").classList.toggle("hidden", which!=="Mine");
+    $("panelMgr").classList.toggle("hidden", which!=="Mgr");
+  }
 
   async function init(){
     try{
-      setButtons(false);
+      enableAll(false);
       setStatus("初始化中...");
-      log("origin=" + location.origin);
-      log("href=" + location.href);
 
-      log("liff.init start");
-      await liff.init({ liffId: LIFF_ID });
-      log("liff.init ok");
+      await Promise.race([
+        liff.init({ liffId: LIFF_ID }),
+        new Promise((_,rej)=>setTimeout(()=>rej(new Error("liff.init timeout")), 8000))
+      ]);
 
-      log("isLoggedIn=" + liff.isLoggedIn());
-      if(!liff.isLoggedIn()){
-        log("calling liff.login()");
-        liff.login();
-        return;
-      }
+      if(!liff.isLoggedIn()){ liff.login(); return; }
 
-      log("getProfile start");
       const profile = await liff.getProfile();
-      log("getProfile ok");
-
       userId = profile.userId || "";
       displayName = profile.displayName || "";
+      $("user").innerText = `你好，${displayName}`;
 
-      $("user").innerText = "你好，" + displayName;
+      // 綁定打卡
+      $("btnIn").onclick  = ()=> ping_({action:"punch", type:"上班", userId, displayName, ts:Date.now(), traceId:traceId_(), origin:location.origin}, "上班已送出 ✅");
+      $("btnOut").onclick = ()=> ping_({action:"punch", type:"下班", userId, displayName, ts:Date.now(), traceId:traceId_(), origin:location.origin}, "下班已送出 ✅");
 
-      $("btnIn").onclick  = () => sendLog("上班");
-      $("btnOut").onclick = () => sendLog("下班");
-      $("btnOT").onclick  = () => sendLog("加班");
+      // 綁定申請
+      $("btnOTApply").onclick = ()=> submitOT();
+      $("btnLeaveApply").onclick = ()=> submitLeave();
 
-      ready = true;
-      setButtons(true);
-      setStatus("可以打卡了 ✅");
-      log("ready=true");
+      // tabs
+      $("tabApply").onclick=()=>showTab("Apply");
+      $("tabMine").onclick=()=>{ showTab("Mine"); loadMine(); };
+
+      $("btnReloadMine").onclick=()=>loadMine();
+      $("btnReloadPending").onclick=()=>loadPending();
+
+      ready=true;
+      enableAll(true);
+      setStatus("可以操作了 ✅","ok");
+
+      // 先探測你是不是主管（用 listRequests 回傳 isManager）
+      const probe = await jsonp_({action:"listRequests", userId, mode:"mine"});
+      isManager = !!probe?.isManager;
+      if(isManager){
+        $("tabMgr").classList.remove("hidden");
+        $("tabMgr").onclick=()=>{ showTab("Mgr"); loadPending(); };
+        $("btnReloadPending").disabled=false;
+      }
     }catch(e){
-      setStatus("初始化失敗（看 debug）");
-      log("ERROR: " + (e?.message || e));
+      setStatus("初始化失敗，請重開","err");
     }
   }
 
-  async function sendLog(type){
-    if(!ready){
-      setStatus("尚未初始化完成");
-      return;
-    }
+  function submitOT(){
+    const date = $("otDate").value;
+    const hours = $("otHours").value;
+    const reason = $("otReason").value.trim();
 
-    setStatus("送出中...");
-    log("sendLog=" + type);
+    if(!date || !hours){ setStatus("請填寫加班日期與時數","err"); return; }
 
-    const body = new URLSearchParams({
-      type,
+    return ping_({
+      action:"request",
+      requestType:"Overtime",
+      leaveType:"",
+      date,
+      hours:String(hours),
+      reason,
       userId,
       displayName,
-      ts: String(Date.now())
-    }).toString();
+      ts:Date.now(),
+      traceId:traceId_(),
+      origin:location.origin
+    }, "加班申請已送出（待核准）✅");
+  }
 
-    try{
-      await fetch(GAS_WEBAPP_URL, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
-        body
-      });
+  function submitLeave(){
+    const leaveType = $("leaveType").value;
+    const date = $("leaveDate").value;
+    const hours = $("leaveHours").value;
+    const reason = $("leaveReason").value.trim();
 
-      setStatus("已送出 ✅（去 Sheet 看有沒有新增）");
-      log("sent");
-    }catch(err){
-      setStatus("送出失敗（看 debug）");
-      log("ERR: " + (err?.message || err));
+    if(!date || !hours){ setStatus("請填寫請假日期與時數","err"); return; }
+
+    return ping_({
+      action:"request",
+      requestType:"Leave",
+      leaveType,
+      date,
+      hours:String(hours),
+      reason,
+      userId,
+      displayName,
+      ts:Date.now(),
+      traceId:traceId_(),
+      origin:location.origin
+    }, "請假申請已送出（待核准）✅");
+  }
+
+  async function loadMine(){
+    if(!ready) return;
+    setStatus("載入中...");
+    const data = await jsonp_({action:"listRequests", userId, mode:"mine"});
+    renderList_("mineList", data?.items || [], false);
+    setStatus("已更新","ok");
+  }
+
+  async function loadPending(){
+    if(!ready || !isManager) return;
+    setStatus("載入中...");
+    const data = await jsonp_({action:"listRequests", userId, mode:"pendingAll"});
+    renderList_("pendingList", data?.items || [], true);
+    setStatus("已更新","ok");
+  }
+
+  function renderList_(targetId, items, withActions){
+    const el = $(targetId);
+    if(!items.length){ el.innerHTML = `<div class="muted">目前沒有資料</div>`; return; }
+
+    el.innerHTML = items.map(it=>{
+      const title = it.requestType === "Overtime" ? "加班" : `請假（${it.leaveType}）`;
+      const st = it.status || "Pending";
+      const pill = `<span class="pill">${st}</span>`;
+
+      const actions = withActions && st==="Pending" ? `
+        <div class="row" style="margin-top:8px;">
+          <button class="btn" onclick="decideReq('${it.requestId}','Approved')">✅ 核准</button>
+          <button class="btn" onclick="decideReq('${it.requestId}','Rejected')">❌ 駁回</button>
+        </div>` : "";
+
+      return `
+        <div class="item">
+          <div><b>${title}</b>${pill}</div>
+          <div class="muted">申請人：${it.applicantName}｜日期：${it.date}｜時數：${it.hours}</div>
+          <div style="margin-top:6px;">${escapeHtml_(it.reason || "")}</div>
+          ${actions}
+        </div>`;
+    }).join("");
+  }
+
+  window.decideReq = async function(requestId, decision){
+    setStatus("送出中...");
+    const data = await jsonp_({action:"decide", userId, requestId, decision});
+    if(data?.ok){
+      setStatus(data.message || "已更新","ok");
+      loadPending();
+    }else{
+      setStatus(data?.message || "更新失敗","err");
     }
+  }
+
+  function escapeHtml_(s){
+    return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   }
 
   init();

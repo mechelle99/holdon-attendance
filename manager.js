@@ -42,6 +42,7 @@ function getManagerId(){
   return localStorage.getItem("managerId") || "demo_manager";
 }
 
+
 async function loadPending(){
   if(!ENDPOINT){
     setStatus("❌ 缺少 GAS_ENDPOINT（config.js）", false);

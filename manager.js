@@ -1,3 +1,7 @@
+if (!window.GAS_ENDPOINT) {
+  throw new Error("❌ GAS_ENDPOINT not loaded. Did you include config.js first?");
+}
+
 /* manager.js */
 const ENDPOINT = window.CONFIG?.GAS_ENDPOINT;
 const $ = (id) => document.getElementById(id);

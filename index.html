@@ -1,3 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HOLDON 打卡</title>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 14px; }
+    button { margin: 6px 6px 0 0; padding: 10px 12px; }
+    #debug { margin-top: 12px; padding: 10px; border: 1px solid #ddd; white-space: pre-wrap; font-size: 12px; }
+    .muted { color:#666; font-size:12px; }
+  </style>
+</head>
+<body>
+  <h2>HOLDON 出勤打卡</h2>
+  <div class="muted">如果你看得到這行字，代表頁面載入正常（不是空白）。</div>
+
+  <p id="user">載入中...</p>
+  <p id="status" class="muted"></p>
+
+  <button id="btnIn"  disabled>🟢 上班打卡</button>
+  <button id="btnOut" disabled>🔴 下班打卡</button>
+  <button id="btnOT"  disabled>🕒 加班打卡</button>
+
+  <div id="debug">debug: start</div>
+
 <script>
   const LIFF_ID = "2009036245-XmZMSuuS";
   const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbz0YAlbpIYDqN6UC99TmaksEfzylud1QzuwTaupCp9zGdpUlReuRxaG8cvryxziHli_/exec";
@@ -18,20 +45,32 @@
     $("btnOT").disabled  = !on;
   }
 
+  window.onerror = function(message, source, lineno, colno, error) {
+    log("window.onerror: " + message + " @ " + lineno + ":" + colno);
+  };
+
   async function init(){
     try{
-      $("debug").innerText = "debug: start";
-      setStatus("初始化中...");
       setButtons(false);
+      setStatus("初始化中...");
+      log("origin=" + location.origin);
+      log("href=" + location.href);
 
+      log("liff.init start");
       await liff.init({ liffId: LIFF_ID });
+      log("liff.init ok");
 
+      log("isLoggedIn=" + liff.isLoggedIn());
       if(!liff.isLoggedIn()){
+        log("calling liff.login()");
         liff.login();
         return;
       }
 
+      log("getProfile start");
       const profile = await liff.getProfile();
+      log("getProfile ok");
+
       userId = profile.userId || "";
       displayName = profile.displayName || "";
 
@@ -46,7 +85,7 @@
       setStatus("可以打卡了 ✅");
       log("ready=true");
     }catch(e){
-      setStatus("初始化失敗");
+      setStatus("初始化失敗（看 debug）");
       log("ERROR: " + (e?.message || e));
     }
   }
@@ -71,19 +110,19 @@
       await fetch(GAS_WEBAPP_URL, {
         method: "POST",
         mode: "no-cors",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
-        },
+        headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
         body
       });
 
-      setStatus("已送出 ✅（請查看 Sheet）");
+      setStatus("已送出 ✅（去 Sheet 看有沒有新增）");
       log("sent");
     }catch(err){
-      setStatus("送出失敗");
+      setStatus("送出失敗（看 debug）");
       log("ERR: " + (err?.message || err));
     }
   }
 
   init();
 </script>
+</body>
+</html>

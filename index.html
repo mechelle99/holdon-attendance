@@ -1,116 +1,30 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>HOLDON 出勤系統</title>
-  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-  <style>
-    body{font-family:Arial,sans-serif;padding:16px;color:#111;}
-    h2{margin:0 0 8px;}
-    .muted{color:#666;font-size:12px;margin:6px 0 14px;}
-    .tabs{display:flex;gap:8px;margin:12px 0;}
-    .tab{padding:8px 12px;border:1px solid #ddd;border-radius:999px;background:#fff;cursor:pointer;font-size:13px;}
-    .tab.active{border-color:#111;}
-    .card{border:1px solid #eee;border-radius:14px;padding:14px;margin:12px 0;box-shadow:0 8px 24px rgba(0,0,0,.05);}
-    .row{display:flex;gap:10px;flex-wrap:wrap;}
-    .btn{padding:10px 12px;border-radius:999px;border:1px solid #ddd;background:#fff;cursor:pointer;}
-    .btn.primary{border-color:#111;}
-    .btn:disabled{opacity:.45;cursor:not-allowed;}
-    label{font-size:12px;color:#444;display:block;margin:10px 0 4px;}
-    input,select,textarea{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #ddd;border-radius:10px;font-size:14px;}
-    textarea{min-height:70px;resize:vertical;}
-    .status{font-size:13px;margin-top:10px;}
-    .ok{color:#0a7a2f;}
-    .err{color:#b00020;}
-    .hidden{display:none;}
-    .item{border-top:1px solid #eee;padding-top:10px;margin-top:10px;}
-    .pill{display:inline-block;font-size:12px;padding:3px 8px;border:1px solid #ddd;border-radius:999px;color:#444;margin-left:6px;}
-    .hint{font-size:12px;color:#666;margin-top:6px;}
-  </style>
-</head>
-<body>
-  <h2>HOLDON 出勤系統</h2>
-  <div class="muted">上/下班立即生效；打卡需在公司 100 公尺內；加班與請假需主管核准。</div>
-
-  <div class="card">
-    <div id="user">載入中...</div>
-    <div id="gpsHint" class="hint">定位：未取得</div>
-    <div id="status" class="status muted"></div>
-
-    <div class="row" style="margin-top:10px;">
-      <button id="btnIn"  class="btn primary" disabled>🟢 上班打卡</button>
-      <button id="btnOut" class="btn primary" disabled>🔴 下班打卡</button>
-      <button id="btnGPS" class="btn" disabled>📍 重新定位</button>
-    </div>
-
-    <div class="tabs">
-      <button class="tab active" id="tabApply">申請</button>
-      <button class="tab" id="tabMine">我的申請</button>
-      <button class="tab hidden" id="tabMgr">主管核准</button>
-    </div>
-  </div>
-
-  <div id="panelApply" class="card">
-    <h3 style="margin:0 0 8px;">🕒 加班申請（需核准）</h3>
-    <label>加班日期</label><input id="otDate" type="date"/>
-    <label>加班時數（小時）</label><input id="otHours" type="number" min="0.5" step="0.5" placeholder="例如：2"/>
-    <label>原因說明</label><textarea id="otReason" placeholder="簡述加班原因"></textarea>
-    <div class="row" style="margin-top:10px;">
-      <button id="btnOTApply" class="btn" disabled>送出加班申請</button>
-    </div>
-
-    <hr style="border:none;border-top:1px solid #eee;margin:14px 0;"/>
-
-    <h3 style="margin:0 0 8px;">📝 請假申請（需核准）</h3>
-    <label>假別</label>
-    <select id="leaveType">
-      <option value="事假">事假</option>
-      <option value="病假">病假</option>
-      <option value="特休">特休</option>
-      <option value="生日假">生日假</option>
-    </select>
-    <label>請假日期</label><input id="leaveDate" type="date"/>
-    <label>請假時數（小時）</label><input id="leaveHours" type="number" min="0.5" step="0.5" placeholder="例如：4"/>
-    <label>原因說明</label><textarea id="leaveReason" placeholder="簡述請假原因"></textarea>
-    <div class="row" style="margin-top:10px;">
-      <button id="btnLeaveApply" class="btn" disabled>送出請假申請</button>
-    </div>
-  </div>
-
-  <div id="panelMine" class="card hidden">
-    <h3 style="margin:0 0 8px;">📄 我的申請</h3>
-    <div class="row">
-      <button class="btn" id="btnReloadMine" disabled>重新整理</button>
-    </div>
-    <div id="mineList" class="muted" style="margin-top:10px;">尚無資料</div>
-  </div>
-
-  <div id="panelMgr" class="card hidden">
-    <h3 style="margin:0 0 8px;">📥 待核准清單</h3>
-    <div class="row">
-      <button class="btn" id="btnReloadPending" disabled>重新整理</button>
-    </div>
-    <div id="pendingList" class="muted" style="margin-top:10px;">尚無資料</div>
-  </div>
-
 <script>
 /* ===== 設定 ===== */
 const LIFF_ID = "2009036245-XmZMSuuS";
 const GAS_URL = "https://script.google.com/macros/s/AKfycbz0YAlbpIYDqN6UC99TmaksEfzylud1QzuwTaupCp9zGdpUlReuRxaG8cvryxziHli_/exec";
 
+/** ✅ 公司定位點（請改成你們實際地址座標；可放多個據點） */
+const COMPANY_POINTS = [
+  { name: "公司", lat: 25.033964, lng: 121.564468 } // 範例：台北101附近，請務必改掉
+];
+
+/** ✅ 允許打卡距離（公尺） */
+const ALLOW_DISTANCE = 100;
+
 function minDistanceToCompany(lat, lng){
+  if(!Array.isArray(COMPANY_POINTS) || COMPANY_POINTS.length === 0){
+    return { distance: Infinity, name: "未設定公司座標" };
+  }
   let best = { distance: Infinity, name: "" };
   for(const p of COMPANY_POINTS){
     const d = calcDistance(lat, lng, p.lat, p.lng);
-    if(d < best.distance) best = { distance: d, name: p.name };
+    if(d < best.distance) best = { distance: d, name: p.name || "公司" };
   }
   return best; // {distance, name}
 }
 
-
 let userId="", displayName="", ready=false, isManager=false;
-let lastGPS = null; // {lat,lng,distance}
+let lastGPS = null; // {lat,lng,distance,companyName}
 
 /* ===== 工具 ===== */
 const $ = id => document.getElementById(id);
@@ -198,81 +112,59 @@ async function getGPS_(){
       pos=>{
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
+
         const best = minDistanceToCompany(lat, lng);
         const d = best.distance;
+
+        lastGPS = { lat, lng, distance: d, companyName: best.name };
         $("gpsHint").innerText = `定位：距離 ${best.name} ${Math.round(d)} 公尺`;
-        lastGPS = {lat,lng,distance:d};
-        $("gpsHint").innerText = `定位：距離公司 ${Math.round(d)} 公尺`;
-        if(d > ALLOW_DISTANCE) return reject(new Error(`不在打卡範圍內（${Math.round(d)}m）`));
+
+        if(d > ALLOW_DISTANCE){
+          return reject(new Error(`不在打卡範圍內（${Math.round(d)}m，需 ≤ ${ALLOW_DISTANCE}m）`));
+        }
         resolve(lastGPS);
       },
-      err=>reject(new Error("GPS 取得失敗，請開啟定位權限")),
-      {enableHighAccuracy:true, timeout:12000, maximumAge:0}
+      _err => reject(new Error("GPS 取得失敗，請開啟定位權限")),
+      { enableHighAccuracy:true, timeout:12000, maximumAge:0 }
     );
   });
-}
-
-/* ===== UI ===== */
-function showTab(which){
-  ["tabApply","tabMine","tabMgr"].forEach(id=>$(id).classList.remove("active"));
-  $("tab"+which).classList.add("active");
-  $("panelApply").classList.toggle("hidden", which!=="Apply");
-  $("panelMine").classList.toggle("hidden", which!=="Mine");
-  $("panelMgr").classList.toggle("hidden", which!=="Mgr");
-}
-
-/* ===== 核心綁定 ===== */
-function bindCoreButtons(){
-  $("tabApply").onclick = ()=>showTab("Apply");
-  $("tabMine").onclick  = ()=>{ showTab("Mine"); loadMine(); };
-  $("tabMgr").onclick   = ()=>{ showTab("Mgr");  loadPending(); };
-
-  $("btnGPS").onclick = async ()=>{
-    try{
-      await getGPS_();
-      setStatus("定位完成 ✅","ok");
-    }catch(e){
-      setStatus(e.message,"err");
-    }
-  };
-
-  $("btnIn").onclick  = ()=> punch_("IN");
-  $("btnOut").onclick = ()=> punch_("OUT");
-
-  $("btnOTApply").onclick    = ()=> submitOT();
-  $("btnLeaveApply").onclick = ()=> submitLeave();
-
-  $("btnReloadMine").onclick    = ()=> loadMine();
-  $("btnReloadPending").onclick = ()=> loadPending();
-
-  const refreshButtons = ()=>{
-    $("btnOTApply").disabled    = !($("otDate").value && $("otHours").value);
-    $("btnLeaveApply").disabled = !($("leaveDate").value && $("leaveHours").value);
-  };
-  ["change","keyup","input"].forEach(ev=>{
-    ["otDate","otHours","otReason","leaveType","leaveDate","leaveHours","leaveReason"].forEach(id=>{
-      $(id).addEventListener(ev, refreshButtons);
-    });
-  });
-  refreshButtons();
 }
 
 /* ===== 打卡（GPS 100m） ===== */
 async function punch_(type){
   if(!ready) return;
 
-  $("btnIn").disabled = $("btnOut").disabled = true;
+  // 先鎖按鈕，避免連點
+  $("btnIn").disabled = true;
+  $("btnOut").disabled = true;
 
   try{
     // 強制每次打卡重新取定位（防作弊）
     const gps = await getGPS_();
 
     const ok = await jsonpWrite_({
-      action:"punch",
-      type,
+      action: "punch",
+      type, // "IN" or "OUT"
       userId,
       displayName,
-      lat:gps.lat,
-      lng:gps.lng,
-      ts:Date.now(),
-      traceId:traceId_(),
+      lat: gps.lat,
+      lng: gps.lng,
+      distance: Math.round(gps.distance),
+      companyName: gps.companyName,
+      ts: Date.now(),
+      traceId: traceId_()
+    }, type==="IN" ? "上班打卡成功 ✅" : "下班打卡成功 ✅");
+
+    if(ok){
+      // 打完卡順手更新「我的申請」或你的打卡紀錄區（你後面如果有列表就接）
+      // loadMine();
+    }
+  }catch(e){
+    setStatus(e.message || "打卡失敗","err");
+  }finally{
+    // 只要系統 ready，就放回按鈕（你也可以加上：依狀態決定能不能打 IN/OUT）
+    $("btnIn").disabled = !ready;
+    $("btnOut").disabled = !ready;
+  }
+}
+</script>

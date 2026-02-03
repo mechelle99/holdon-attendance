@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HOLDON 出勤系統｜設定</title>
+  <style>
+    body{font-family:system-ui,-apple-system,"Noto Sans TC",sans-serif;background:#f6f7f8;margin:0}
+    .wrap{max-width:720px;margin:24px auto;padding:16px}
+    .card{background:#fff;border-radius:14px;padding:18px 18px 10px;box-shadow:0 6px 24px rgba(0,0,0,.06)}
+    h1{margin:0 0 10px;font-size:22px}
+    .muted{color:#6b7280;font-size:13px;line-height:1.6}
+    label{display:block;margin:14px 0 6px;font-weight:700}
+    input{width:100%;padding:12px 12px;border:1px solid #e5e7eb;border-radius:10px;font-size:16px}
+    .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+    button{flex:1;padding:12px;border:0;border-radius:10px;font-size:16px;font-weight:800;cursor:pointer}
+    .primary{background:#111827;color:#fff}
+    .secondary{background:#e5e7eb}
+    .ok{color:#047857;font-weight:800}
+    .bad{color:#b91c1c;font-weight:800}
+    .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+    .links{margin-top:10px;display:flex;gap:10px;flex-wrap:wrap}
+    a{color:#2563eb;text-decoration:none}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>出勤系統設定</h1>
+      <div class="muted">
+        這頁只做一件事：把「員工 / 主管」身分寫進瀏覽器。<br/>
+        設完就去：<span class="mono">/</span>（員工頁）或 <span class="mono">/manager.html</span>（主管頁）
+      </div>
+
+      <label>員工編號 employeeId</label>
+      <input id="employeeId" placeholder="例如 U001" />
+
+      <label>員工姓名 employeeName</label>
+      <input id="employeeName" placeholder="例如 米雪" />
+
+      <label>主管編號 managerId（沒有就留空）</label>
+      <input id="managerId" placeholder="例如 MGR001 / MGR002" />
+
+      <div class="row">
+        <button class="primary" id="btnSave">儲存設定</button>
+        <button class="secondary" id="btnClear">清除設定</button>
+      </div>
+
+      <div id="status" class="muted" style="margin-top:10px"></div>
+
+      <div class="links">
+        <a href="./">前往員工頁</a>
+        <a href="./manager.html">前往主管頁</a>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const $ = (id)=>document.getElementById(id);
+  function setStatus(msg, ok){
+    $("status").innerHTML = (ok===true?`<span class="ok">✅ ${msg}</span>`:ok===false?`<span class="bad">❌ ${msg}</span>`:msg);
+  }
+  function load(){
+    $("employeeId").value = localStorage.getItem("employeeId") || "";
+    $("employeeName").value = localStorage.getItem("employeeName") || "";
+    $("managerId").value = localStorage.getItem("managerId") || "";
+    setStatus("目前設定已載入。", null);
+  }
+  $("btnSave").addEventListener("click", ()=>{
+    const eid = $("employeeId").value.trim();
+    const enm = $("employeeName").value.trim();
+    const mid = $("managerId").value.trim();
+
+    if(!eid || !enm) return setStatus("員工編號與姓名必填。", false);
+
+    localStorage.setItem("employeeId", eid);
+    localStorage.setItem("employeeName", enm);
+
+    if(mid) localStorage.setItem("managerId", mid);
+    else localStorage.removeItem("managerId");
+
+    setStatus("已儲存。你可以直接去員工頁/主管頁了。", true);
+  });
+
+  $("btnClear").addEventListener("click", ()=>{
+    ["employeeId","employeeName","managerId"].forEach(k=>localStorage.removeItem(k));
+    load();
+    setStatus("已清除。", true);
+  });
+
+  load();
+</script>
+</body>
+</html>

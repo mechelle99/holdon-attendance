@@ -99,10 +99,15 @@
 const LIFF_ID = "2009036245-XmZMSuuS";
 const GAS_URL = "https://script.google.com/macros/s/AKfycbz0YAlbpIYDqN6UC99TmaksEfzylud1QzuwTaupCp9zGdpUlReuRxaG8cvryxziHli_/exec";
 
-// 公司座標（⚠️ 你要改成你們公司）
-const COMPANY_LAT = 25.033964;
-const COMPANY_LNG = 121.564468;
-const ALLOW_DISTANCE = 100;
+function minDistanceToCompany(lat, lng){
+  let best = { distance: Infinity, name: "" };
+  for(const p of COMPANY_POINTS){
+    const d = calcDistance(lat, lng, p.lat, p.lng);
+    if(d < best.distance) best = { distance: d, name: p.name };
+  }
+  return best; // {distance, name}
+}
+
 
 let userId="", displayName="", ready=false, isManager=false;
 let lastGPS = null; // {lat,lng,distance}
@@ -193,7 +198,9 @@ async function getGPS_(){
       pos=>{
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
-        const d = calcDistance(lat,lng,COMPANY_LAT,COMPANY_LNG);
+        const best = minDistanceToCompany(lat, lng);
+        const d = best.distance;
+        $("gpsHint").innerText = `定位：距離 ${best.name} ${Math.round(d)} 公尺`;
         lastGPS = {lat,lng,distance:d};
         $("gpsHint").innerText = `定位：距離公司 ${Math.round(d)} 公尺`;
         if(d > ALLOW_DISTANCE) return reject(new Error(`不在打卡範圍內（${Math.round(d)}m）`));

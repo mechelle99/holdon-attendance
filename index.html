@@ -27,6 +27,8 @@
     .item{border-top:1px solid #eee;padding-top:10px;margin-top:10px;}
     .pill{display:inline-block;font-size:12px;padding:3px 8px;border:1px solid #ddd;border-radius:999px;color:#444;margin-left:6px;}
     .hint{font-size:12px;color:#666;margin-top:6px;white-space:pre-wrap;}
+    pre{background:#fafafa;border:1px solid #eee;border-radius:10px;padding:10px;white-space:pre-wrap;word-break:break-word;}
+    hr{border:none;border-top:1px solid #eee;margin:14px 0;}
     small{color:#666}
   </style>
 </head>
@@ -38,11 +40,12 @@
     <div id="user">載入中...</div>
     <div id="gpsHint" class="hint">定位：未取得</div>
     <div id="status" class="status muted"></div>
+    <pre id="errbox" class="hidden"></pre>
 
     <div class="row" style="margin-top:10px;">
       <button id="btnIn"  class="btn primary" disabled>🟢 上班打卡</button>
       <button id="btnOut" class="btn primary" disabled>🔴 下班打卡</button>
-      <button id="btnGPS" class="btn" disabled>📍 重新定位</button>
+      <button id="btnGPS" class="btn">📍 重新定位</button>
     </div>
 
     <div class="tabs">
@@ -63,15 +66,22 @@
         <label>結束時間</label><input id="otEnd" type="time"/>
       </div>
     </div>
-    <label>加班時數（小時）</label><input id="otHours" type="number" min="0.5" step="0.5" placeholder="例如：2"/>
+    <label>加班時數（小時，自動計算）</label>
+    <input id="otHours" type="number" min="0.5" step="0.5" placeholder="會自動計算" readonly />
+
     <label>原因說明</label><textarea id="otReason" placeholder="簡述加班原因"></textarea>
-    <label>附件連結（可選，貼 Google Drive/LINE 檔案連結）</label>
-    <input id="otAttachLink" type="url" placeholder="https://..."/>
+
+    <label>附件連結（可選，先上傳到 Drive 後貼連結）</label>
+    <input id="otAttachLink" type="url" placeholder="https://drive.google.com/..." />
+    <div class="row" style="margin-top:8px;">
+      <button id="btnOpenDrive" class="btn" type="button">📂 開啟附件資料夾</button>
+    </div>
+
     <div class="row" style="margin-top:10px;">
       <button id="btnOTApply" class="btn" disabled>送出加班申請</button>
     </div>
 
-    <hr style="border:none;border-top:1px solid #eee;margin:14px 0;"/>
+    <hr/>
 
     <h3 style="margin:0 0 8px;">📝 請假申請（需核准）</h3>
     <label>假別</label>
@@ -81,6 +91,7 @@
       <option value="特休">特休</option>
       <option value="生日假">生日假</option>
     </select>
+
     <label>請假日期</label><input id="leaveDate" type="date"/>
     <div class="row">
       <div style="flex:1;min-width:140px;">
@@ -90,20 +101,26 @@
         <label>結束時間</label><input id="leaveEnd" type="time"/>
       </div>
     </div>
-    <label>請假時數（小時）</label><input id="leaveHours" type="number" min="0.5" step="0.5" placeholder="例如：4"/>
+
+    <label>請假時數（小時，自動計算）</label>
+    <input id="leaveHours" type="number" min="0.5" step="0.5" placeholder="會自動計算" readonly />
+
     <label>原因說明</label><textarea id="leaveReason" placeholder="簡述請假原因"></textarea>
+
     <label>看病證明/附件連結（病假建議；沒附也可）</label>
-    <input id="leaveAttachLink" type="url" placeholder="https://..."/>
+    <input id="leaveAttachLink" type="url" placeholder="https://drive.google.com/..." />
+
     <div class="row" style="margin-top:10px;">
       <button id="btnLeaveApply" class="btn" disabled>送出請假申請</button>
     </div>
-    <div class="hint"><small>⚠️ GitHub + JSONP 架構無法穩定「直接上傳檔案」。附件請改貼連結（Drive/LINE 檔案）。</small></div>
+
+    <div class="hint"><small>⚠️ GitHub + JSONP 架構無法穩定直接上傳檔案，附件請貼 Drive 連結。</small></div>
   </div>
 
   <div id="panelMine" class="card hidden">
     <h3 style="margin:0 0 8px;">📄 我的申請</h3>
     <div class="row">
-      <button class="btn" id="btnReloadMine" disabled>重新整理</button>
+      <button class="btn" id="btnReloadMine">重新整理</button>
     </div>
     <div id="mineList" class="muted" style="margin-top:10px;">尚無資料</div>
   </div>
@@ -111,30 +128,31 @@
   <div id="panelMgr" class="card hidden">
     <h3 style="margin:0 0 8px;">📥 待核准清單</h3>
     <div class="row">
-      <button class="btn" id="btnReloadPending" disabled>重新整理</button>
+      <button class="btn" id="btnReloadPending">重新整理</button>
     </div>
     <div id="pendingList" class="muted" style="margin-top:10px;">尚無資料</div>
   </div>
 
 <script>
-/* ========= 設定 ========= */
+/* ================== 設定 ================== */
 const LIFF_ID = "2009036245-XmZMSuuS";
 
-// ✅ 把你部署後的 GAS Web App /exec URL 貼這裡
-const GAS_URL = "https://script.google.com/macros/s/AKfycbwPDqm4YawpB5vgOOG9qqPA51-u_vCb-bbfr-91k6EtjkN6ZDrjTlK9-xBpwxtmuVAQkA/exec";
+// ✅ 這裡一定要換成你 GAS 部署的 /exec
+const GAS_URL = "PASTE_YOUR_GAS_WEBAPP_EXEC_URL_HERE";
 
-// ✅ 允許距離（公尺）
+// ✅ 公司座標：你截圖兩點（已轉十進位）
 const ALLOW_DISTANCE = 100;
-
-// ✅ 公司座標（你提供的兩點）
 const COMPANY_POINTS = [
   { name:"公司點A", lat:25.0175556, lng:121.5302500 },
   { name:"公司點B", lat:25.0255556, lng:121.5235556 },
 ];
 
-/* ========= 狀態 ========= */
+// ✅ 你指定的附件資料夾
+const DRIVE_FOLDER_URL = "https://drive.google.com/drive/u/0/folders/1Ys3V05qm7RDYGnVSFWjjzL3Pl1xiBM5w";
+
+/* ================== 狀態 ================== */
 let userId="", displayName="", ready=false, isManager=false;
-let lastGPS = null;
+let lastGPS=null;
 
 const $ = id => document.getElementById(id);
 
@@ -142,34 +160,39 @@ function setStatus(msg,type="muted"){
   $("status").className="status "+(type==="ok"?"ok":type==="err"?"err":"muted");
   $("status").innerText=msg||"";
 }
+function showErr(e, title="Error"){
+  const box = $("errbox");
+  box.classList.remove("hidden");
+  box.textContent = `${title}\n\n${e?.stack || e?.message || String(e)}`;
+}
+window.addEventListener("error", (ev)=>{ setStatus("程式錯誤（請看下方錯誤）","err"); showErr(ev.error || ev.message, "window.onerror"); });
+window.addEventListener("unhandledrejection",(ev)=>{ setStatus("程式錯誤（請看下方錯誤）","err"); showErr(ev.reason, "unhandledrejection"); });
 
 function escapeHtml_(s){
   return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 function traceId_(){ return "liff-"+Date.now()+"-"+Math.random().toString(16).slice(2); }
 
-/* ========= 距離 ========= */
+/* ================== 距離計算 ================== */
 function calcDistance(lat1,lng1,lat2,lng2){
   const R = 6371000;
   const toRad = d=>d*Math.PI/180;
   const dLat = toRad(lat2-lat1);
   const dLng = toRad(lng2-lng1);
-  const a =
-    Math.sin(dLat/2)**2 +
-    Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*
-    Math.sin(dLng/2)**2;
+  const a = Math.sin(dLat/2)**2 +
+    Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
-function minDistanceToCompany(lat, lng){
+function minDistanceToCompany(lat,lng){
   let best = { distance: Infinity, name:"" };
   for(const p of COMPANY_POINTS){
-    const d = calcDistance(lat, lng, p.lat, p.lng);
+    const d = calcDistance(lat,lng,p.lat,p.lng);
     if(d < best.distance) best = { distance:d, name:p.name };
   }
   return best;
 }
 
-/* ========= JSONP ========= */
+/* ================== JSONP（修正版）================== */
 function jsonp_(paramsObj){
   return new Promise((resolve,reject)=>{
     const cb = "cb_" + Date.now() + "_" + Math.random().toString(16).slice(2);
@@ -187,7 +210,12 @@ function jsonp_(paramsObj){
     };
 
     script.src = url;
-    script.onerror = ()=>{ try{ delete window[cb]); }catch(_){} script.remove(); reject(new Error("jsonp_failed")); };
+    script.onerror = ()=>{
+      try{ delete window[cb]; }catch(_){}
+      script.remove();
+      reject(new Error("jsonp_failed"));
+    };
+
     document.body.appendChild(script);
 
     setTimeout(()=>{
@@ -213,36 +241,77 @@ async function jsonpWrite_(paramsObj, okMsg){
   }catch(e){
     console.error(e);
     setStatus("送出失敗（連線/逾時）","err");
+    showErr(e, "JSONP failed");
     return null;
   }
 }
 
-/* ========= GPS ========= */
+/* ================== GPS（不卡住版）================== */
 async function getGPS_(){
   $("gpsHint").innerText = "定位：取得中…";
   return new Promise((resolve,reject)=>{
-    if(!navigator.geolocation) return reject(new Error("此裝置不支援定位"));
+    if(!navigator.geolocation){
+      $("gpsHint").innerText = "定位：此裝置不支援定位";
+      return reject(new Error("此裝置不支援定位"));
+    }
+
     navigator.geolocation.getCurrentPosition(
       pos=>{
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
 
-        const best = minDistanceToCompany(lat, lng);
+        const best = minDistanceToCompany(lat,lng);
         const d = best.distance;
 
         lastGPS = { lat, lng, distance:d, companyName:best.name };
         $("gpsHint").innerText = `定位：距離 ${best.name} ${Math.round(d)} 公尺（允許 ≤ ${ALLOW_DISTANCE}m）`;
 
-        if(d > ALLOW_DISTANCE) return reject(new Error(`不在打卡範圍內（${Math.round(d)}m）`));
+        if(d > ALLOW_DISTANCE){
+          return reject(new Error(`不在打卡範圍內（${Math.round(d)}m）`));
+        }
         resolve(lastGPS);
       },
-      _=>reject(new Error("GPS 取得失敗，請開啟定位權限")),
-      {enableHighAccuracy:true, timeout:12000, maximumAge:0}
+      err=>{
+        const msg = (err && err.code === 1)
+          ? "GPS 權限被拒絕（請在 LINE/手機設定允許定位）"
+          : "GPS 取得失敗（請開啟定位/到戶外重試）";
+        $("gpsHint").innerText = "定位：" + msg;
+        reject(new Error(msg));
+      },
+      { enableHighAccuracy:true, timeout:12000, maximumAge:0 }
     );
   });
 }
 
-/* ========= UI ========= */
+/* ================== 時數自動計算 ================== */
+function diffHours_(start, end){
+  // "HH:MM"
+  if(!start || !end) return "";
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+  if([sh,sm,eh,em].some(n => Number.isNaN(n))) return "";
+
+  let s = sh*60 + sm;
+  let e = eh*60 + em;
+
+  // 跨午夜：例如 23:00 -> 01:00
+  if(e < s) e += 24*60;
+
+  const mins = e - s;
+  const hours = mins / 60;
+
+  // 以 0.5 小時為單位四捨五入（可改）
+  const rounded = Math.round(hours * 2) / 2;
+  return rounded > 0 ? String(rounded) : "";
+}
+
+function refreshAutoHours(){
+  $("otHours").value = diffHours_($("otStart").value, $("otEnd").value);
+  $("leaveHours").value = diffHours_($("leaveStart").value, $("leaveEnd").value);
+  refreshButtons();
+}
+
+/* ================== UI / Tabs ================== */
 function showTab(which){
   ["tabApply","tabMine","tabMgr"].forEach(id=>$(id).classList.remove("active"));
   $("tab"+which).classList.add("active");
@@ -251,46 +320,80 @@ function showTab(which){
   $("panelMgr").classList.toggle("hidden", which!=="Mgr");
 }
 
+/* ================== Buttons enable/disable ================== */
+function refreshButtons(){
+  // 只要 ready 才能打卡/送單；但 GPS 測試永遠可按
+  $("btnIn").disabled  = !ready;
+  $("btnOut").disabled = !ready;
+
+  const otOk =
+    $("otDate").value && $("otStart").value && $("otEnd").value && $("otHours").value;
+
+  const leaveOk =
+    $("leaveDate").value && $("leaveStart").value && $("leaveEnd").value && $("leaveHours").value;
+
+  $("btnOTApply").disabled = !(ready && otOk);
+  $("btnLeaveApply").disabled = !(ready && leaveOk);
+
+  $("btnReloadMine").disabled = !ready;
+  $("btnReloadPending").disabled = !(ready && isManager);
+}
+
+/* ================== 核心綁定 ================== */
 function bindCoreButtons(){
   $("tabApply").onclick = ()=>showTab("Apply");
   $("tabMine").onclick  = ()=>{ showTab("Mine"); loadMine(); };
   $("tabMgr").onclick   = ()=>{ showTab("Mgr");  loadPending(); };
 
   $("btnGPS").onclick = async ()=>{
-    try{ await getGPS_(); setStatus("定位完成 ✅","ok"); }
-    catch(e){ setStatus(e.message,"err"); }
+    try{
+      await getGPS_();
+      setStatus("定位完成 ✅","ok");
+    }catch(e){
+      setStatus(e.message,"err");
+    }
+  };
+
+  $("btnOpenDrive").onclick = ()=>{
+    window.open(DRIVE_FOLDER_URL, "_blank");
   };
 
   $("btnIn").onclick  = ()=> punch_("IN");
   $("btnOut").onclick = ()=> punch_("OUT");
 
-  $("btnOTApply").onclick    = submitOT;
-  $("btnLeaveApply").onclick = submitLeave;
+  $("btnOTApply").onclick    = ()=> submitOT();
+  $("btnLeaveApply").onclick = ()=> submitLeave();
 
-  $("btnReloadMine").onclick    = loadMine;
-  $("btnReloadPending").onclick = loadPending;
+  $("btnReloadMine").onclick    = ()=> loadMine();
+  $("btnReloadPending").onclick = ()=> loadPending();
 
-  const refreshButtons = ()=>{
-    $("btnOTApply").disabled =
-      !($("otDate").value && $("otStart").value && $("otEnd").value && $("otHours").value);
-    $("btnLeaveApply").disabled =
-      !($("leaveDate").value && $("leaveStart").value && $("leaveEnd").value && $("leaveHours").value);
-  };
-  ["change","keyup","input"].forEach(ev=>{
-    ["otDate","otStart","otEnd","otHours","otReason","otAttachLink",
-     "leaveType","leaveDate","leaveStart","leaveEnd","leaveHours","leaveReason","leaveAttachLink"
-    ].forEach(id=>$(id).addEventListener(ev, refreshButtons));
+  // 自動計算時數
+  ["change","input"].forEach(ev=>{
+    ["otStart","otEnd","leaveStart","leaveEnd"].forEach(id=>{
+      $(id).addEventListener(ev, refreshAutoHours);
+    });
   });
+
+  // 一般欄位變動
+  ["change","input","keyup"].forEach(ev=>{
+    ["otDate","otReason","otAttachLink","leaveType","leaveDate","leaveReason","leaveAttachLink"].forEach(id=>{
+      $(id).addEventListener(ev, refreshButtons);
+    });
+  });
+
   refreshButtons();
 }
 
-/* ========= 打卡 ========= */
+/* ================== 打卡 ================== */
 async function punch_(type){
   if(!ready) return;
 
-  $("btnIn").disabled = $("btnOut").disabled = true;
+  // 防止連點
+  $("btnIn").disabled = true;
+  $("btnOut").disabled = true;
+
   try{
-    const gps = await getGPS_(); // 每次重新定位防作弊
+    const gps = await getGPS_(); // 每次打卡重新定位
 
     const r = await jsonpWrite_({
       action:"punch",
@@ -309,15 +412,14 @@ async function punch_(type){
   }catch(e){
     setStatus(e.message || "打卡失敗","err");
   }finally{
-    $("btnIn").disabled = $("btnOut").disabled = !ready;
+    refreshButtons();
   }
 }
 
-/* ========= 申請 ========= */
+/* ================== 申請送出 ================== */
 async function submitOT(){
   if(!ready) return;
-
-  const r = await jsonpWrite_({
+  const payload = {
     action:"apply",
     kind:"OT",
     userId,
@@ -330,18 +432,18 @@ async function submitOT(){
     attachLink: $("otAttachLink").value || "",
     ts: Date.now(),
     traceId: traceId_()
-  }, "加班申請已送出 ✅");
-
+  };
+  const r = await jsonpWrite_(payload, "加班申請已送出 ✅");
   if(r?.ok){
     $("otReason").value = "";
     $("otAttachLink").value = "";
+    refreshButtons();
   }
 }
 
 async function submitLeave(){
   if(!ready) return;
-
-  const r = await jsonpWrite_({
+  const payload = {
     action:"apply",
     kind:"LEAVE",
     leaveType: $("leaveType").value,
@@ -355,74 +457,87 @@ async function submitLeave(){
     attachLink: $("leaveAttachLink").value || "",
     ts: Date.now(),
     traceId: traceId_()
-  }, "請假申請已送出 ✅");
-
+  };
+  const r = await jsonpWrite_(payload, "請假申請已送出 ✅");
   if(r?.ok){
     $("leaveReason").value = "";
     $("leaveAttachLink").value = "";
+    refreshButtons();
   }
 }
 
-/* ========= 我的申請 ========= */
+/* ================== 我的申請 ================== */
 async function loadMine(){
   $("mineList").innerText = "載入中…";
-  const data = await jsonp_({ action:"mine", userId, ts:Date.now(), traceId: traceId_() });
-  if(!data?.ok){ $("mineList").innerText = data?.message || "讀取失敗"; return; }
+  try{
+    const data = await jsonp_({ action:"mine", userId, ts:Date.now(), traceId: traceId_() });
+    if(!data?.ok){ $("mineList").innerText = data?.message || "讀取失敗"; return; }
 
-  const items = Array.isArray(data.items) ? data.items : [];
-  if(items.length===0){ $("mineList").innerText = "尚無資料"; return; }
+    const items = Array.isArray(data.items) ? data.items : [];
+    if(items.length===0){ $("mineList").innerText = "尚無資料"; return; }
 
-  $("mineList").innerHTML = items.map(it=>{
-    const k = escapeHtml_(it.kind||"");
-    const s = escapeHtml_(it.status||"");
-    const d = escapeHtml_(it.date||"");
-    const st = escapeHtml_(it.startTime||"");
-    const et = escapeHtml_(it.endTime||"");
-    const lt = escapeHtml_(it.leaveType||"");
-    const h = escapeHtml_(String(it.hours||""));
-    const r = escapeHtml_(it.reason||"");
-    const link = escapeHtml_(it.attachLink||"");
-    return `<div class="item">
-      <div><b>${k}</b> <span class="pill">${s}</span></div>
-      <div class="muted">${d}　${st}~${et}　${lt}　${h} 小時</div>
-      ${r ? `<div class="muted">原因：${r}</div>` : ""}
-      ${link ? `<div class="muted">附件：<a href="${link}" target="_blank">${link}</a></div>` : ""}
-    </div>`;
-  }).join("");
+    $("mineList").innerHTML = items.map(it=>{
+      const k = escapeHtml_(it.kind||"");
+      const s = escapeHtml_(it.status||"");
+      const d = escapeHtml_(it.date||"");
+      const st = escapeHtml_(it.startTime||"");
+      const et = escapeHtml_(it.endTime||"");
+      const lt = escapeHtml_(it.leaveType||"");
+      const h = escapeHtml_(String(it.hours||""));
+      const r = escapeHtml_(it.reason||"");
+      const link = escapeHtml_(it.attachLink||"");
+      return `<div class="item">
+        <div><b>${k}</b> <span class="pill">${s}</span></div>
+        <div class="muted">${d}　${st}~${et}　${lt}　${h} 小時</div>
+        ${r ? `<div class="muted">原因：${r}</div>` : ""}
+        ${link ? `<div class="muted">附件：<a href="${link}" target="_blank">${link}</a></div>` : ""}
+      </div>`;
+    }).join("");
+
+  }catch(e){
+    $("mineList").innerText = "載入失敗（連線/逾時）";
+    showErr(e, "loadMine failed");
+  }
 }
 
-/* ========= 待核准 ========= */
+/* ================== 待核准 ================== */
 async function loadPending(){
   $("pendingList").innerText = "載入中…";
-  const data = await jsonp_({ action:"pending", userId, ts:Date.now(), traceId: traceId_() });
-  if(!data?.ok){ $("pendingList").innerText = data?.message || "讀取失敗"; return; }
+  try{
+    const data = await jsonp_({ action:"pending", userId, ts:Date.now(), traceId: traceId_() });
+    if(!data?.ok){ $("pendingList").innerText = data?.message || "讀取失敗"; return; }
 
-  const items = Array.isArray(data.items) ? data.items : [];
-  if(items.length===0){ $("pendingList").innerText = "尚無資料"; return; }
+    const items = Array.isArray(data.items) ? data.items : [];
+    if(items.length===0){ $("pendingList").innerText = "尚無資料"; return; }
 
-  $("pendingList").innerHTML = items.map(it=>{
-    const id = escapeHtml_(it.id||"");
-    const name = escapeHtml_(it.displayName||"");
-    const k = escapeHtml_(it.kind||"");
-    const s = escapeHtml_(it.status||"");
-    const d = escapeHtml_(it.date||"");
-    const st = escapeHtml_(it.startTime||"");
-    const et = escapeHtml_(it.endTime||"");
-    const lt = escapeHtml_(it.leaveType||"");
-    const h = escapeHtml_(String(it.hours||""));
-    const r = escapeHtml_(it.reason||"");
-    const link = escapeHtml_(it.attachLink||"");
-    return `<div class="item">
-      <div><b>${name}</b> <span class="pill">${k}</span> <span class="pill">${s}</span></div>
-      <div class="muted">${d}　${st}~${et}　${lt}　${h} 小時</div>
-      ${r ? `<div class="muted">原因：${r}</div>` : ""}
-      ${link ? `<div class="muted">附件：<a href="${link}" target="_blank">${link}</a></div>` : ""}
-      <div class="row" style="margin-top:8px;">
-        <button class="btn" onclick="approve_('${id}','APPROVE')">✅ 核准</button>
-        <button class="btn" onclick="approve_('${id}','REJECT')">⛔️ 駁回</button>
-      </div>
-    </div>`;
-  }).join("");
+    $("pendingList").innerHTML = items.map(it=>{
+      const id = escapeHtml_(it.id||"");
+      const name = escapeHtml_(it.displayName||"");
+      const k = escapeHtml_(it.kind||"");
+      const s = escapeHtml_(it.status||"");
+      const d = escapeHtml_(it.date||"");
+      const st = escapeHtml_(it.startTime||"");
+      const et = escapeHtml_(it.endTime||"");
+      const lt = escapeHtml_(it.leaveType||"");
+      const h = escapeHtml_(String(it.hours||""));
+      const r = escapeHtml_(it.reason||"");
+      const link = escapeHtml_(it.attachLink||"");
+      return `<div class="item">
+        <div><b>${name}</b> <span class="pill">${k}</span> <span class="pill">${s}</span></div>
+        <div class="muted">${d}　${st}~${et}　${lt}　${h} 小時</div>
+        ${r ? `<div class="muted">原因：${r}</div>` : ""}
+        ${link ? `<div class="muted">附件：<a href="${link}" target="_blank">${link}</a></div>` : ""}
+        <div class="row" style="margin-top:8px;">
+          <button class="btn" onclick="approve_('${id}','APPROVE')">✅ 核准</button>
+          <button class="btn" onclick="approve_('${id}','REJECT')">⛔️ 駁回</button>
+        </div>
+      </div>`;
+    }).join("");
+
+  }catch(e){
+    $("pendingList").innerText = "載入失敗（連線/逾時）";
+    showErr(e, "loadPending failed");
+  }
 }
 
 async function approve_(id, decision){
@@ -434,22 +549,25 @@ async function approve_(id, decision){
     ts: Date.now(),
     traceId: traceId_()
   }, decision==="APPROVE" ? "已核准 ✅" : "已駁回 ✅");
-
   if(r?.ok) loadPending();
 }
 
-/* ========= 初始化 ========= */
+/* ================== LIFF 初始化 ================== */
 async function initApp(){
   setStatus("初始化中…");
   try{
+    if(!window.liff) throw new Error("LIFF SDK 未載入（網路/阻擋）");
+
     await liff.init({ liffId: LIFF_ID });
 
     if(!liff.isInClient()){
       $("user").innerHTML = "⚠️ 請用 LINE 開啟此頁（LIFF）";
-      setStatus("非 LINE 內開啟：無法取得員工身份","err");
-      $("btnGPS").disabled = false;
+      setStatus("非 LINE 內開啟：先可測定位，但不能送單/打卡","err");
+      ready = false;
+      refreshButtons();
       return;
     }
+
     if(!liff.isLoggedIn()){
       setStatus("導向登入中…");
       liff.login();
@@ -463,23 +581,27 @@ async function initApp(){
 
     $("user").innerHTML = `👤 ${escapeHtml_(displayName)} <span class="pill">已登入</span>`;
 
-    // 問後端我是不是主管（可選）
-    const who = await jsonp_({ action:"whoami", userId, ts:Date.now(), traceId: traceId_() });
-    isManager = !!who?.isManager;
-    $("tabMgr").classList.toggle("hidden", !isManager);
-
-    $("btnIn").disabled = false;
-    $("btnOut").disabled = false;
-    $("btnGPS").disabled = false;
-    $("btnReloadMine").disabled = false;
-    $("btnReloadPending").disabled = !isManager;
+    // 問後端我是不是主管（可選：你沒設 manager 也不影響）
+    try{
+      const who = await jsonp_({ action:"whoami", userId, ts:Date.now(), traceId: traceId_() });
+      isManager = !!who?.isManager;
+      $("tabMgr").classList.toggle("hidden", !isManager);
+    }catch(_){
+      isManager = false;
+      $("tabMgr").classList.add("hidden");
+    }
 
     setStatus("系統就緒 ✅","ok");
+    refreshAutoHours(); // 順便算一下
+    refreshButtons();
 
   }catch(e){
     console.error(e);
     $("user").innerHTML = "⚠️ 初始化失敗";
-    setStatus("LIFF 初始化失敗：" + (e.message || String(e)),"err");
+    setStatus("初始化失敗（請看錯誤面板）","err");
+    showErr(e, "initApp failed");
+    ready = false;
+    refreshButtons();
   }
 }
 

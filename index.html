@@ -1,407 +1,168 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>HOLDON 出勤系統</title>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+
   <style>
-    body{font-family:Arial,sans-serif;padding:16px;color:#111;}
-    h2{margin:0 0 8px;}
-    .muted{color:#666;font-size:12px;margin:6px 0 14px;}
-    .tabs{display:flex;gap:8px;margin:12px 0;}
-    .tab{padding:8px 12px;border:1px solid #ddd;border-radius:999px;background:#fff;cursor:pointer;font-size:13px;}
-    .tab.active{border-color:#111;}
-    .card{border:1px solid #eee;border-radius:14px;padding:14px;margin:12px 0;box-shadow:0 8px 24px rgba(0,0,0,.05);}
+    body{font-family:Arial;padding:16px;color:#111;}
+    .card{border:1px solid #eee;border-radius:14px;padding:14px;margin:12px 0;}
     .row{display:flex;gap:10px;flex-wrap:wrap;}
-    .btn{padding:10px 12px;border-radius:999px;border:1px solid #ddd;background:#fff;cursor:pointer;}
+    .btn{padding:10px 14px;border-radius:999px;border:1px solid #ddd;background:#fff;}
     .btn.primary{border-color:#111;}
-    .btn:disabled{opacity:.45;cursor:not-allowed;}
-    label{font-size:12px;color:#444;display:block;margin:10px 0 4px;}
-    input,select,textarea{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #ddd;border-radius:10px;font-size:14px;}
-    textarea{min-height:70px;resize:vertical;}
-    .status{font-size:13px;margin-top:10px;}
-    .ok{color:#0a7a2f;}
-    .err{color:#b00020;}
-    .hidden{display:none;}
-    .item{border-top:1px solid #eee;padding-top:10px;margin-top:10px;}
-    .pill{display:inline-block;font-size:12px;padding:3px 8px;border:1px solid #ddd;border-radius:999px;color:#444;margin-left:6px;}
+    .btn:disabled{opacity:.4}
+    .status{margin-top:8px;font-size:13px}
+    .ok{color:#0a7a2f}
+    .err{color:#b00020}
   </style>
 </head>
+
 <body>
-  <h2>HOLDON 出勤系統</h2>
-  <div class="muted">上/下班立即生效；加班與請假需主管核准。</div>
+<h2>HOLDON 出勤系統</h2>
 
-  <div class="card">
-    <div id="user">載入中...</div>
-    <div id="status" class="status muted"></div>
+<div class="card">
+  <div id="user">載入中…</div>
+  <div id="status" class="status"></div>
 
-    <div class="row" style="margin-top:10px;">
-      <button id="btnIn"  class="btn primary" disabled>🟢 上班打卡</button>
-      <button id="btnOut" class="btn primary" disabled>🔴 下班打卡</button>
-    </div>
-
-    <div class="tabs">
-      <button class="tab active" id="tabApply">申請</button>
-      <button class="tab" id="tabMine">我的申請</button>
-      <button class="tab hidden" id="tabMgr">主管核准</button>
-    </div>
+  <div class="row" style="margin-top:10px">
+    <button id="btnIn"  class="btn primary" disabled>🟢 上班打卡</button>
+    <button id="btnOut" class="btn primary" disabled>🔴 下班打卡</button>
   </div>
-
-  <div id="panelApply" class="card">
-    <h3 style="margin:0 0 8px;">🕒 加班申請（需核准）</h3>
-    <label>加班日期</label><input id="otDate" type="date"/>
-    <label>加班時數（小時）</label><input id="otHours" type="number" min="0.5" step="0.5" placeholder="例如：2"/>
-    <label>原因說明</label><textarea id="otReason" placeholder="簡述加班原因"></textarea>
-    <div class="row" style="margin-top:10px;">
-      <button id="btnOTApply" class="btn" disabled>送出加班申請</button>
-    </div>
-
-    <hr style="border:none;border-top:1px solid #eee;margin:14px 0;"/>
-
-    <h3 style="margin:0 0 8px;">📝 請假申請（需核准）</h3>
-    <label>假別</label>
-    <select id="leaveType">
-      <option value="事假">事假</option>
-      <option value="病假">病假</option>
-      <option value="特休">特休</option>
-      <option value="生日假">生日假</option>
-    </select>
-    <label>請假日期</label><input id="leaveDate" type="date"/>
-    <label>請假時數（小時）</label><input id="leaveHours" type="number" min="0.5" step="0.5" placeholder="例如：4"/>
-    <label>原因說明</label><textarea id="leaveReason" placeholder="簡述請假原因"></textarea>
-    <div class="row" style="margin-top:10px;">
-      <button id="btnLeaveApply" class="btn" disabled>送出請假申請</button>
-    </div>
-  </div>
-
-  <div id="panelMine" class="card hidden">
-    <h3 style="margin:0 0 8px;">📄 我的申請</h3>
-    <div class="row">
-      <button class="btn" id="btnReloadMine" disabled>重新整理</button>
-    </div>
-    <div id="mineList" class="muted" style="margin-top:10px;">尚無資料</div>
-  </div>
-
-  <div id="panelMgr" class="card hidden">
-    <h3 style="margin:0 0 8px;">📥 待核准清單</h3>
-    <div class="row">
-      <button class="btn" id="btnReloadPending" disabled>重新整理</button>
-    </div>
-    <div id="pendingList" class="muted" style="margin-top:10px;">尚無資料</div>
-  </div>
+</div>
 
 <script>
-  // ========= 設定區 =========
-  <script>
-  const LIFF_ID = "2009036245-XmZMSuuS";
-  const GAS_URL = "https://script.google.com/macros/s/AKfycbz0YAlbpIYDqN6UC99TmaksEfzylud1QzuwTaupCp9zGdpUlReuRxaG8cvryxziHli_/exec";
+/* ================== 基本設定 ================== */
+const LIFF_ID = "2009036245-XmZMSuuS";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbz0YAlbpIYDqN6UC99TmaksEfzylud1QzuwTaupCp9zGdpUlReuRxaG8cvryxziHli_/exec";
 
-  let userId="", displayName="", ready=false, isManager=false;
+/* 公司 GPS（⚠️ 你要改） */
+const COMPANY_LAT = 25.033964;   // ← 公司緯度
+const COMPANY_LNG = 121.564468;  // ← 公司經度
+const ALLOW_DISTANCE = 100;      // 公尺
 
-  const $ = (id)=>document.getElementById(id);
+let userId="", displayName="", ready=false;
 
-  function setStatus(msg,type="muted"){
-    $("status").className="status "+(type==="ok"?"ok":type==="err"?"err":"muted");
-    $("status").innerText=msg||"";
-  }
+/* ================== 工具 ================== */
+const $ = id => document.getElementById(id);
+function setStatus(msg,type=""){
+  $("status").className = "status "+type;
+  $("status").innerText = msg;
+}
 
-  function enableAll(on){
-    ["btnIn","btnOut","btnOTApply","btnLeaveApply","btnReloadMine","btnReloadPending"].forEach(id=>{
-      const el = $(id);
-      if(el) el.disabled=!on;
-    });
-  }
+/* Haversine 計算距離（公尺） */
+function calcDistance(lat1,lng1,lat2,lng2){
+  const R = 6371000;
+  const toRad = d=>d*Math.PI/180;
+  const dLat = toRad(lat2-lat1);
+  const dLng = toRad(lng2-lng1);
+  const a =
+    Math.sin(dLat/2)**2 +
+    Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*
+    Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
 
-  function traceId_(){ return "liff-"+Date.now()+"-"+Math.random().toString(16).slice(2); }
-
-  // ✅ 最穩送出：GET ping（用 Image 避免 CORS）
-  function ping_(paramsObj, okMsg){
-    const params = new URLSearchParams(paramsObj).toString();
-    const url = GAS_URL + "?" + params;
-
-    return new Promise((resolve,reject)=>{
-      const img=new Image();
-      img.onload=()=>resolve(true);
-      img.onerror=()=>reject(new Error("ping_failed_or_blocked"));
-      img.src=url;
-    }).then(()=>setStatus(okMsg,"ok"))
-      .catch((e)=>{
-        console.error("ping_ error:", e);
-        setStatus("送出失敗，請重試","err");
-      });
-  }
-
-  // ✅ JSONP 讀取：避免 CORS
-  function jsonp_(paramsObj){
-    return new Promise((resolve,reject)=>{
-      const cb = "cb_" + Date.now() + "_" + Math.random().toString(16).slice(2);
-      paramsObj.callback = cb;
-
-      const url = GAS_URL + "?" + new URLSearchParams(paramsObj).toString();
-      const script = document.createElement("script");
-
-      window[cb] = (data)=>{
-        try{ resolve(data); }
-        finally{
-          try{ delete window[cb]; }catch(_){}
-          script.remove();
+/* ================== GPS 防呆 ================== */
+function getGPS(){
+  return new Promise((resolve,reject)=>{
+    if(!navigator.geolocation){
+      reject("裝置不支援 GPS");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      pos=>{
+        const {latitude, longitude} = pos.coords;
+        const d = calcDistance(latitude, longitude, COMPANY_LAT, COMPANY_LNG);
+        if(d > ALLOW_DISTANCE){
+          reject(`不在打卡範圍內（距離 ${Math.round(d)} 公尺）`);
+        }else{
+          resolve({latitude, longitude, distance:d});
         }
-      };
+      },
+      err=>reject("GPS 取得失敗，請開啟定位"),
+      {enableHighAccuracy:true, timeout:10000}
+    );
+  });
+}
 
-      script.src = url;
-      script.onerror = ()=>{
-        try{ delete window[cb]; }catch(_){}
-        script.remove();
-        reject(new Error("jsonp_failed"));
-      };
+/* ================== JSONP 寫入 ================== */
+function jsonpWrite(params, okMsg){
+  return new Promise((resolve,reject)=>{
+    const cb = "cb_"+Date.now();
+    params.callback = cb;
 
-      document.body.appendChild(script);
-
-      setTimeout(()=>{
-        if(window[cb]){
-          try{ delete window[cb]; }catch(_){}
-          script.remove();
-          reject(new Error("jsonp_timeout"));
-        }
-      }, 9000);
-    });
-  }
-
-  function showTab(which){
-    ["tabApply","tabMine","tabMgr"].forEach(id=>$(id).classList.remove("active"));
-    $("tab"+which).classList.add("active");
-
-    $("panelApply").classList.toggle("hidden", which!=="Apply");
-    $("panelMine").classList.toggle("hidden", which!=="Mine");
-    $("panelMgr").classList.toggle("hidden", which!=="Mgr");
-  }
-
-  function escapeHtml_(s){
-    return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-  }
-
-  // ✅ 你之前缺的：核心按鈕綁定（打卡/申請/切換tab）
-  function bindCoreButtons(){
-    $("tabApply").onclick = ()=>showTab("Apply");
-    $("tabMine").onclick  = ()=>{ showTab("Mine"); loadMine().catch(e=>{ console.error(e); setStatus("清單載入失敗（稍後再試）","err"); }); };
-    $("tabMgr").onclick   = ()=>{ showTab("Mgr");  loadPending().catch(e=>{ console.error(e); setStatus("清單載入失敗（稍後再試）","err"); }); };
-
-    $("btnIn").onclick = ()=> ping_({
-      action:"punch",
-      type:"IN",
-      userId,
-      displayName,
-      ts:Date.now(),
-      traceId:traceId_(),
-      origin:location.origin
-    }, "上班打卡成功 ✅");
-
-    $("btnOut").onclick = ()=> ping_({
-      action:"punch",
-      type:"OUT",
-      userId,
-      displayName,
-      ts:Date.now(),
-      traceId:traceId_(),
-      origin:location.origin
-    }, "下班打卡成功 ✅");
-
-    $("btnOTApply").onclick    = ()=> submitOT();
-    $("btnLeaveApply").onclick = ()=> submitLeave();
-
-    $("btnReloadMine").onclick    = ()=> loadMine().catch(e=>{ console.error(e); setStatus("清單載入失敗（稍後再試）","err"); });
-    $("btnReloadPending").onclick = ()=> loadPending().catch(e=>{ console.error(e); setStatus("清單載入失敗（稍後再試）","err"); });
-
-    const refreshButtons = ()=>{
-      $("btnOTApply").disabled    = !($("otDate").value && $("otHours").value);
-      $("btnLeaveApply").disabled = !($("leaveDate").value && $("leaveHours").value);
+    window[cb] = data=>{
+      delete window[cb];
+      script.remove();
+      if(data && data.ok){
+        setStatus(okMsg,"ok");
+        resolve();
+      }else{
+        reject(data?.message || "送出失敗");
+      }
     };
 
-    ["change","keyup","input"].forEach(ev=>{
-      ["otDate","otHours","otReason","leaveType","leaveDate","leaveHours","leaveReason"].forEach(id=>{
-        $(id).addEventListener(ev, refreshButtons);
-      });
-    });
+    const script = document.createElement("script");
+    script.src = GAS_URL + "?" + new URLSearchParams(params).toString();
+    script.onerror = ()=>reject("連線失敗");
+    document.body.appendChild(script);
+  }).catch(e=>{
+    setStatus(e,"err");
+  });
+}
 
-    refreshButtons();
-  }
+/* ================== 打卡 ================== */
+async function punch(type){
+  if(!ready) return;
+  setStatus("定位中…");
+  $("btnIn").disabled = $("btnOut").disabled = true;
 
-  function submitOT(){
-    const date = $("otDate").value;
-    const hours = $("otHours").value;
-    const reason = $("otReason").value.trim();
-    if(!date || !hours){ setStatus("請填寫加班日期與時數","err"); return; }
-
-    return ping_({
-      action:"request",
-      requestType:"Overtime",
-      leaveType:"",
-      date,
-      hours:String(hours),
-      reason,
+  try{
+    const gps = await getGPS();
+    await jsonpWrite({
+      action:"punch",
+      type,
       userId,
       displayName,
-      ts:Date.now(),
-      traceId:traceId_(),
-      origin:location.origin
-    }, "加班申請已送出（待核准）✅");
+      lat:gps.latitude,
+      lng:gps.longitude,
+      distance:Math.round(gps.distance),
+      ts:Date.now()
+    }, type==="IN"?"上班打卡成功 ✅":"下班打卡成功 ✅");
+  }finally{
+    $("btnIn").disabled = $("btnOut").disabled = false;
   }
+}
 
-  function submitLeave(){
-    const leaveType = $("leaveType").value;
-    const date = $("leaveDate").value;
-    const hours = $("leaveHours").value;
-    const reason = $("leaveReason").value.trim();
-    if(!date || !hours){ setStatus("請填寫請假日期與時數","err"); return; }
+/* ================== 初始化 ================== */
+async function init(){
+  setStatus("初始化中…");
 
-    return ping_({
-      action:"request",
-      requestType:"Leave",
-      leaveType,
-      date,
-      hours:String(hours),
-      reason,
-      userId,
-      displayName,
-      ts:Date.now(),
-      traceId:traceId_(),
-      origin:location.origin
-    }, "請假申請已送出（待核准）✅");
+  try{
+    await liff.init({ liffId: LIFF_ID, withLoginOnExternalBrowser:true });
+    if(!liff.isLoggedIn()){ liff.login(); return; }
+
+    const p = await liff.getProfile();
+    userId = p.userId;
+    displayName = p.displayName;
+    $("user").innerText = `你好，${displayName}`;
+
+    $("btnIn").onclick  = ()=>punch("IN");
+    $("btnOut").onclick = ()=>punch("OUT");
+
+    $("btnIn").disabled = $("btnOut").disabled = false;
+    ready = true;
+    setStatus("可以打卡","ok");
+
+  }catch(e){
+    console.error(e);
+    setStatus("初始化失敗："+e,"err");
   }
+}
 
-  async function loadMine(){
-    if(!ready) return;
-    setStatus("載入中...");
-    const data = await jsonp_({action:"listRequests", userId, mode:"mine"});
-    renderList_("mineList", data?.items || [], false);
-    setStatus("已更新","ok");
-  }
-
-  async function loadPending(){
-    if(!ready || !isManager) return;
-    setStatus("載入中...");
-    const data = await jsonp_({action:"listRequests", userId, mode:"pendingAll"});
-    renderList_("pendingList", data?.items || [], true);
-    setStatus("已更新","ok");
-  }
-
-  function renderList_(targetId, items, withActions){
-    const el = $(targetId);
-    if(!items.length){ el.innerHTML = `<div class="muted">目前沒有資料</div>`; return; }
-
-    el.innerHTML = items.map(it=>{
-      const title = it.requestType === "Overtime" ? "加班" : `請假（${it.leaveType}）`;
-      const st = it.status || "Pending";
-      const pill = `<span class="pill">${escapeHtml_(st)}</span>`;
-
-      const actions = withActions && st==="Pending" ? `
-        <div class="row" style="margin-top:8px;">
-          <button class="btn" onclick="decideReq('${it.requestId}','Approved')">✅ 核准</button>
-          <button class="btn" onclick="decideReq('${it.requestId}','Rejected')">❌ 駁回</button>
-        </div>` : "";
-
-      return `
-        <div class="item">
-          <div><b>${escapeHtml_(title)}</b>${pill}</div>
-          <div class="muted">申請人：${escapeHtml_(it.applicantName||"")}｜日期：${escapeHtml_(it.date||"")}｜時數：${escapeHtml_(it.hours||"")}</div>
-          <div style="margin-top:6px;">${escapeHtml_(it.reason || "")}</div>
-          ${actions}
-        </div>`;
-    }).join("");
-  }
-
-  window.decideReq = async function(requestId, decision){
-    try{
-      setStatus("送出中...");
-      const data = await jsonp_({action:"decide", userId, requestId, decision});
-      if(data?.ok){
-        setStatus(data.message || "已更新","ok");
-        loadPending();
-      }else{
-        setStatus(data?.message || "更新失敗","err");
-      }
-    }catch(e){
-      console.error("decideReq error:", e);
-      setStatus("更新失敗，請稍後再試","err");
-    }
-  };
-
-  function formatErr_(e){
-    const msg = (e && (e.message || e.toString())) || "unknown";
-    return msg.length > 140 ? msg.slice(0,140)+"..." : msg;
-  }
-
-  async function init(){
-    enableAll(false);
-    setStatus("初始化中...");
-
-    // ✅ 把環境資訊也吐出來，避免你在猜（但不干擾操作）
-    console.log("env:", {
-      href: location.href,
-      origin: location.origin,
-      ua: navigator.userAgent
-    });
-
-    try{
-      await Promise.race([
-        liff.init({ liffId: LIFF_ID, withLoginOnExternalBrowser: true }),
-        new Promise((_,rej)=>setTimeout(()=>rej(new Error("liff.init timeout")), 9000))
-      ]);
-    }catch(e){
-      console.error("LIFF init failed:", e);
-      // 這裡通常是：endpoint URL 不符合 / liffId 錯 / 網路阻擋
-      setStatus("初始化失敗（LIFF init）："+formatErr_(e), "err");
-      return;
-    }
-
-    try{
-      if(!liff.isLoggedIn()){
-        setStatus("未登入 LINE，轉登入中…", "muted");
-        liff.login();
-        return;
-      }
-    }catch(e){
-      console.error("LIFF login check failed:", e);
-      setStatus("初始化失敗（登入判斷）："+formatErr_(e), "err");
-      return;
-    }
-
-    try{
-      const profile = await Promise.race([
-        liff.getProfile(),
-        new Promise((_,rej)=>setTimeout(()=>rej(new Error("getProfile timeout")), 9000))
-      ]);
-
-      userId = profile.userId || "";
-      displayName = profile.displayName || "";
-      $("user").innerText = `你好，${displayName || "同事"}`;
-
-      // ✅ 核心功能先開
-      bindCoreButtons();
-      ready = true;
-      enableAll(true);
-      setStatus("可以操作了 ✅", "ok");
-
-    }catch(e){
-      console.error("getProfile failed:", e);
-      // 這裡常見：LIFF scope 沒勾 profile、或 endpoint/設定問題
-      setStatus("初始化失敗（getProfile）："+formatErr_(e)+"（請確認 LIFF 有開 profile scope & endpoint URL 正確）", "err");
-      return;
-    }
-
-    // ✅ 第二階段：主管判斷（失敗不影響打卡）
-    try{
-      const probe = await jsonp_({ action:"listRequests", userId, mode:"mine" });
-      isManager = !!probe?.isManager;
-      if(isManager) $("tabMgr").classList.remove("hidden");
-    }catch(e){
-      console.error("manager probe failed:", e);
-      setStatus("已可打卡 ✅（清單載入失敗，稍後再試）", "ok");
-    }
-  }
-
-  init();
+init();
 </script>
 </body>
 </html>

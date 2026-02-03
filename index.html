@@ -93,13 +93,12 @@
 
 <script>
   // ========= 設定區 =========
+  <script>
   const LIFF_ID = "2009036245-XmZMSuuS";
   const GAS_URL = "https://script.google.com/macros/s/AKfycbz0YAlbpIYDqN6UC99TmaksEfzylud1QzuwTaupCp9zGdpUlReuRxaG8cvryxziHli_/exec";
 
-  // ========= 全域狀態 =========
   let userId="", displayName="", ready=false, isManager=false;
 
-  // ========= 工具 =========
   const $ = (id)=>document.getElementById(id);
 
   function setStatus(msg,type="muted"){
@@ -110,13 +109,13 @@
   function enableAll(on){
     ["btnIn","btnOut","btnOTApply","btnLeaveApply","btnReloadMine","btnReloadPending"].forEach(id=>{
       const el = $(id);
-      if(el) el.disabled = !on;
+      if(el) el.disabled=!on;
     });
   }
 
   function traceId_(){ return "liff-"+Date.now()+"-"+Math.random().toString(16).slice(2); }
 
-  // ✅ 最穩送出：GET ping (用 Image 避免 CORS)
+  // ✅ 最穩送出：GET ping（用 Image 避免 CORS）
   function ping_(paramsObj, okMsg){
     const params = new URLSearchParams(paramsObj).toString();
     const url = GAS_URL + "?" + params;
@@ -124,16 +123,13 @@
     return new Promise((resolve,reject)=>{
       const img=new Image();
       img.onload=()=>resolve(true);
-      img.onerror=()=>reject(new Error("blocked_or_failed"));
+      img.onerror=()=>reject(new Error("ping_failed_or_blocked"));
       img.src=url;
-    }).then(()=>{
-      setStatus(okMsg,"ok");
-      return true;
-    }).catch((e)=>{
-      console.error("ping_ error:", e);
-      setStatus("送出失敗，請重試","err");
-      return false;
-    });
+    }).then(()=>setStatus(okMsg,"ok"))
+      .catch((e)=>{
+        console.error("ping_ error:", e);
+        setStatus("送出失敗，請重試","err");
+      });
   }
 
   // ✅ JSONP 讀取：避免 CORS
@@ -157,7 +153,7 @@
       script.onerror = ()=>{
         try{ delete window[cb]; }catch(_){}
         script.remove();
-        reject(new Error("jsonp failed"));
+        reject(new Error("jsonp_failed"));
       };
 
       document.body.appendChild(script);
@@ -166,9 +162,9 @@
         if(window[cb]){
           try{ delete window[cb]; }catch(_){}
           script.remove();
-          reject(new Error("jsonp timeout"));
+          reject(new Error("jsonp_timeout"));
         }
-      }, 8000);
+      }, 9000);
     });
   }
 
@@ -185,14 +181,12 @@
     return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   }
 
-  // ========= 綁定核心按鈕（你原本缺這個） =========
+  // ✅ 你之前缺的：核心按鈕綁定（打卡/申請/切換tab）
   function bindCoreButtons(){
-    // Tabs
     $("tabApply").onclick = ()=>showTab("Apply");
-    $("tabMine").onclick  = ()=>{ showTab("Mine"); loadMine().catch(e=>{ console.error(e); setStatus("載入失敗，請稍後再試","err"); }); };
-    $("tabMgr").onclick   = ()=>{ showTab("Mgr");  loadPending().catch(e=>{ console.error(e); setStatus("載入失敗，請稍後再試","err"); }); };
+    $("tabMine").onclick  = ()=>{ showTab("Mine"); loadMine().catch(e=>{ console.error(e); setStatus("清單載入失敗（稍後再試）","err"); }); };
+    $("tabMgr").onclick   = ()=>{ showTab("Mgr");  loadPending().catch(e=>{ console.error(e); setStatus("清單載入失敗（稍後再試）","err"); }); };
 
-    // 打卡
     $("btnIn").onclick = ()=> ping_({
       action:"punch",
       type:"IN",
@@ -213,39 +207,30 @@
       origin:location.origin
     }, "下班打卡成功 ✅");
 
-    // 申請送出
     $("btnOTApply").onclick    = ()=> submitOT();
     $("btnLeaveApply").onclick = ()=> submitLeave();
 
-    // 清單刷新
-    $("btnReloadMine").onclick    = ()=> loadMine().catch(e=>{ console.error(e); setStatus("載入失敗，請稍後再試","err"); });
-    $("btnReloadPending").onclick = ()=> loadPending().catch(e=>{ console.error(e); setStatus("載入失敗，請稍後再試","err"); });
+    $("btnReloadMine").onclick    = ()=> loadMine().catch(e=>{ console.error(e); setStatus("清單載入失敗（稍後再試）","err"); });
+    $("btnReloadPending").onclick = ()=> loadPending().catch(e=>{ console.error(e); setStatus("清單載入失敗（稍後再試）","err"); });
 
-    // 表單欄位變動 → 控制送出按鈕可按
     const refreshButtons = ()=>{
       $("btnOTApply").disabled    = !($("otDate").value && $("otHours").value);
       $("btnLeaveApply").disabled = !($("leaveDate").value && $("leaveHours").value);
     };
 
     ["change","keyup","input"].forEach(ev=>{
-      $("otDate").addEventListener(ev, refreshButtons);
-      $("otHours").addEventListener(ev, refreshButtons);
-      $("leaveDate").addEventListener(ev, refreshButtons);
-      $("leaveHours").addEventListener(ev, refreshButtons);
-      $("otReason").addEventListener(ev, refreshButtons);
-      $("leaveReason").addEventListener(ev, refreshButtons);
-      $("leaveType").addEventListener(ev, refreshButtons);
+      ["otDate","otHours","otReason","leaveType","leaveDate","leaveHours","leaveReason"].forEach(id=>{
+        $(id).addEventListener(ev, refreshButtons);
+      });
     });
 
     refreshButtons();
   }
 
-  // ========= 送出申請 =========
   function submitOT(){
     const date = $("otDate").value;
     const hours = $("otHours").value;
     const reason = $("otReason").value.trim();
-
     if(!date || !hours){ setStatus("請填寫加班日期與時數","err"); return; }
 
     return ping_({
@@ -268,7 +253,6 @@
     const date = $("leaveDate").value;
     const hours = $("leaveHours").value;
     const reason = $("leaveReason").value.trim();
-
     if(!date || !hours){ setStatus("請填寫請假日期與時數","err"); return; }
 
     return ping_({
@@ -286,7 +270,6 @@
     }, "請假申請已送出（待核准）✅");
   }
 
-  // ========= 清單載入 =========
   async function loadMine(){
     if(!ready) return;
     setStatus("載入中...");
@@ -305,15 +288,12 @@
 
   function renderList_(targetId, items, withActions){
     const el = $(targetId);
-    if(!items.length){
-      el.innerHTML = `<div class="muted">目前沒有資料</div>`;
-      return;
-    }
+    if(!items.length){ el.innerHTML = `<div class="muted">目前沒有資料</div>`; return; }
 
     el.innerHTML = items.map(it=>{
       const title = it.requestType === "Overtime" ? "加班" : `請假（${it.leaveType}）`;
       const st = it.status || "Pending";
-      const pill = `<span class="pill">${st}</span>`;
+      const pill = `<span class="pill">${escapeHtml_(st)}</span>`;
 
       const actions = withActions && st==="Pending" ? `
         <div class="row" style="margin-top:8px;">
@@ -323,8 +303,8 @@
 
       return `
         <div class="item">
-          <div><b>${title}</b>${pill}</div>
-          <div class="muted">申請人：${escapeHtml_(it.applicantName || "")}｜日期：${escapeHtml_(it.date || "")}｜時數：${escapeHtml_(it.hours || "")}</div>
+          <div><b>${escapeHtml_(title)}</b>${pill}</div>
+          <div class="muted">申請人：${escapeHtml_(it.applicantName||"")}｜日期：${escapeHtml_(it.date||"")}｜時數：${escapeHtml_(it.hours||"")}</div>
           <div style="margin-top:6px;">${escapeHtml_(it.reason || "")}</div>
           ${actions}
         </div>`;
@@ -345,58 +325,85 @@
       console.error("decideReq error:", e);
       setStatus("更新失敗，請稍後再試","err");
     }
+  };
+
+  function formatErr_(e){
+    const msg = (e && (e.message || e.toString())) || "unknown";
+    return msg.length > 140 ? msg.slice(0,140)+"..." : msg;
   }
 
-  // ========= 初始化 =========
   async function init(){
-    // 1) 只處理 LIFF（這段成功就算成功）
-    try{
-      enableAll(false);
-      setStatus("初始化中...");
+    enableAll(false);
+    setStatus("初始化中...");
 
+    // ✅ 把環境資訊也吐出來，避免你在猜（但不干擾操作）
+    console.log("env:", {
+      href: location.href,
+      origin: location.origin,
+      ua: navigator.userAgent
+    });
+
+    try{
       await Promise.race([
         liff.init({ liffId: LIFF_ID, withLoginOnExternalBrowser: true }),
-        new Promise((_,rej)=>setTimeout(()=>rej(new Error("liff.init timeout")), 8000))
+        new Promise((_,rej)=>setTimeout(()=>rej(new Error("liff.init timeout")), 9000))
       ]);
+    }catch(e){
+      console.error("LIFF init failed:", e);
+      // 這裡通常是：endpoint URL 不符合 / liffId 錯 / 網路阻擋
+      setStatus("初始化失敗（LIFF init）："+formatErr_(e), "err");
+      return;
+    }
 
+    try{
       if(!liff.isLoggedIn()){
+        setStatus("未登入 LINE，轉登入中…", "muted");
         liff.login();
         return;
       }
+    }catch(e){
+      console.error("LIFF login check failed:", e);
+      setStatus("初始化失敗（登入判斷）："+formatErr_(e), "err");
+      return;
+    }
 
-      const profile = await liff.getProfile();
+    try{
+      const profile = await Promise.race([
+        liff.getProfile(),
+        new Promise((_,rej)=>setTimeout(()=>rej(new Error("getProfile timeout")), 9000))
+      ]);
+
       userId = profile.userId || "";
       displayName = profile.displayName || "";
-
       $("user").innerText = `你好，${displayName || "同事"}`;
 
-      // ✅ 核心功能先起來（不要被主管判斷拖死）
+      // ✅ 核心功能先開
       bindCoreButtons();
       ready = true;
       enableAll(true);
       setStatus("可以操作了 ✅", "ok");
 
     }catch(e){
-      console.error("init LIFF error:", e);
-      setStatus("初始化失敗：" + (e?.message || e), "err");
+      console.error("getProfile failed:", e);
+      // 這裡常見：LIFF scope 沒勾 profile、或 endpoint/設定問題
+      setStatus("初始化失敗（getProfile）："+formatErr_(e)+"（請確認 LIFF 有開 profile scope & endpoint URL 正確）", "err");
       return;
     }
 
-    // 2) 再做「複雜功能」：主管判斷/載入清單（失敗也不會讓系統死）
+    // ✅ 第二階段：主管判斷（失敗不影響打卡）
     try{
       const probe = await jsonp_({ action:"listRequests", userId, mode:"mine" });
       isManager = !!probe?.isManager;
-
-      if(isManager){
-        $("tabMgr").classList.remove("hidden");
-      }
+      if(isManager) $("tabMgr").classList.remove("hidden");
     }catch(e){
-      console.error("manager probe error:", e);
+      console.error("manager probe failed:", e);
       setStatus("已可打卡 ✅（清單載入失敗，稍後再試）", "ok");
     }
   }
 
   init();
+</script>
+
 </script>
 </body>
 </html>

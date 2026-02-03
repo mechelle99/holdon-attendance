@@ -27,8 +27,7 @@
     .item{border-top:1px solid #eee;padding-top:10px;margin-top:10px;}
     .pill{display:inline-block;font-size:12px;padding:3px 8px;border:1px solid #ddd;border-radius:999px;color:#444;margin-left:6px;}
     .hint{font-size:12px;color:#666;margin-top:6px;white-space:pre-wrap;}
-    hr{border:none;border-top:1px solid #eee;margin:14px 0;}
-    pre{white-space:pre-wrap;word-break:break-word;background:#fafafa;border:1px solid #eee;padding:10px;border-radius:10px;}
+    small{color:#666}
   </style>
 </head>
 <body>
@@ -39,7 +38,6 @@
     <div id="user">載入中...</div>
     <div id="gpsHint" class="hint">定位：未取得</div>
     <div id="status" class="status muted"></div>
-    <pre id="errbox" class="hidden"></pre>
 
     <div class="row" style="margin-top:10px;">
       <button id="btnIn"  class="btn primary" disabled>🟢 上班打卡</button>
@@ -57,13 +55,23 @@
   <div id="panelApply" class="card">
     <h3 style="margin:0 0 8px;">🕒 加班申請（需核准）</h3>
     <label>加班日期</label><input id="otDate" type="date"/>
+    <div class="row">
+      <div style="flex:1;min-width:140px;">
+        <label>開始時間</label><input id="otStart" type="time"/>
+      </div>
+      <div style="flex:1;min-width:140px;">
+        <label>結束時間</label><input id="otEnd" type="time"/>
+      </div>
+    </div>
     <label>加班時數（小時）</label><input id="otHours" type="number" min="0.5" step="0.5" placeholder="例如：2"/>
     <label>原因說明</label><textarea id="otReason" placeholder="簡述加班原因"></textarea>
+    <label>附件連結（可選，貼 Google Drive/LINE 檔案連結）</label>
+    <input id="otAttachLink" type="url" placeholder="https://..."/>
     <div class="row" style="margin-top:10px;">
       <button id="btnOTApply" class="btn" disabled>送出加班申請</button>
     </div>
 
-    <hr/>
+    <hr style="border:none;border-top:1px solid #eee;margin:14px 0;"/>
 
     <h3 style="margin:0 0 8px;">📝 請假申請（需核准）</h3>
     <label>假別</label>
@@ -74,11 +82,22 @@
       <option value="生日假">生日假</option>
     </select>
     <label>請假日期</label><input id="leaveDate" type="date"/>
+    <div class="row">
+      <div style="flex:1;min-width:140px;">
+        <label>開始時間</label><input id="leaveStart" type="time"/>
+      </div>
+      <div style="flex:1;min-width:140px;">
+        <label>結束時間</label><input id="leaveEnd" type="time"/>
+      </div>
+    </div>
     <label>請假時數（小時）</label><input id="leaveHours" type="number" min="0.5" step="0.5" placeholder="例如：4"/>
     <label>原因說明</label><textarea id="leaveReason" placeholder="簡述請假原因"></textarea>
+    <label>看病證明/附件連結（病假建議；沒附也可）</label>
+    <input id="leaveAttachLink" type="url" placeholder="https://..."/>
     <div class="row" style="margin-top:10px;">
       <button id="btnLeaveApply" class="btn" disabled>送出請假申請</button>
     </div>
+    <div class="hint"><small>⚠️ GitHub + JSONP 架構無法穩定「直接上傳檔案」。附件請改貼連結（Drive/LINE 檔案）。</small></div>
   </div>
 
   <div id="panelMine" class="card hidden">
@@ -98,22 +117,22 @@
   </div>
 
 <script>
-/* =========================
-   ✅ 設定（必填）
-========================= */
+/* ========= 設定 ========= */
 const LIFF_ID = "2009036245-XmZMSuuS";
-const GAS_URL = "https://script.google.com/macros/s/AKfycbz0YAlbpIYDqN6UC99TmaksEfzylud1QzuwTaupCp9zGdpUlReuRxaG8cvryxziHli_/exec";
+
+// ✅ 把你部署後的 GAS Web App /exec URL 貼這裡
+const GAS_URL = "PASTE_YOUR_GAS_WEBAPP_EXEC_URL_HERE";
+
+// ✅ 允許距離（公尺）
 const ALLOW_DISTANCE = 100;
 
-// ✅ 你說你位置座標已給過：請把「你之前給我的座標」貼到這裡（可多點）
+// ✅ 公司座標（你提供的兩點）
 const COMPANY_POINTS = [
-  // { name: "公司", lat: 25.0, lng: 121.0 },
-  // { name: "門市A", lat: 25.0, lng: 121.0 },
+  { name:"公司點A", lat:25.0175556, lng:121.5302500 },
+  { name:"公司點B", lat:25.0255556, lng:121.5235556 },
 ];
 
-/* =========================
-   狀態
-========================= */
+/* ========= 狀態 ========= */
 let userId="", displayName="", ready=false, isManager=false;
 let lastGPS = null;
 
@@ -124,22 +143,12 @@ function setStatus(msg,type="muted"){
   $("status").innerText=msg||"";
 }
 
-function showFatal(errTitle, err){
-  const box = $("errbox");
-  box.classList.remove("hidden");
-  box.textContent = errTitle + "\n\n" + (err?.stack || err?.message || String(err));
-  setStatus("程式發生錯誤（已顯示於下方）","err");
-}
-
-window.addEventListener("error", (e)=> showFatal("window.onerror", e.error || e.message));
-window.addEventListener("unhandledrejection", (e)=> showFatal("unhandledrejection", e.reason));
-
 function escapeHtml_(s){
   return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 function traceId_(){ return "liff-"+Date.now()+"-"+Math.random().toString(16).slice(2); }
 
-/* ===== 距離計算（公尺） ===== */
+/* ========= 距離 ========= */
 function calcDistance(lat1,lng1,lat2,lng2){
   const R = 6371000;
   const toRad = d=>d*Math.PI/180;
@@ -151,20 +160,16 @@ function calcDistance(lat1,lng1,lat2,lng2){
     Math.sin(dLng/2)**2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
-
 function minDistanceToCompany(lat, lng){
-  if(!Array.isArray(COMPANY_POINTS) || COMPANY_POINTS.length === 0){
-    return { distance: Infinity, name: "未設定公司座標" };
-  }
-  let best = { distance: Infinity, name: "" };
+  let best = { distance: Infinity, name:"" };
   for(const p of COMPANY_POINTS){
     const d = calcDistance(lat, lng, p.lat, p.lng);
-    if(d < best.distance) best = { distance: d, name: p.name || "公司" };
+    if(d < best.distance) best = { distance:d, name:p.name };
   }
   return best;
 }
 
-/* ===== JSONP ===== */
+/* ========= JSONP ========= */
 function jsonp_(paramsObj){
   return new Promise((resolve,reject)=>{
     const cb = "cb_" + Date.now() + "_" + Math.random().toString(16).slice(2);
@@ -182,7 +187,7 @@ function jsonp_(paramsObj){
     };
 
     script.src = url;
-    script.onerror = ()=>{ try{ delete window[cb]; }catch(_){} script.remove(); reject(new Error("jsonp_failed")); };
+    script.onerror = ()=>{ try{ delete window[cb]); }catch(_){} script.remove(); reject(new Error("jsonp_failed")); };
     document.body.appendChild(script);
 
     setTimeout(()=>{
@@ -201,24 +206,22 @@ async function jsonpWrite_(paramsObj, okMsg){
     const data = await jsonp_(paramsObj);
     if(data?.ok){
       setStatus(okMsg,"ok");
-      return true;
+      return data;
     }
     setStatus(data?.message || "送出失敗","err");
-    return false;
+    return null;
   }catch(e){
     console.error(e);
     setStatus("送出失敗（連線/逾時）","err");
-    return false;
+    return null;
   }
 }
 
-/* ===== GPS ===== */
+/* ========= GPS ========= */
 async function getGPS_(){
   $("gpsHint").innerText = "定位：取得中…";
-
   return new Promise((resolve,reject)=>{
     if(!navigator.geolocation) return reject(new Error("此裝置不支援定位"));
-
     navigator.geolocation.getCurrentPosition(
       pos=>{
         const lat = pos.coords.latitude;
@@ -230,18 +233,16 @@ async function getGPS_(){
         lastGPS = { lat, lng, distance:d, companyName:best.name };
         $("gpsHint").innerText = `定位：距離 ${best.name} ${Math.round(d)} 公尺（允許 ≤ ${ALLOW_DISTANCE}m）`;
 
-        if(d > ALLOW_DISTANCE){
-          return reject(new Error(`不在打卡範圍內（${Math.round(d)}m，需 ≤ ${ALLOW_DISTANCE}m）`));
-        }
+        if(d > ALLOW_DISTANCE) return reject(new Error(`不在打卡範圍內（${Math.round(d)}m）`));
         resolve(lastGPS);
       },
-      _err => reject(new Error("GPS 取得失敗，請開啟定位權限")),
-      { enableHighAccuracy:true, timeout:12000, maximumAge:0 }
+      _=>reject(new Error("GPS 取得失敗，請開啟定位權限")),
+      {enableHighAccuracy:true, timeout:12000, maximumAge:0}
     );
   });
 }
 
-/* ===== UI ===== */
+/* ========= UI ========= */
 function showTab(which){
   ["tabApply","tabMine","tabMgr"].forEach(id=>$(id).classList.remove("active"));
   $("tab"+which).classList.add("active");
@@ -250,53 +251,48 @@ function showTab(which){
   $("panelMgr").classList.toggle("hidden", which!=="Mgr");
 }
 
-/* ===== 綁定 ===== */
 function bindCoreButtons(){
   $("tabApply").onclick = ()=>showTab("Apply");
   $("tabMine").onclick  = ()=>{ showTab("Mine"); loadMine(); };
   $("tabMgr").onclick   = ()=>{ showTab("Mgr");  loadPending(); };
 
   $("btnGPS").onclick = async ()=>{
-    try{
-      await getGPS_();
-      setStatus("定位完成 ✅","ok");
-    }catch(e){
-      setStatus(e.message,"err");
-    }
+    try{ await getGPS_(); setStatus("定位完成 ✅","ok"); }
+    catch(e){ setStatus(e.message,"err"); }
   };
 
   $("btnIn").onclick  = ()=> punch_("IN");
   $("btnOut").onclick = ()=> punch_("OUT");
 
-  $("btnOTApply").onclick    = ()=> submitOT();
-  $("btnLeaveApply").onclick = ()=> submitLeave();
+  $("btnOTApply").onclick    = submitOT;
+  $("btnLeaveApply").onclick = submitLeave;
 
-  $("btnReloadMine").onclick    = ()=> loadMine();
-  $("btnReloadPending").onclick = ()=> loadPending();
+  $("btnReloadMine").onclick    = loadMine;
+  $("btnReloadPending").onclick = loadPending;
 
   const refreshButtons = ()=>{
-    $("btnOTApply").disabled    = !($("otDate").value && $("otHours").value);
-    $("btnLeaveApply").disabled = !($("leaveDate").value && $("leaveHours").value);
+    $("btnOTApply").disabled =
+      !($("otDate").value && $("otStart").value && $("otEnd").value && $("otHours").value);
+    $("btnLeaveApply").disabled =
+      !($("leaveDate").value && $("leaveStart").value && $("leaveEnd").value && $("leaveHours").value);
   };
   ["change","keyup","input"].forEach(ev=>{
-    ["otDate","otHours","otReason","leaveType","leaveDate","leaveHours","leaveReason"].forEach(id=>{
-      $(id).addEventListener(ev, refreshButtons);
-    });
+    ["otDate","otStart","otEnd","otHours","otReason","otAttachLink",
+     "leaveType","leaveDate","leaveStart","leaveEnd","leaveHours","leaveReason","leaveAttachLink"
+    ].forEach(id=>$(id).addEventListener(ev, refreshButtons));
   });
   refreshButtons();
 }
 
-/* ===== 打卡 ===== */
+/* ========= 打卡 ========= */
 async function punch_(type){
-  if(!ready) return setStatus("尚未完成登入/初始化","err");
+  if(!ready) return;
 
-  $("btnIn").disabled = true;
-  $("btnOut").disabled = true;
-
+  $("btnIn").disabled = $("btnOut").disabled = true;
   try{
-    const gps = await getGPS_();
+    const gps = await getGPS_(); // 每次重新定位防作弊
 
-    const ok = await jsonpWrite_({
+    const r = await jsonpWrite_({
       action:"punch",
       type,
       userId,
@@ -305,163 +301,155 @@ async function punch_(type){
       lng:gps.lng,
       distance: Math.round(gps.distance),
       companyName: gps.companyName,
-      ts:Date.now(),
-      traceId:traceId_()
+      ts: Date.now(),
+      traceId: traceId_()
     }, type==="IN" ? "上班打卡成功 ✅" : "下班打卡成功 ✅");
 
-    if(ok){
-      // 可選：打卡後自動切到「我的申請」或更新狀態
-      // loadMine();
-    }
+    if(!r) return;
   }catch(e){
     setStatus(e.message || "打卡失敗","err");
   }finally{
-    $("btnIn").disabled  = !ready;
-    $("btnOut").disabled = !ready;
+    $("btnIn").disabled = $("btnOut").disabled = !ready;
   }
 }
 
-/* ===== 申請 ===== */
+/* ========= 申請 ========= */
 async function submitOT(){
-  if(!ready) return setStatus("尚未完成登入/初始化","err");
-  const date = $("otDate").value;
-  const hours = $("otHours").value;
-  const reason = $("otReason").value || "";
-  if(!date || !hours) return setStatus("請填寫加班日期與時數","err");
+  if(!ready) return;
 
-  await jsonpWrite_({
+  const r = await jsonpWrite_({
     action:"apply",
     kind:"OT",
     userId,
     displayName,
-    date,
-    hours,
-    reason,
-    ts:Date.now(),
-    traceId:traceId_()
+    date: $("otDate").value,
+    startTime: $("otStart").value,
+    endTime: $("otEnd").value,
+    hours: $("otHours").value,
+    reason: $("otReason").value || "",
+    attachLink: $("otAttachLink").value || "",
+    ts: Date.now(),
+    traceId: traceId_()
   }, "加班申請已送出 ✅");
 
-  $("otReason").value = "";
+  if(r?.ok){
+    $("otReason").value = "";
+    $("otAttachLink").value = "";
+  }
 }
 
 async function submitLeave(){
-  if(!ready) return setStatus("尚未完成登入/初始化","err");
-  const leaveType = $("leaveType").value;
-  const date = $("leaveDate").value;
-  const hours = $("leaveHours").value;
-  const reason = $("leaveReason").value || "";
-  if(!date || !hours) return setStatus("請填寫請假日期與時數","err");
+  if(!ready) return;
 
-  await jsonpWrite_({
+  const r = await jsonpWrite_({
     action:"apply",
     kind:"LEAVE",
-    leaveType,
+    leaveType: $("leaveType").value,
     userId,
     displayName,
-    date,
-    hours,
-    reason,
-    ts:Date.now(),
-    traceId:traceId_()
+    date: $("leaveDate").value,
+    startTime: $("leaveStart").value,
+    endTime: $("leaveEnd").value,
+    hours: $("leaveHours").value,
+    reason: $("leaveReason").value || "",
+    attachLink: $("leaveAttachLink").value || "",
+    ts: Date.now(),
+    traceId: traceId_()
   }, "請假申請已送出 ✅");
 
-  $("leaveReason").value = "";
+  if(r?.ok){
+    $("leaveReason").value = "";
+    $("leaveAttachLink").value = "";
+  }
 }
 
-/* ===== 列表（需要 GAS 配合回傳 items） ===== */
+/* ========= 我的申請 ========= */
 async function loadMine(){
-  if(!ready){
-    $("mineList").innerText = "尚未登入";
-    return;
-  }
   $("mineList").innerText = "載入中…";
-  try{
-    const data = await jsonp_({ action:"mine", userId, ts:Date.now(), traceId:traceId_() });
-    if(!data?.ok) return $("mineList").innerText = data?.message || "讀取失敗";
-    const items = Array.isArray(data.items) ? data.items : [];
-    if(items.length===0) return $("mineList").innerText = "尚無資料";
+  const data = await jsonp_({ action:"mine", userId, ts:Date.now(), traceId: traceId_() });
+  if(!data?.ok){ $("mineList").innerText = data?.message || "讀取失敗"; return; }
 
-    $("mineList").innerHTML = items.map(it=>{
-      const k = escapeHtml_(it.kind || "");
-      const t = escapeHtml_(it.type || it.leaveType || "");
-      const d = escapeHtml_(it.date || "");
-      const h = escapeHtml_(it.hours || "");
-      const s = escapeHtml_(it.status || "");
-      const r = escapeHtml_(it.reason || "");
-      return `<div class="item">
-        <div><b>${k}</b> <span class="pill">${s}</span></div>
-        <div class="muted">${d}　${t}　${h} 小時</div>
-        ${r ? `<div class="muted">原因：${r}</div>` : ""}
-      </div>`;
-    }).join("");
-  }catch(e){
-    $("mineList").innerText = "載入失敗（連線/逾時）";
-  }
+  const items = Array.isArray(data.items) ? data.items : [];
+  if(items.length===0){ $("mineList").innerText = "尚無資料"; return; }
+
+  $("mineList").innerHTML = items.map(it=>{
+    const k = escapeHtml_(it.kind||"");
+    const s = escapeHtml_(it.status||"");
+    const d = escapeHtml_(it.date||"");
+    const st = escapeHtml_(it.startTime||"");
+    const et = escapeHtml_(it.endTime||"");
+    const lt = escapeHtml_(it.leaveType||"");
+    const h = escapeHtml_(String(it.hours||""));
+    const r = escapeHtml_(it.reason||"");
+    const link = escapeHtml_(it.attachLink||"");
+    return `<div class="item">
+      <div><b>${k}</b> <span class="pill">${s}</span></div>
+      <div class="muted">${d}　${st}~${et}　${lt}　${h} 小時</div>
+      ${r ? `<div class="muted">原因：${r}</div>` : ""}
+      ${link ? `<div class="muted">附件：<a href="${link}" target="_blank">${link}</a></div>` : ""}
+    </div>`;
+  }).join("");
 }
 
+/* ========= 待核准 ========= */
 async function loadPending(){
-  if(!ready){
-    $("pendingList").innerText = "尚未登入";
-    return;
-  }
   $("pendingList").innerText = "載入中…";
-  try{
-    const data = await jsonp_({ action:"pending", userId, ts:Date.now(), traceId:traceId_() });
-    if(!data?.ok) return $("pendingList").innerText = data?.message || "讀取失敗";
-    const items = Array.isArray(data.items) ? data.items : [];
-    if(items.length===0) return $("pendingList").innerText = "尚無資料";
+  const data = await jsonp_({ action:"pending", userId, ts:Date.now(), traceId: traceId_() });
+  if(!data?.ok){ $("pendingList").innerText = data?.message || "讀取失敗"; return; }
 
-    $("pendingList").innerHTML = items.map(it=>{
-      const id = escapeHtml_(it.id || "");
-      const k = escapeHtml_(it.kind || "");
-      const name = escapeHtml_(it.displayName || "");
-      const t = escapeHtml_(it.type || it.leaveType || "");
-      const d = escapeHtml_(it.date || "");
-      const h = escapeHtml_(it.hours || "");
-      const r = escapeHtml_(it.reason || "");
-      return `<div class="item">
-        <div><b>${name}</b> <span class="pill">${k}</span></div>
-        <div class="muted">${d}　${t}　${h} 小時</div>
-        ${r ? `<div class="muted">原因：${r}</div>` : ""}
-        <div class="row" style="margin-top:8px;">
-          <button class="btn" onclick="approve_('${id}','APPROVE')">✅ 核准</button>
-          <button class="btn" onclick="approve_('${id}','REJECT')">⛔️ 駁回</button>
-        </div>
-      </div>`;
-    }).join("");
-  }catch(e){
-    $("pendingList").innerText = "載入失敗（連線/逾時）";
-  }
+  const items = Array.isArray(data.items) ? data.items : [];
+  if(items.length===0){ $("pendingList").innerText = "尚無資料"; return; }
+
+  $("pendingList").innerHTML = items.map(it=>{
+    const id = escapeHtml_(it.id||"");
+    const name = escapeHtml_(it.displayName||"");
+    const k = escapeHtml_(it.kind||"");
+    const s = escapeHtml_(it.status||"");
+    const d = escapeHtml_(it.date||"");
+    const st = escapeHtml_(it.startTime||"");
+    const et = escapeHtml_(it.endTime||"");
+    const lt = escapeHtml_(it.leaveType||"");
+    const h = escapeHtml_(String(it.hours||""));
+    const r = escapeHtml_(it.reason||"");
+    const link = escapeHtml_(it.attachLink||"");
+    return `<div class="item">
+      <div><b>${name}</b> <span class="pill">${k}</span> <span class="pill">${s}</span></div>
+      <div class="muted">${d}　${st}~${et}　${lt}　${h} 小時</div>
+      ${r ? `<div class="muted">原因：${r}</div>` : ""}
+      ${link ? `<div class="muted">附件：<a href="${link}" target="_blank">${link}</a></div>` : ""}
+      <div class="row" style="margin-top:8px;">
+        <button class="btn" onclick="approve_('${id}','APPROVE')">✅ 核准</button>
+        <button class="btn" onclick="approve_('${id}','REJECT')">⛔️ 駁回</button>
+      </div>
+    </div>`;
+  }).join("");
 }
 
 async function approve_(id, decision){
-  if(!ready) return;
-  const ok = await jsonpWrite_({
+  const r = await jsonpWrite_({
     action:"approve",
     id,
     decision,
     userId,
-    ts:Date.now(),
-    traceId:traceId_()
+    ts: Date.now(),
+    traceId: traceId_()
   }, decision==="APPROVE" ? "已核准 ✅" : "已駁回 ✅");
-  if(ok) loadPending();
+
+  if(r?.ok) loadPending();
 }
 
-/* ===== ✅ LIFF 初始化（保證不白屏 + 會顯示錯誤） ===== */
+/* ========= 初始化 ========= */
 async function initApp(){
   setStatus("初始化中…");
   try{
-    if(!window.liff) throw new Error("LIFF SDK 未載入（script 被擋或網路異常）");
-
     await liff.init({ liffId: LIFF_ID });
 
     if(!liff.isInClient()){
       $("user").innerHTML = "⚠️ 請用 LINE 開啟此頁（LIFF）";
-      setStatus("目前不是在 LINE 內開啟，無法取得員工身份","err");
-      $("btnGPS").disabled = false; // 至少能測定位
+      setStatus("非 LINE 內開啟：無法取得員工身份","err");
+      $("btnGPS").disabled = false;
       return;
     }
-
     if(!liff.isLoggedIn()){
       setStatus("導向登入中…");
       liff.login();
@@ -474,23 +462,24 @@ async function initApp(){
     ready = true;
 
     $("user").innerHTML = `👤 ${escapeHtml_(displayName)} <span class="pill">已登入</span>`;
-    setStatus("系統就緒 ✅（可打卡）","ok");
 
-    $("btnIn").disabled  = false;
+    // 問後端我是不是主管（可選）
+    const who = await jsonp_({ action:"whoami", userId, ts:Date.now(), traceId: traceId_() });
+    isManager = !!who?.isManager;
+    $("tabMgr").classList.toggle("hidden", !isManager);
+
+    $("btnIn").disabled = false;
     $("btnOut").disabled = false;
     $("btnGPS").disabled = false;
     $("btnReloadMine").disabled = false;
+    $("btnReloadPending").disabled = !isManager;
 
-    // 若你有做主管角色判斷（從 GAS 回傳）
-    // const who = await jsonp_({ action:"whoami", userId, ts:Date.now(), traceId:traceId_() });
-    // isManager = !!who?.isManager;
-    // $("tabMgr").classList.toggle("hidden", !isManager);
+    setStatus("系統就緒 ✅","ok");
 
-  }catch(err){
-    console.error(err);
+  }catch(e){
+    console.error(e);
     $("user").innerHTML = "⚠️ 初始化失敗";
-    showFatal("initApp() failed", err);
-    $("btnGPS").disabled = false;
+    setStatus("LIFF 初始化失敗：" + (e.message || String(e)),"err");
   }
 }
 

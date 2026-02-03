@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>HOLDON 打卡</title>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 16px; }
+    button { margin: 6px 6px 0 0; padding: 10px 12px; }
+    #debug { margin-top: 12px; padding: 10px; border: 1px solid #ddd; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h2>HOLDON 出勤打卡</h2>
+  <p id="user">載入中...</p>
+  <p id="status"></p>
+
+  <button id="btnIn"  disabled onclick="sendLog('上班')">🟢 上班打卡</button>
+  <button id="btnOut" disabled onclick="sendLog('下班')">🔴 下班打卡</button>
+  <button id="btnOT"  disabled onclick="sendLog('加班')">🕒 加班打卡</button>
+
+  <div id="debug">debug: (waiting)</div>
+
+  <script>
+    // ✅ 用你後台顯示的那串
+    const LIFF_ID = "2009036245-XmZMSuuS";
+
+    // ✅ 等下你會把 GAS /exec API 貼到這裡
+    const GAS_API_URL = "貼上你的GAS /exec";
+
+    const $ = (id) => document.getElementById(id);
+    function log(msg){ $("debug").innerText += "\n" + msg; }
+    function setStatus(msg){ $("status").innerText = msg; }
+    function setButtons(on){
+      $("btnIn").disabled = !on;
+      $("btnOut").disabled = !on;
+      $("btnOT").disabled = !on;
+    }
+
+    let userId = "";
+    let displayName = "";
+    let ready = false;
+
+    async function init(){
+      $("debug").innerText = "debug: start";
+      log("url=" + location.href);
+      log("has liff=" + (typeof liff));
+      setButtons(false);
+      setStatus("初始化中...");
+
+      try{
+        log("liff.init start");
+        await liff.init({ liffId: LIFF_ID });
+        log("liff.init ok");
+
+        if(!liff.isLoggedIn()){
+          log("not logged in -> login()");
+          liff.login();
+          return;
+        }
+
+        const p = await liff.getProfile();
+        userId = p.userId || "";
+        displayName = p.displayName || "";
+
+        $("user").innerText = "你好，" + displayName;
+        ready = true;
+        setButtons(true);
+        setStatus("可以打卡了 ✅");
+      }catch(e){
+        log("ERROR: " + (e.message || e));
+        setStatus("初始化失敗：" + (e.message || e));
+      }
+    }
+
+    async function sendLog(type){
+      if(!ready){
+        setStatus("還在初始化，請稍等");
+        return;
+      }
+      setButtons(false);
+      setStatus("寫入中...");
+
+      try{
+        const res = await fetch(GAS_API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type, userId, displayName })
+        });
+        const data = await res.json();
+        if(!data.ok) throw new Error(data.message || "unknown error");
+
+        setStatus(data.message);
+        setButtons(true);
+        log("success: " + JSON.stringify(data));
+      }catch(err){
+        setStatus("寫入失敗：" + (err.message || err));
+        setButtons(true);
+        log("failure: " + (err.message || err));
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

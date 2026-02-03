@@ -157,53 +157,51 @@
   }
 
   async function init(){
-    try{
-      enableAll(false);
-      setStatus("初始化中...");
+  // 1) 只處理 LIFF（這段成功就算成功）
+  try{
+    enableAll(false);
+    setStatus("初始化中...");
 
-      await Promise.race([
-        liff.init({ liffId: LIFF_ID }),
-        new Promise((_,rej)=>setTimeout(()=>rej(new Error("liff.init timeout")), 8000))
-      ]);
+    await Promise.race([
+      liff.init({ liffId: LIFF_ID }),
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error("liff.init timeout")), 8000))
+    ]);
 
-      if(!liff.isLoggedIn()){ liff.login(); return; }
-
-      const profile = await liff.getProfile();
-      userId = profile.userId || "";
-      displayName = profile.displayName || "";
-      $("user").innerText = `你好，${displayName}`;
-
-      // 綁定打卡
-      $("btnIn").onclick  = ()=> ping_({action:"punch", type:"上班", userId, displayName, ts:Date.now(), traceId:traceId_(), origin:location.origin}, "上班已送出 ✅");
-      $("btnOut").onclick = ()=> ping_({action:"punch", type:"下班", userId, displayName, ts:Date.now(), traceId:traceId_(), origin:location.origin}, "下班已送出 ✅");
-
-      // 綁定申請
-      $("btnOTApply").onclick = ()=> submitOT();
-      $("btnLeaveApply").onclick = ()=> submitLeave();
-
-      // tabs
-      $("tabApply").onclick=()=>showTab("Apply");
-      $("tabMine").onclick=()=>{ showTab("Mine"); loadMine(); };
-
-      $("btnReloadMine").onclick=()=>loadMine();
-      $("btnReloadPending").onclick=()=>loadPending();
-
-      ready=true;
-      enableAll(true);
-      setStatus("可以操作了 ✅","ok");
-
-      // 先探測你是不是主管（用 listRequests 回傳 isManager）
-      const probe = await jsonp_({action:"listRequests", userId, mode:"mine"});
-      isManager = !!probe?.isManager;
-      if(isManager){
-        $("tabMgr").classList.remove("hidden");
-        $("tabMgr").onclick=()=>{ showTab("Mgr"); loadPending(); };
-        $("btnReloadPending").disabled=false;
-      }
-    }catch(e){
-      setStatus("初始化失敗，請重開","err");
+    if(!liff.isLoggedIn()){
+      liff.login();
+      return;
     }
+
+    const profile = await liff.getProfile();
+    userId = profile.userId || "";
+    displayName = profile.displayName || "";
+
+    $("user").innerText = `你好，${displayName}`;
+
+    // ✅ 先把核心功能打開（不等主管判斷）
+    bindCoreButtons();     // 你原本綁定上班/下班/送申請的函式
+    ready = true;
+    enableAll(true);
+    setStatus("可以操作了 ✅", "ok");
+  }catch(e){
+    setStatus("初始化失敗（LIFF），請重開", "err");
+    return;
   }
+
+  // 2) 再做「複雜功能」：主管判斷/載入清單（失敗也不會讓系統死）
+  try{
+    const probe = await jsonp_({ action:"listRequests", userId, mode:"mine" });
+    isManager = !!probe?.isManager;
+
+    if(isManager){
+      $("tabMgr").classList.remove("hidden");
+    }
+  }catch(e){
+    // ✅ 這裡只顯示提示，不要把整個系統判死刑
+    setStatus("已可打卡 ✅（清單載入失敗，稍後再試）", "ok");
+  }
+}
+
 
   function submitOT(){
     const date = $("otDate").value;

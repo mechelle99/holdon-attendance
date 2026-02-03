@@ -1,28 +1,3 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8" />
-  <title>HOLDON 打卡</title>
-  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-  <style>
-    body { font-family: Arial, sans-serif; padding: 14px; }
-    button { margin: 6px 6px 0 0; padding: 10px 12px; }
-    #debug { margin-top: 12px; padding: 10px; border: 1px solid #ddd; white-space: pre-wrap; font-size: 12px; }
-    .muted { color:#666; font-size:12px; }
-  </style>
-</head>
-<body>
-  <h2>HOLDON 出勤打卡</h2>
-
-  <p id="user">載入中...</p>
-  <p id="status" class="muted"></p>
-
-  <button id="btnIn"  disabled>🟢 上班打卡</button>
-  <button id="btnOut" disabled>🔴 下班打卡</button>
-  <button id="btnOT"  disabled>🕒 加班打卡</button>
-
-  <div id="debug">debug: (waiting)</div>
-
 <script>
   // ①  LIFF ID
   const LIFF_ID = "2009036245-XmZMSuuS";
@@ -54,6 +29,7 @@
 
       log("has liff=" + (typeof liff));
       log("origin=" + location.origin);
+      log("search=" + location.search);
 
       log("liff.init start");
       await liff.init({ liffId: LIFF_ID });
@@ -66,7 +42,10 @@
         return;
       }
 
+      log("getProfile start");
       const profile = await liff.getProfile();
+      log("getProfile ok");
+
       userId = profile.userId || "";
       displayName = profile.displayName || "";
 
@@ -87,56 +66,39 @@
     }
   }
 
- async function sendLog(type){
-  setStatus("寫入中...");
-  log("sendLog type=" + type);
-
   async function sendLog(type){
-  setStatus("寫入中...");
-  log("sendLog type=" + type);
+    if(!ready){
+      setStatus("尚未初始化完成，請稍等...");
+      return;
+    }
 
-  try{
-    const body = new URLSearchParams({
-      type,
-      userId,
-      displayName,
-      ts: String(Date.now()),
-      origin: location.origin
-    }).toString();
+    setStatus("寫入中...");
+    log("sendLog type=" + type);
 
-    await fetch(GAS_WEBAPP_URL, {
-      method: "POST",
-      mode: "no-cors",
-      headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
-      body
-    });
+    try{
+      const body = new URLSearchParams({
+        type,
+        userId,
+        displayName,
+        ts: String(Date.now())
+      }).toString();
 
-    // no-cors 拿不到 res.status / res.text，是正常的
-    setStatus("已送出 ✅（請到表單確認是否寫入）");
-    log("sent (no-cors), check sheet");
-  }catch(err){
-    log("errName=" + (err?.name || "unknown"));
-    log("errMsg=" + (err?.message || String(err)));
-    setStatus("寫入失敗：" + (err?.message || err));
+      await fetch(GAS_WEBAPP_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+        body
+      });
+
+      // no-cors 讀不到回應是正常的
+      setStatus("已送出 ✅（請到 Sheet 確認是否寫入）");
+      log("sent (no-cors)");
+    }catch(err){
+      log("errName=" + (err?.name || "unknown"));
+      log("errMsg=" + (err?.message || String(err)));
+      setStatus("寫入失敗：" + (err?.message || String(err)));
+    }
   }
-}
-
-
-    log("http status=" + res.status);
-
-    const text = await res.text();
-    log("raw=" + text.slice(0, 120));
-
-    setStatus("回應：" + res.status);
-  }catch(err){
-    log("errName=" + (err && err.name ? err.name : "unknown"));
-    log("errMsg=" + (err && err.message ? err.message : String(err)));
-    setStatus("寫入失敗：" + (err && err.message ? err.message : err));
-  }
-}
-
 
   init();
 </script>
-</body>
-</html>

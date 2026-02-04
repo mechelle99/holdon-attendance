@@ -1,4 +1,4 @@
-/* app.js - 自動扣除午休 1小時版 */
+/* app.js - 完整修復版 (含自動扣除午休) */
 const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || window.GAS_ENDPOINT;
 const $ = (id) => document.getElementById(id);
 const statusEl = $("status");
@@ -44,17 +44,20 @@ window.logout = function() {
 async function loadDashboard() {
   const { userId, displayName } = getUser();
   if (!userId) return;
-  $("dispAnnualLeft").textContent = "...";
-  $("dispCompLeft").textContent = "...";
+  
+  if($("dispAnnualLeft")) $("dispAnnualLeft").textContent = "...";
+  if($("dispCompLeft")) $("dispCompLeft").textContent = "...";
+
   try {
     const res = await callApi({ action: "get_dashboard", userId, displayName });
     if (res.ok && res.data) {
-      $("dispAnnualLeft").textContent = res.data.annual.left + " 天";
-      $("dispAnnualTotal").textContent = res.data.annual.total;
-      $("dispAnnualUsed").textContent = res.data.annual.used;
-      $("dispCompLeft").textContent = res.data.comp.left + " 時";
-      $("dispCompTotal").textContent = res.data.comp.total;
-      $("dispCompUsed").textContent = res.data.comp.used;
+      if($("dispAnnualLeft")) $("dispAnnualLeft").textContent = res.data.annual.left + " 天";
+      if($("dispAnnualTotal")) $("dispAnnualTotal").textContent = res.data.annual.total;
+      if($("dispAnnualUsed")) $("dispAnnualUsed").textContent = res.data.annual.used;
+      
+      if($("dispCompLeft")) $("dispCompLeft").textContent = res.data.comp.left + " 時";
+      if($("dispCompTotal")) $("dispCompTotal").textContent = res.data.comp.total;
+      if($("dispCompUsed")) $("dispCompUsed").textContent = res.data.comp.used;
     }
   } catch (e) { console.error("儀表板錯誤", e); }
 }
@@ -79,7 +82,7 @@ function getLocation(force) {
 
 function showPanel(type) {
   ["panelClock", "panelOuting", "panelLeave", "panelOvertime"].forEach(id => {
-    $(id).style.display = "none";
+    if($(id)) $(id).style.display = "none";
   });
   if (type === "clock") { $("panelClock").style.display = "block"; locEl.textContent = "需定位"; }
   else if (type === "outing") { $("panelOuting").style.display = "block"; locEl.textContent = "免定位"; }
@@ -87,7 +90,7 @@ function showPanel(type) {
   else if (type === "overtime") { $("panelOvertime").style.display = "block"; locEl.textContent = "免定位"; }
 }
 
-// --- 💡 修改重點：自動扣除午休 1 小時 ---
+// --- 自動扣除午休 1 小時邏輯 ---
 window.calcLeaveHours = function() {
   const s = $("leaveStart").value;
   const e = $("leaveEnd").value;
@@ -103,27 +106,22 @@ window.calcLeaveHours = function() {
   }
 
   // 1. 算出原始時數
-  let hours = (end - start) / (36e5); // 毫秒轉小時
+  let hours = (end - start) / (36e5); 
   
-  // 2. 自動扣除午休規則
-  // 如果時數超過 4 小時 (代表跨越上午下午)，我們假設有午休，自動扣 1 小時
-  // 例如：09:00 ~ 18:00 = 原始9小時 -> 自動變 8 小時
+  // 2. 如果超過 4 小時，自動減 1 小時 (午休)
   if (hours > 4) {
     hours = hours - 1;
   }
   
-  // 顯示結果
   $("leaveTotalHours").textContent = hours.toFixed(1);
 };
 
-// 加班時數計算 (加班通常是下班後，所以不扣午休，維持原樣)
 window.calcOtHours = function() {
   const d = $("otDate").value, s = $("otStart").value, e = $("otEnd").value;
   if (!d || !s || !e) return;
   const start = new Date(`${d}T${s}`), end = new Date(`${d}T${e}`);
   if (end <= start) { alert("結束錯誤"); $("otEnd").value=""; return; }
   let h = (end - start)/(36e5);
-  // 加班如果超過 4 小時通常也有休息，看你們規定，目前先不扣
   $("otTotalHours").textContent = (Math.floor(h * 2) / 2).toFixed(1);
 };
 
@@ -134,7 +132,6 @@ window.calcOutingHours = function() {
   const start = new Date(`${today}T${s}`), end = new Date(`${today}T${e}`);
   if (end <= start) { alert("結束錯誤"); $("outEnd").value=""; return; }
   let h = (end - start)/(36e5);
-  // 外出如果含午休也要扣嗎？通常外出比較彈性，這裡先設為扣除
   if (h > 4) h = h - 1; 
   $("outTotalHours").textContent = h.toFixed(1);
 };
@@ -161,7 +158,8 @@ async function submitRecord({ action, dataObj, requireGps }) {
       setStatus(`✅ ${res.message}`, true);
       if (action.includes("clock")) alert(`打卡成功！${new Date().toTimeString().slice(0,5)}`);
       if (action.includes("create")) {
-        $("leaveReason").value=""; $("otReason").value=""; 
+        if($("leaveReason")) $("leaveReason").value=""; 
+        if($("otReason")) $("otReason").value=""; 
         await loadDashboard(); 
       }
     } else {
@@ -180,25 +178,68 @@ async function loadApprovedOutings() {
   try {
     const res = await callApi({ action: "get_my_outings", userId });
     const sel = $("approvedOutingSelect");
-    sel.innerHTML = "";
-    if (res.ok && res.list && res.list.length > 0) {
-      res.list.forEach(item => {
-        const opt = document.createElement("option");
-        opt.value = item.requestId;
-        opt.textContent = `${item.date} ${item.destination} (${item.status})`;
-        sel.appendChild(opt);
-      });
-    } else { sel.innerHTML = "<option>無單據</option>"; }
+    if(sel) {
+      sel.innerHTML = "";
+      if (res.ok && res.list && res.list.length > 0) {
+        res.list.forEach(item => {
+          const opt = document.createElement("option");
+          opt.value = item.requestId;
+          opt.textContent = `${item.date} ${item.destination} (${item.status})`;
+          sel.appendChild(opt);
+        });
+      } else { sel.innerHTML = "<option>無單據</option>"; }
+    }
   } catch(e) {}
 }
 
 function bindEvents() {
-  $("actionType").addEventListener("change", (e) => showPanel(e.target.value));
-  $("btnClockIn").onclick = () => submitRecord({ action: "clock_in", requireGps: true, dataObj: {} });
-  $("btnClockOut").onclick = () => submitRecord({ action: "clock_out", requireGps: true, dataObj: {} });
+  if($("actionType")) $("actionType").addEventListener("change", (e) => showPanel(e.target.value));
+  if($("btnClockIn")) $("btnClockIn").onclick = () => submitRecord({ action: "clock_in", requireGps: true, dataObj: {} });
+  if($("btnClockOut")) $("btnClockOut").onclick = () => submitRecord({ action: "clock_out", requireGps: true, dataObj: {} });
   
-  $("btnOutApply").onclick = () => {
+  if($("btnOutApply")) $("btnOutApply").onclick = () => {
     if($("outTotalHours").textContent === "0.0") return alert("請確認時間");
     const d=$("outDate").value;
     submitRecord({ action: "create_outing", requireGps: false, dataObj: {
-      start_full: `${d} ${$("outStart").
+      start_full: `${d} ${$("outStart").value}`, end_full: `${d} ${$("outEnd").value}`,
+      hours: $("outTotalHours").textContent, destination: $("outDest").value, reason: $("outReason").value
+    }});
+  };
+
+  const getOutReq = () => ({ requestId: $("approvedOutingSelect").value });
+  if($("btnOutIn")) $("btnOutIn").onclick = () => submitRecord({ action: "clock_in", requireGps: true, dataObj: { ...getOutReq(), isOuting: true } });
+  if($("btnOutOut")) $("btnOutOut").onclick = () => submitRecord({ action: "clock_out", requireGps: true, dataObj: { ...getOutReq(), isOuting: true } });
+
+  if($("btnLeaveSubmit")) $("btnLeaveSubmit").onclick = () => {
+    if($("leaveTotalHours").textContent === "0.0") return alert("請確認時間");
+    submitRecord({ action: "create_leave", requireGps: false, dataObj: {
+      type: $("leaveKind").value, start: $("leaveStart").value.replace("T"," "), 
+      end: $("leaveEnd").value.replace("T"," "), hours: $("leaveTotalHours").textContent, reason: $("leaveReason").value
+    }});
+  };
+
+  if($("btnOtSubmit")) $("btnOtSubmit").onclick = () => {
+    if($("otTotalHours").textContent === "0.0") return alert("請確認時間");
+    const d=$("otDate").value;
+    submitRecord({ action: "create_ot", requireGps: false, dataObj: {
+      start_full: `${d} ${$("otStart").value}`, end_full: `${d} ${$("otEnd").value}`,
+      hours: $("otTotalHours").textContent, reason: $("otReason").value
+    }});
+  };
+}
+
+function init() {
+  if (!ENDPOINT) return setStatus("❌ 未設定 GAS", false);
+  const user = getUser();
+  if (!user.userId) { location.href = "login.html"; return; }
+  
+  whoEl.innerHTML = `${user.displayName} (${user.userId}) <a href="javascript:logout()" style="font-size:12px;color:#c22;margin-left:5px;">[登出]</a>`;
+  setStatus("就緒", true);
+  
+  if($("actionType")) showPanel($("actionType").value);
+  bindEvents();
+  loadApprovedOutings();
+  loadDashboard();
+}
+
+init();

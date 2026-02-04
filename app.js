@@ -1,11 +1,11 @@
-/* app.js - 加入登入檢查與登出功能 */
+/* app.js - 儀表板串接版 */
 const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || window.GAS_ENDPOINT;
 const $ = (id) => document.getElementById(id);
 const statusEl = $("status");
 const whoEl = $("who");
 const locEl = $("loc");
 
-// 1. 核心通訊 API
+// 通訊 API
 async function callApi(payload) {
   if (!ENDPOINT) throw new Error("缺少 GAS_ENDPOINT");
   const res = await fetch(ENDPOINT, {
@@ -21,6 +21,8 @@ async function callApi(payload) {
 function setStatus(msg, ok) {
   statusEl.innerHTML = msg;
   statusEl.className = "status " + (ok ? "ok" : "bad");
+  statusEl.style.display = "block";
+  setTimeout(() => { statusEl.style.display = "none"; }, 3000);
 }
 
 function getUser() {
@@ -30,7 +32,6 @@ function getUser() {
   };
 }
 
-// 登出功能
 window.logout = function() {
   if(confirm("確定要登出嗎？")) {
     localStorage.removeItem("employeeId");
@@ -39,16 +40,54 @@ window.logout = function() {
   }
 }
 
+// 載入儀表板數據 (特休 & 補休)
+async function loadDashboard() {
+  const { userId, displayName } = getUser();
+  if (!userId) return;
+
+  // 顯示載入中...
+  $("dispAnnualLeft").textContent = "...";
+  $("dispCompLeft").textContent = "...";
+
+  try {
+    const res = await callApi({ action: "get_dashboard", userId, displayName });
+    if (res.ok && res.data) {
+      // 更新特休 UI
+      $("dispAnnualLeft").textContent = res.data.annual.left + " 天";
+      $("dispAnnualTotal").textContent = res.data.annual.total;
+      $("dispAnnualUsed").textContent = res.data.annual.used;
+
+      // 更新補休 UI
+      $("dispCompLeft").textContent = res.data.comp.left + " 時";
+      $("dispCompTotal").textContent = res.data.comp.total;
+      $("dispCompUsed").textContent = res.data.comp.used;
+    }
+  } catch (e) {
+    console.error("載入儀表板失敗", e);
+  }
+}
+
+// 定位功能
 function getLocation(force) {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
-      if (force) return reject(new Error("瀏覽器不支援定位"));
+      if (force) return reject(new Error("此瀏覽器不支援定位功能"));
       return resolve({ lat: "", lng: "" });
     }
+    const options = { enableHighAccuracy: false, timeout: 20000, maximumAge: 60000 };
     navigator.geolocation.getCurrentPosition(
       (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      (err) => (force ? reject(err) : resolve({ lat: "", lng: "" })),
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      (err) => {
+        if (!force) return resolve({ lat: "", lng: "" }); 
+        let msg = "定位失敗";
+        switch(err.code) {
+          case 1: msg = "您拒絕了定位權限"; break;
+          case 2: msg = "無法偵測到位置 (訊號不佳)"; break;
+          case 3: msg = "定位逾時"; break;
+        }
+        reject(new Error(msg));
+      },
+      options
     );
   });
 }
@@ -63,6 +102,7 @@ function showPanel(type) {
   else if (type === "overtime") { $("panelOvertime").style.display = "block"; locEl.textContent = "免定位"; }
 }
 
+// 計算時數
 window.calcLeaveHours = function() {
   const s = $("leaveStart").value;
   const e = $("leaveEnd").value;
@@ -71,7 +111,6 @@ window.calcLeaveHours = function() {
   if (end <= start) { alert("結束不能早於開始"); $("leaveEnd").value=""; return; }
   $("leaveTotalHours").textContent = ((end - start)/(36e5)).toFixed(1);
 };
-
 window.calcOtHours = function() {
   const d = $("otDate").value, s = $("otStart").value, e = $("otEnd").value;
   if (!d || !s || !e) return;
@@ -80,7 +119,6 @@ window.calcOtHours = function() {
   let h = (end - start)/(36e5);
   $("otTotalHours").textContent = (Math.floor(h * 2) / 2).toFixed(1);
 };
-
 window.calcOutingHours = function() {
   const s = $("outStart").value, e = $("outEnd").value;
   if (!s || !e) return;
@@ -90,29 +128,33 @@ window.calcOutingHours = function() {
   $("outTotalHours").textContent = ((end - start)/(36e5)).toFixed(1);
 };
 
+// 送出資料
 async function submitRecord({ action, dataObj, requireGps }) {
   const { userId, displayName } = getUser();
-  // 雙重保險：如果沒 ID，踢回登入頁
   if (!userId) { location.href = "login.html"; return; }
-
   const buttons = document.querySelectorAll("button");
   buttons.forEach(b => b.disabled = true);
-  setStatus("送出中...", true);
+  setStatus("處理中...", true);
 
   try {
     let gps = { lat: "", lng: "" };
     if (requireGps) {
-      try { gps = await getLocation(true); } 
-      catch (e) { throw new Error("無法取得定位，請確認已授權 GPS。"); }
+      setStatus("📡 正在抓取定位...", true);
+      try { gps = await getLocation(true); } catch (e) { throw e; }
     }
 
+    setStatus("送出資料中...", true);
     const payload = { action, userId, displayName, lat: gps.lat, lng: gps.lng, data: dataObj };
     const res = await callApi(payload);
     
     if (res.ok) {
       setStatus(`✅ ${res.message}`, true);
       if (action.includes("clock")) alert(`打卡成功！時間：${new Date().toTimeString().slice(0,5)}`);
-      if (action === "create_outing") { $("outDest").value=""; $("outReason").value=""; await loadApprovedOutings(); } 
+      // 申請成功後，重新載入儀表板 (即時更新餘額)
+      if (action.includes("create")) {
+        $("leaveReason").value=""; $("otReason").value=""; 
+        await loadDashboard(); 
+      }
     } else {
       setStatus(`❌ 失敗：${res.message}`, false);
     }
@@ -181,14 +223,8 @@ function bindEvents() {
 
 function init() {
   if (!ENDPOINT) return setStatus("❌ 未設定 GAS_ENDPOINT", false);
-  
-  // === 登入檢查 ===
   const user = getUser();
-  if (!user.userId) {
-    // 沒登入 -> 踢去登入頁
-    location.href = "login.html";
-    return;
-  }
+  if (!user.userId) { location.href = "login.html"; return; }
   
   whoEl.innerHTML = `${user.displayName} (${user.userId}) <a href="javascript:logout()" style="font-size:12px;color:#c22;margin-left:5px;">[登出]</a>`;
   setStatus("系統就緒", true);
@@ -196,6 +232,9 @@ function init() {
   showPanel($("actionType").value);
   bindEvents();
   loadApprovedOutings();
+  
+  // 載入儀表板 (特休/補休)
+  loadDashboard();
 }
 
 init();

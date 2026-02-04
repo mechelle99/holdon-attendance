@@ -71,9 +71,14 @@
       <div id="panelLeave" style="margin-top:12px; display:none;">
         <label>假別</label>
         <select id="leaveKind">
-          <option value="sick">病假</option><option value="personal">事假</option>
-          <option value="annual">特休</option><option value="birthday">生日假</option>
-          <option value="menstrual">生理假</option><option value="other">其他</option>
+          <option value="personal">事假</option>
+          <option value="sick">病假</option>
+          <option value="annual">特休</option>
+          <option value="official">公假</option>
+          <option value="marriage">婚假</option>
+          <option value="funeral">喪假</option>
+          <option value="menstrual">生理假</option>
+          <option value="birthday">生日假</option> 
         </select>
         <label>開始</label> <input id="leaveStart" type="datetime-local" onchange="calcLeaveHours()" />
         <label>結束</label> <input id="leaveEnd" type="datetime-local" onchange="calcLeaveHours()" />

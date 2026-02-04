@@ -214,8 +214,29 @@ window.calcOtHours = function() {
 }
 
 // --- 修改：送出邏輯 (整理資料格式) ---
-function bindEvents() {
-  $("actionType").addEventListener("change", (e) => showPanel(e.target.value));
+// 修改：外出申請送出
+  $("btnOutApply").onclick = () => {
+    // 檢查必填
+    if($("outTotalHours").textContent === "0.0") return alert("請確認時間與時數");
+    if(!$("outDate").value) return alert("請選擇日期");
+    if(!$("outDest").value) return alert("請填寫目的地");
+    if(!$("outReason").value) return alert("請填寫原因");
+
+    const date = $("outDate").value;
+
+    submitRecord({
+      action: "create_outing", 
+      requireGps: false,
+      dataObj: {
+        // 組合完整時間字串，讓後端好寫入 Sheet
+        start_full: `${date} ${$("outStart").value}`, 
+        end_full: `${date} ${$("outEnd").value}`,
+        hours: $("outTotalHours").textContent,
+        destination: $("outDest").value,
+        reason: $("outReason").value
+      }
+    });
+  };
 
   // 1. 上下班打卡
   const handleClock = (action) => {

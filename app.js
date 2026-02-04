@@ -149,40 +149,67 @@ async function loadApprovedOutings() {
 }
 
 function bindEvents() {
+ // --- 新增：自動計算請假時數 ---
+window.calcLeaveHours = function() {
+  const startVal = $("leaveStart").value;
+  const endVal = $("leaveEnd").value;
+  if (!startVal || !endVal) return;
+
+  const start = new Date(startVal);
+  const end = new Date(endVal);
+  const diffMs = end - start;
+  
+  // 計算小時 (保留一位小數)
+  let hours = diffMs / (1000 * 60 * 60);
+  if (hours < 0) hours = 0;
+  
+  $("leaveTotalHours").textContent = hours.toFixed(1);
+}
+
+// --- 新增：自動計算加班時數 ---
+window.calcOtHours = function() {
+  const startVal = $("otStart").value;
+  const endVal = $("otEnd").value;
+  if (!startVal || !endVal) return;
+
+  // 因為 input type="time" 只有時間沒有日期，我們假設是同一天計算
+  // 或是需要結合 otDate，這裡先做簡易時間差計算
+  const d = new Date().toDateString(); // 用今天當基準
+  const start = new Date(d + ' ' + startVal);
+  const end = new Date(d + ' ' + endVal);
+  
+  let diffMs = end - start;
+  // 處理跨日問題 (例如 23:00 到 01:00)
+  if (diffMs < 0) {
+    diffMs += 24 * 60 * 60 * 1000;
+  }
+
+  let hours = diffMs / (1000 * 60 * 60);
+  // 加班通常以 0.5 或 1 小時為單位，這裡先無條件捨去取整數（依照你的需求6：一小時為單位）
+  hours = Math.floor(hours); 
+
+  $("otTotalHours").textContent = hours.toFixed(1);
+}
+
+// --- 修改：bindEvents 裡的加班與請假送出邏輯 ---
+function bindEvents() {
   $("actionType").addEventListener("change", (e) => showPanel(e.target.value));
 
-  // 1. 上下班打卡
-  $("btnClockIn").onclick = () => submitRecord({ 
-    action: "clock_in", requireGps: true, dataObj: {} 
-  });
-  $("btnClockOut").onclick = () => submitRecord({ 
-    action: "clock_out", requireGps: true, dataObj: {} 
-  });
-
-  // 2. 外出申請
-  $("btnOutApply").onclick = () => {
-    submitRecord({
-      action: "create_outing", requireGps: false,
-      dataObj: {
-        date: $("outDate").value,
-        start: $("outStart").value,
-        end: $("outEnd").value,
-        destination: $("outDest").value,
-        reason: $("outReason").value
-      }
+  // 1. 上下班打卡 (增加顯示時間)
+  const handleClock = (action) => {
+    submitRecord({ action, requireGps: true, dataObj: {} }).then(() => {
+        // 需求3：打卡後顯示時間
+        const now = new Date();
+        const timeStr = now.getHours().toString().padStart(2,'0') + ":" + now.getMinutes().toString().padStart(2,'0');
+        alert(`打卡成功！時間：${timeStr}`);
     });
   };
+  $("btnClockIn").onclick = () => handleClock("clock_in");
+  $("btnClockOut").onclick = () => handleClock("clock_out");
 
-  // 3. 外出打卡
-  const getOutReq = () => ({ requestId: $("approvedOutingSelect").value });
-  $("btnOutIn").onclick = () => submitRecord({ 
-    action: "clock_in", requireGps: true, dataObj: { ...getOutReq(), isOuting: true } 
-  });
-  $("btnOutOut").onclick = () => submitRecord({ 
-    action: "clock_out", requireGps: true, dataObj: { ...getOutReq(), isOuting: true } 
-  });
+  // ... (外出部分維持不變) ...
 
-  // 4. 請假
+  // 4. 請假 (改抓新的欄位)
   $("btnLeaveSubmit").onclick = () => {
     submitRecord({
       action: "create_leave", requireGps: false,
@@ -190,22 +217,27 @@ function bindEvents() {
         type: $("leaveKind").value,
         start: $("leaveStart").value,
         end: $("leaveEnd").value,
+        hours: $("leaveTotalHours").textContent, // 傳送計算後的時數
         reason: $("leaveReason").value
       }
     });
   };
 
-  // 5. 加班
+  // 5. 加班 (改抓新的欄位)
   $("btnOtSubmit").onclick = () => {
     submitRecord({
       action: "create_ot", requireGps: false,
       dataObj: {
         date: $("otDate").value,
-        hours: $("otHours").value,
+        start: $("otStart").value, // 傳送開始時間
+        end: $("otEnd").value,     // 傳送結束時間
+        hours: $("otTotalHours").textContent, // 傳送計算後的時數
         reason: $("otReason").value
       }
     });
   };
+  
+  // ... (其他事件綁定) ...
 }
 
 // 初始化

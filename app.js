@@ -1,4 +1,4 @@
-/* app.js - 完整修復版 (含自動扣除午休) */
+/* app.js - 完整修復版 (請務必複製到最後一行) */
 const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || window.GAS_ENDPOINT;
 const $ = (id) => document.getElementById(id);
 const statusEl = $("status");
@@ -19,6 +19,7 @@ async function callApi(payload) {
 }
 
 function setStatus(msg, ok) {
+  if(!statusEl) return;
   statusEl.innerHTML = msg;
   statusEl.className = "status " + (ok ? "ok" : "bad");
   statusEl.style.display = "block";
@@ -84,10 +85,10 @@ function showPanel(type) {
   ["panelClock", "panelOuting", "panelLeave", "panelOvertime"].forEach(id => {
     if($(id)) $(id).style.display = "none";
   });
-  if (type === "clock") { $("panelClock").style.display = "block"; locEl.textContent = "需定位"; }
-  else if (type === "outing") { $("panelOuting").style.display = "block"; locEl.textContent = "免定位"; }
-  else if (type === "leave") { $("panelLeave").style.display = "block"; locEl.textContent = "免定位"; }
-  else if (type === "overtime") { $("panelOvertime").style.display = "block"; locEl.textContent = "免定位"; }
+  if (type === "clock") { if($("panelClock")) $("panelClock").style.display = "block"; if(locEl) locEl.textContent = "需定位"; }
+  else if (type === "outing") { if($("panelOuting")) $("panelOuting").style.display = "block"; if(locEl) locEl.textContent = "免定位"; }
+  else if (type === "leave") { if($("panelLeave")) $("panelLeave").style.display = "block"; if(locEl) locEl.textContent = "免定位"; }
+  else if (type === "overtime") { if($("panelOvertime")) $("panelOvertime").style.display = "block"; if(locEl) locEl.textContent = "免定位"; }
 }
 
 // --- 自動扣除午休 1 小時邏輯 ---
@@ -231,9 +232,13 @@ function bindEvents() {
 function init() {
   if (!ENDPOINT) return setStatus("❌ 未設定 GAS", false);
   const user = getUser();
-  if (!user.userId) { location.href = "login.html"; return; }
+  // 如果沒登入，就跳轉
+  if (!user.userId) { 
+    location.href = "login.html"; 
+    return; 
+  }
   
-  whoEl.innerHTML = `${user.displayName} (${user.userId}) <a href="javascript:logout()" style="font-size:12px;color:#c22;margin-left:5px;">[登出]</a>`;
+  if(whoEl) whoEl.innerHTML = `${user.displayName} (${user.userId}) <a href="javascript:logout()" style="font-size:12px;color:#c22;margin-left:5px;">[登出]</a>`;
   setStatus("就緒", true);
   
   if($("actionType")) showPanel($("actionType").value);
@@ -242,4 +247,5 @@ function init() {
   loadDashboard();
 }
 
+// 啟動程式 (這是最後一行，不能漏掉)
 init();

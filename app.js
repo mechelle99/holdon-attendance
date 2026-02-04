@@ -232,13 +232,18 @@ function bindEvents() {
 function init() {
   if (!ENDPOINT) return setStatus("❌ 未設定 GAS", false);
   const user = getUser();
-  // 如果沒登入，就跳轉
-  if (!user.userId) { 
-    location.href = "login.html"; 
-    return; 
-  }
+  if (!user.userId) { location.href = "login.html"; return; }
   
   if(whoEl) whoEl.innerHTML = `${user.displayName} (${user.userId}) <a href="javascript:logout()" style="font-size:12px;color:#c22;margin-left:5px;">[登出]</a>`;
+  
+  // 👇👇👇 請加入這段 (主管權限檢查) 👇👇👇
+  // 把 "M001" 改成你真正的主管 ID，如果要多個，就寫 ["M001", "M002"]
+  const managers = ["M001", "M002"]; 
+  if (managers.includes(user.userId)) {
+    if($("managerBtn")) $("managerBtn").style.display = "block";
+  }
+  // 👆👆👆 加入結束 👆👆👆
+
   setStatus("就緒", true);
   
   if($("actionType")) showPanel($("actionType").value);
@@ -247,5 +252,4 @@ function init() {
   loadDashboard();
 }
 
-// 啟動程式 (這是最後一行，不能漏掉)
 init();

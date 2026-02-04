@@ -13,6 +13,10 @@
     button{width:100%;padding:14px;border:0;border-radius:10px;background:#111;color:#fff;font-weight:bold;font-size:16px;cursor:pointer;}
     button:disabled{opacity:0.5;}
     .error{color:#c22;font-size:14px;margin-top:12px;display:none;}
+    
+    /* 新增忘記密碼樣式 */
+    .link{margin-top:15px; font-size:13px; color:#666;}
+    .link a{color:#666; text-decoration:underline; cursor:pointer;}
   </style>
 </head>
 <body>
@@ -22,17 +26,21 @@
     <input id="upass" type="password" placeholder="密碼" />
     <button id="btnLogin">登入</button>
     <div id="msg" class="error"></div>
+    
+    <div class="link">
+      <a id="btnForgot">忘記密碼？</a>
+    </div>
   </div>
 
   <script src="config.js"></script>
   <script>
     const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || window.GAS_ENDPOINT;
     
-    // 檢查是否已登入，若已登入直接跳轉首頁
     if(localStorage.getItem("employeeId")) {
       location.href = "index.html";
     }
 
+    // 登入功能
     document.getElementById("btnLogin").onclick = async function() {
       const btn = this;
       const uid = document.getElementById("uid").value.trim();
@@ -55,10 +63,9 @@
         const json = await res.json();
 
         if (json.ok) {
-          // 登入成功：存入 LocalStorage
           localStorage.setItem("employeeId", json.user.id);
           localStorage.setItem("employeeName", json.user.name);
-          location.href = "index.html"; // 跳轉到首頁
+          location.href = "index.html";
         } else {
           msg.textContent = "❌ " + json.message;
           msg.style.display = "block";
@@ -69,6 +76,40 @@
       } finally {
         btn.disabled = false;
         btn.textContent = "登入";
+      }
+    };
+
+    // 新增：忘記密碼功能
+    document.getElementById("btnForgot").onclick = async function() {
+      const uid = prompt("請輸入您的員工編號 (Employee ID)：");
+      if(!uid) return;
+
+      if(!ENDPOINT) return alert("尚未設定 config.js");
+
+      const msg = document.getElementById("msg");
+      msg.style.display = "block";
+      msg.textContent = "⏳ 正在查詢並寄送郵件...";
+      msg.style.color = "#666"; // 暫時改灰色
+
+      try {
+        const res = await fetch(ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({ action: "forgot_pass", data: { id: uid } })
+        });
+        const json = await res.json();
+        
+        if (json.ok) {
+          alert("✅ " + json.message);
+          msg.style.display = "none";
+        } else {
+          alert("❌ " + json.message);
+          msg.textContent = "❌ " + json.message;
+          msg.style.color = "#c22"; // 錯誤改回紅色
+        }
+      } catch (e) {
+        alert("❌ 連線錯誤：" + e);
+        msg.style.display = "none";
       }
     };
   </script>

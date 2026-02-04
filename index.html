@@ -2,63 +2,100 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
   <title>HOLDON 出勤系統</title>
   <style>
-    body{font-family:system-ui,-apple-system,sans-serif;background:#f6f7f9;margin:0;padding:20px;color:#111;padding-bottom:80px;}
-    .container{max-width:480px;margin:0 auto;}
-    h2{font-size:20px;margin:0 0 15px;}
+    /* 基礎設定 */
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f2f4f7; margin: 0; padding: 16px; color: #333; padding-bottom: 100px; }
+    .container { max-width: 500px; margin: 0 auto; }
     
-    /* 儀表板樣式 (新) */
-    .dashboard {display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;}
-    .stat-card {background: #fff; padding: 15px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); text-align: center;}
-    .stat-title {font-size: 13px; color: #666; margin-bottom: 5px;}
-    .stat-val {font-size: 24px; font-weight: bold; color: #111;}
-    .stat-sub {font-size: 12px; color: #888; margin-top: 4px;}
-    .stat-card.blue { border-bottom: 4px solid #007aff; }
-    .stat-card.orange { border-bottom: 4px solid #ff9500; }
+    /* 頂部資訊列 */
+    #header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    #who { font-size: 14px; color: #666; }
+    #logoutBtn { font-size: 13px; color: #c22; text-decoration: none; font-weight: bold; margin-left: 8px; }
 
-    .card{background:#fff;border-radius:16px;padding:20px;box-shadow:0 4px 20px rgba(0,0,0,.06);margin-bottom:20px;}
-    .row{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
-    label{font-size:14px;font-weight:600;color:#666;display:block;margin-bottom:6px;}
-    select,input,textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;font-size:16px;box-sizing:border-box;background:#f9f9f9;outline:none;}
-    select:focus,input:focus,textarea:focus{border-color:#111;background:#fff;}
-    button{width:100%;padding:14px;border:0;border-radius:10px;font-size:16px;font-weight:bold;cursor:pointer;transition:0.2s;}
-    button:active{transform:scale(0.98);}
-    .btn-main{background:#111;color:#fff;}
-    .btn-outline{background:transparent;border:2px solid #ddd;color:#111;}
-    .status{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#111;color:#fff;padding:10px 20px;border-radius:30px;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,0.2);display:none;white-space:nowrap;z-index:99;}
-    .status.ok{background:#28a745;} .status.bad{background:#dc3545;}
-    #who{font-size:14px;color:#555;margin-bottom:10px;text-align:right;}
+    /* 👑 主管按鈕 */
+    #managerBtn { display: none; margin-bottom: 12px; text-align: right; }
+    .btn-manager { background: #007aff; color: #fff; padding: 6px 14px; border-radius: 20px; text-decoration: none; font-size: 13px; font-weight: bold; display: inline-block; box-shadow: 0 2px 5px rgba(0,122,255,0.3); }
+
+    /* 📊 儀表板 (左右兩塊數據) */
+    .dashboard { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+    .stat-card { background: #fff; padding: 16px; border-radius: 16px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+    .stat-title { font-size: 13px; color: #888; margin-bottom: 4px; }
+    .stat-val { font-size: 26px; font-weight: 800; color: #111; line-height: 1.2; }
+    .stat-unit { font-size: 12px; color: #666; font-weight: normal; margin-left: 2px; }
+    .stat-sub { font-size: 11px; color: #999; margin-top: 6px; }
+    .border-blue { border-bottom: 4px solid #007aff; }
+    .border-orange { border-bottom: 4px solid #ff9500; }
+
+    /* 📝 下方操作卡片 (大區塊) */
+    .card { background: #fff; border-radius: 20px; padding: 20px; box-shadow: 0 4px 16px rgba(0,0,0,0.06); margin-bottom: 20px; }
+    
+    /* 標題與定位狀態 */
+    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    h2 { margin: 0; font-size: 18px; font-weight: 700; color: #111; }
+    #loc { font-size: 12px; color: #aaa; background: #f5f5f5; padding: 4px 8px; border-radius: 6px; }
+
+    /* 輸入元件優化 (好寫好點) */
+    label { font-size: 14px; font-weight: 600; color: #555; display: block; margin-bottom: 8px; margin-top: 16px; }
+    label:first-child { margin-top: 0; }
+    
+    select, input, textarea { 
+      width: 100%; padding: 14px; 
+      border: 1px solid #e0e0e0; border-radius: 12px; 
+      font-size: 16px; /* 防止 iOS 自動縮放 */
+      background: #f9f9f9; box-sizing: border-box; 
+      outline: none; transition: 0.2s;
+      -webkit-appearance: none; /* 移除 iOS 預設樣式 */
+    }
+    select:focus, input:focus, textarea:focus { border-color: #333; background: #fff; }
+    textarea { resize: none; min-height: 80px; } /* 加高輸入框 */
+
+    /* 按鈕樣式 */
+    button { width: 100%; padding: 16px; border: 0; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 20px; transition: transform 0.1s; }
+    button:active { transform: scale(0.98); }
+    .btn-main { background: #111; color: #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+    .btn-outline { background: #fff; border: 2px solid #eee; color: #333; margin-top: 12px; }
+    .btn-row { display: flex; gap: 10px; margin-top: 20px; }
+    .btn-row button { margin-top: 0; }
+
+    /* 狀態提示 */
+    .status { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: #fff; padding: 12px 24px; border-radius: 50px; font-size: 14px; font-weight: bold; display: none; white-space: nowrap; z-index: 100; box-shadow: 0 5px 20px rgba(0,0,0,0.3); backdrop-filter: blur(4px); }
+    .status.ok { background: #28a745; }
+    .status.bad { background: #dc3545; }
+    
+    /* 日期時間並排 */
+    .row-inputs { display: flex; gap: 10px; }
+    .row-inputs > div { flex: 1; }
   </style>
 </head>
 <body>
   <div class="container">
-    <div id="who">載入中...</div>
-    <div id="managerBtn" style="display:none; margin-bottom:15px; text-align:right;">
-      <a href="manager.html" style="background:#007aff; color:#fff; padding:8px 16px; border-radius:20px; text-decoration:none; font-size:13px; font-weight:bold;">
-        👑 進入主管儀表板
-      </a>
+    
+    <div id="header-row">
+      <div id="who">載入中...</div>
+    </div>
+
+    <div id="managerBtn">
+      <a href="manager.html" class="btn-manager">👑 進入主管審核頁</a>
     </div>
 
     <div class="dashboard">
-    <div class="dashboard">
-      <div class="stat-card blue">
+      <div class="stat-card border-blue">
         <div class="stat-title">特休剩餘</div>
-        <div class="stat-val" id="dispAnnualLeft">-</div>
-        <div class="stat-sub">總額: <span id="dispAnnualTotal">-</span> / 已用: <span id="dispAnnualUsed">-</span></div>
+        <div class="stat-val" id="dispAnnualLeft">-<span class="stat-unit">天</span></div>
+        <div class="stat-sub">總額 <span id="dispAnnualTotal">-</span> / 已用 <span id="dispAnnualUsed">-</span></div>
       </div>
-      <div class="stat-card orange">
+      <div class="stat-card border-orange">
         <div class="stat-title">補休餘額</div>
-        <div class="stat-val" id="dispCompLeft">-</div>
-        <div class="stat-sub">累積: <span id="dispCompTotal">-</span> / 已換: <span id="dispCompUsed">-</span></div>
+        <div class="stat-val" id="dispCompLeft">-<span class="stat-unit">時</span></div>
+        <div class="stat-sub">累積 <span id="dispCompTotal">-</span> / 已用 <span id="dispCompUsed">-</span></div>
       </div>
     </div>
-
     <div class="card">
-      <div class="row">
+      <div class="card-header">
         <h2>出勤 / 申請</h2>
-        <div id="loc" style="font-size:12px;color:#999;">偵測中...</div>
+        <div id="loc">定位中...</div>
       </div>
       
       <label>選擇類型</label>
@@ -71,64 +108,83 @@
     </div>
 
     <div id="panelClock" class="card">
-      <button id="btnClockIn" class="btn-main" style="margin-bottom:10px;">上班打卡</button>
+      <button id="btnClockIn" class="btn-main">上班打卡</button>
       <button id="btnClockOut" class="btn-outline">下班打卡</button>
     </div>
 
     <div id="panelOuting" class="card" style="display:none;">
-      <label>外出打卡 (需選單號)</label>
-      <select id="approvedOutingSelect" style="margin-bottom:15px;"></select>
-      <div style="display:flex;gap:10px;margin-bottom:20px;">
+      <label>外出打卡 (選擇已核准單號)</label>
+      <select id="approvedOutingSelect"></select>
+      <div class="btn-row">
         <button id="btnOutIn" class="btn-main">外出上班</button>
         <button id="btnOutOut" class="btn-outline">外出下班</button>
       </div>
-      <hr style="border:0;border-top:1px solid #eee;margin:20px 0;">
-      <label>申請外出 (免定位)</label>
+      
+      <div style="border-top:1px dashed #eee; margin:24px 0;"></div>
+      
+      <h2>申請外出</h2>
+      <label>日期</label>
       <input type="date" id="outDate" />
-      <div style="display:flex;gap:10px;">
-        <input type="time" id="outStart" onchange="calcOutingHours()" />
-        <span style="padding-top:12px;">~</span>
-        <input type="time" id="outEnd" onchange="calcOutingHours()" />
+      <label>時間</label>
+      <div class="row-inputs">
+        <div><input type="time" id="outStart" onchange="calcOutingHours()" /></div>
+        <div style="padding-top:14px; color:#999;">~</div>
+        <div><input type="time" id="outEnd" onchange="calcOutingHours()" /></div>
       </div>
-      <div style="margin:10px 0;font-size:13px;color:#666;">預計時數：<span id="outTotalHours" style="font-weight:bold;color:#111;">0.0</span> 小時</div>
-      <input type="text" id="outDest" placeholder="地點" />
-      <input type="text" id="outReason" placeholder="事由 (公務內容)" />
-      <button id="btnOutApply" class="btn-main" style="margin-top:10px;">送出申請</button>
+      <div style="text-align:right; margin-top:8px; font-size:13px; color:#666;">預計時數：<b id="outTotalHours" style="color:#007aff;">0.0</b> 小時</div>
+      
+      <label>地點</label>
+      <input type="text" id="outDest" placeholder="例如：台電大樓" />
+      <label>事由</label>
+      <textarea id="outReason" rows="3" placeholder="請填寫公務內容..."></textarea>
+      
+      <button id="btnOutApply" class="btn-main">送出外出申請</button>
     </div>
 
     <div id="panelLeave" class="card" style="display:none;">
       <label>假別</label>
       <select id="leaveKind">
-        <option value="personal">事假</option>
+        <option value="annual">特休 (Annual)</option>
+        <option value="comp">補休 (Comp Time)</option>
+        <option value="birthday">生日假 (Birthday)</option>
         <option value="sick">病假</option>
-        <option value="annual">特休</option>
-        <option value="comp">補休 (使用加班時數)</option> <option value="official">公假</option>
+        <option value="personal">事假</option>
+        <option value="official">公假</option>
         <option value="marriage">婚假</option>
         <option value="funeral">喪假</option>
         <option value="menstrual">生理假</option>
-        <option value="birthday">生日假</option>
       </select>
-      <label>開始</label>
+
+      <label>開始時間</label>
       <input type="datetime-local" id="leaveStart" onchange="calcLeaveHours()" />
-      <label>結束</label>
+      
+      <label>結束時間</label>
       <input type="datetime-local" id="leaveEnd" onchange="calcLeaveHours()" />
-      <div style="margin:10px 0;font-size:13px;color:#666;">預計請假時數：<span id="leaveTotalHours" style="font-weight:bold;color:#111;">0.0</span> 小時</div>
-      <textarea id="leaveReason" rows="2" placeholder="請假事由"></textarea>
-      <button id="btnLeaveSubmit" class="btn-main" style="margin-top:10px;">送出請假申請</button>
+      
+      <div style="text-align:right; margin-top:8px; font-size:13px; color:#666;">預計請假：<b id="leaveTotalHours" style="color:#c22;">0.0</b> 小時</div>
+      
+      <label>請假事由</label>
+      <textarea id="leaveReason" rows="3" placeholder="請填寫原因..."></textarea>
+      
+      <button id="btnLeaveSubmit" class="btn-main">送出請假申請</button>
     </div>
 
     <div id="panelOvertime" class="card" style="display:none;">
       <label>日期</label>
       <input type="date" id="otDate" />
+      
       <label>時間</label>
-      <div style="display:flex;gap:10px;">
-        <input type="time" id="otStart" onchange="calcOtHours()" />
-        <span style="padding-top:12px;">~</span>
-        <input type="time" id="otEnd" onchange="calcOtHours()" />
+      <div class="row-inputs">
+        <div><input type="time" id="otStart" onchange="calcOtHours()" /></div>
+        <div style="padding-top:14px; color:#999;">~</div>
+        <div><input type="time" id="otEnd" onchange="calcOtHours()" /></div>
       </div>
-      <div style="margin:10px 0;font-size:13px;color:#666;">預計加班時數：<span id="otTotalHours" style="font-weight:bold;color:#111;">0.0</span> 小時</div>
-      <textarea id="otReason" rows="2" placeholder="加班事由"></textarea>
-      <button id="btnOtSubmit" class="btn-main" style="margin-top:10px;">送出加班申請</button>
+      <div style="text-align:right; margin-top:8px; font-size:13px; color:#666;">預計加班：<b id="otTotalHours" style="color:#007aff;">0.0</b> 小時</div>
+      
+      <label>加班事由</label>
+      <textarea id="otReason" rows="3" placeholder="請填寫工作內容..."></textarea>
+      
+      <button id="btnOtSubmit" class="btn-main">送出加班申請</button>
     </div>
 
     <div id="status" class="status"></div>

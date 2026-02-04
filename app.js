@@ -238,7 +238,7 @@ function init() {
   
   // 👇👇👇 請加入這段 (主管權限檢查) 👇👇👇
   // 把 "M001" 改成你真正的主管 ID，如果要多個，就寫 ["M001", "M002"]
-  const managers = ["M001", "M002","M10000"]; 
+  const managers = ["M001", "M002", "M10000"]; 
   if (managers.includes(user.userId)) {
     if($("managerBtn")) $("managerBtn").style.display = "block";
   }

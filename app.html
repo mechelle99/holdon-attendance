@@ -196,5 +196,9 @@
       location.href="index.html";
     }
   </script>
+   const isMgr = localStorage.getItem("isManager") === "Y";
+   if (isMgr) {
+     document.getElementById("managerCard").style.display = "block";
+   }
 </body>
 </html>

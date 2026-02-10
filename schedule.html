@@ -101,181 +101,133 @@
 
   <script src="config.js"></script>
   <script>
-    // ===== 基本設定 =====
-    const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || window.GAS_ENDPOINT || "";
-    const WEBHOOK_KEY = window.CONFIG?.WEBHOOK_KEY || ""; // 建議你在 config.js 加上：window.CONFIG.WEBHOOK_KEY="HOLDON2026";
-
+    // ===== 1. 基礎設定 =====
+    const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || "";
     const userId = localStorage.getItem("employeeId");
-    const userName = localStorage.getItem("employeeName") || "Unknown";
+    const userName = localStorage.getItem("employeeName");
+    let isManager = (localStorage.getItem("isManager") === "Y"); // 優先從 LocalStorage 讀取
 
-    let isManager = false;
     let calendar;
     let currentYear, currentMonth;
     let currentEventObj = null;
 
-    function showLoading() { document.getElementById("loadingOverlay").style.display = "flex"; }
-    function hideLoading() { document.getElementById("loadingOverlay").style.display = "none"; }
+    // 檢查登入
+    if(!userId) { alert("請先登入"); location.href="index.html"; }
 
-    // ===== JSONP (免 CORS) =====
-    function jsonpCall(action, dataObj = {}, timeoutMs = 12000) {
-      return new Promise((resolve, reject) => {
-        if (!ENDPOINT) return reject(new Error("尚未設定 GAS 網址 (config.js)"));
-
-        const cbName = "__cb_" + Math.random().toString(36).slice(2);
-        const payload = {
-          webhookKey: WEBHOOK_KEY,
-          userId,
-          displayName: userName,
-          data: dataObj
-        };
-
-        const qs = new URLSearchParams();
-        qs.set("action", action);
-        qs.set("payload", JSON.stringify(payload));
-
-        const url = ENDPOINT + "?" + qs.toString() + "&callback=" + cbName;
-
+    // ===== 2. API 呼叫工具 (JSONP) =====
+    function api(action, data={}){
+      document.getElementById("loadingOverlay").style.display = "flex";
+      return new Promise((resolve, reject)=>{
+        const cb = "cb" + Date.now();
+        const payload = JSON.stringify({ ...data, userId, webhookKey: window.CONFIG?.WEBHOOK_KEY });
         const script = document.createElement("script");
-        let done = false;
-
-        const timer = setTimeout(() => {
-          if (done) return;
-          done = true;
-          cleanup();
-          reject(new Error("JSONP timeout"));
-        }, timeoutMs);
-
-        function cleanup() {
-          clearTimeout(timer);
-          try { delete window[cbName]; } catch(e) {}
-          if (script && script.parentNode) script.parentNode.removeChild(script);
-        }
-
-        window[cbName] = (res) => {
-          if (done) return;
-          done = true;
-          cleanup();
+        script.src = `${ENDPOINT}?action=${action}&payload=${encodeURIComponent(payload)}&callback=${cb}`;
+        
+        window[cb] = (res) => {
           resolve(res);
+          delete window[cb];
+          script.remove();
+          document.getElementById("loadingOverlay").style.display = "none";
         };
-
         script.onerror = () => {
-          if (done) return;
-          done = true;
-          cleanup();
-          reject(new Error("JSONP network error"));
+          reject("連線失敗");
+          document.getElementById("loadingOverlay").style.display = "none";
         };
-
-        document.head.appendChild(script);
-        script.src = url;
+        document.body.appendChild(script);
       });
     }
 
-    async function api(action, dataObj = {}) {
-      const res = await jsonpCall(action, dataObj);
-      if (!res || res.ok !== true) {
-        throw new Error(res?.message || res?.error || "API failed");
-      }
-      return res;
-    }
-
-    // ===== 初始化 =====
+    // ===== 3. 初始化與 FullCalendar =====
     document.addEventListener("DOMContentLoaded", async function() {
-      if (!userId) {
-        alert("請先登入");
-        location.href = "index.html";
-        return;
-      }
+      await loadEmployees(); // 先載入員工清單
 
-      showLoading();
-      try {
-        await loadEmployees();
-
-        const calendarEl = document.getElementById("calendar");
-        calendar = new FullCalendar.Calendar(calendarEl, {
-          initialView: "dayGridMonth",
-          locale: "zh-tw",
-          headerToolbar: { left: "prev,next today", center: "title", right: "dayGridMonth,listWeek" },
-          height: "auto",
-          events: fetchEvents,
-          dateClick: function(info) { openModal(info.dateStr, null); },
-          eventClick: function(info) {
-            if (info.event.extendedProps.temp) {
-              alert("⚠️ 資料寫入中，請稍候...");
-              return;
-            }
-            openModal(info.event.startStr, info.event);
-          }
-        });
-        calendar.render();
-      } catch (e) {
-        alert("初始化失敗：" + e.message);
-      } finally {
-        hideLoading();
-      }
+      const calendarEl = document.getElementById("calendar");
+      calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: "dayGridMonth",
+        locale: "zh-tw",
+        headerToolbar: { left: "prev,next today", center: "title", right: "dayGridMonth,listWeek" },
+        height: "auto",
+        events: fetchEvents, // 切換月份時自動觸發
+        dateClick: function(info) { openModal(info.dateStr, null); },
+        eventClick: function(info) { openModal(info.event.startStr, info.event); },
+        datesSet: function(info) {
+           // ★ 每次切換月份，重新計算應休天數
+           const mid = new Date((info.start.getTime() + info.end.getTime()) / 2);
+           updateMonthlyQuota(mid.getFullYear(), mid.getMonth() + 1);
+        }
+      });
+      calendar.render();
     });
 
-    // ===== 載入員工與權限 =====
+    // ===== 4. 載入員工 (修復權限問題) =====
     async function loadEmployees() {
       const sel = document.getElementById("empSelect");
       sel.innerHTML = "";
 
-      const res = await api("get_all_employees", {});
-      isManager = !!res.isManager;
-
-      // 主管才顯示一鍵核准
-      if (isManager) document.getElementById("btnApproveAll").style.display = "inline-block";
-
-      const list = res.list || [];
-      list.forEach(emp => {
-        const opt = document.createElement("option");
-        opt.value = emp.id;
-        opt.textContent = emp.name;
-        sel.appendChild(opt);
-      });
-
-      // 🔒 核心規則：主管也不能幫別人排班 => 永遠只能選自己
-      sel.value = userId;
-      sel.disabled = true;
-    }
-
-    // ===== 取班表 =====
-    async function fetchEvents(info, successCallback, failureCallback) {
-      showLoading();
       try {
-        const start = info.start;
-        const end = info.end;
-        const mid = new Date((start.getTime() + end.getTime()) / 2);
-        currentYear = mid.getFullYear();
-        currentMonth = mid.getMonth() + 1;
+        const res = await api("get_all_employees");
+        
+        // 確保主管權限正確 (後端回傳 + 前端緩存雙重確認)
+        if (res.isManager) {
+           isManager = true;
+           localStorage.setItem("isManager", "Y");
+        }
 
-        document.getElementById("currentMonthStr").textContent = `${currentYear}年 ${currentMonth}月`;
+        if (isManager) document.getElementById("btnApproveAll").style.display = "inline-block";
 
-        await updateMonthlyQuota(currentYear, currentMonth);
+        const list = res.list || [];
+        list.forEach(emp => {
+          const opt = document.createElement("option");
+          opt.value = emp.id;
+          opt.textContent = `${emp.name} (${emp.id})`;
+          sel.appendChild(opt);
+        });
 
-        const res = await api("get_schedule", { start: info.startStr, end: info.endStr });
-        successCallback(res.events || []);
+        // ★ 關鍵修正：預設選自己
+        sel.value = userId;
+
+        // ★ 關鍵修正：只有「非主管」才鎖定選單
+        sel.disabled = !isManager;
+
       } catch (e) {
-        failureCallback(e.message || "載入失敗");
-      } finally {
-        hideLoading();
+        alert("載入員工失敗：" + e);
       }
     }
 
-    // ===== 月應休天數（週六日 + Holidays 表）=====
-    async function updateMonthlyQuota(year, month) {
-      const elDays = document.getElementById("monthlyQuota");
-      const elMsg = document.getElementById("quotaDetail");
-      elDays.textContent = "...";
-      elMsg.textContent = "";
-
-      const ym = `${year}-${String(month).padStart(2,'0')}`;
-      const res = await api("get_month_quota", { ym });
-
-      elDays.textContent = res.totalOffDays;
-      elMsg.textContent = `週末 ${res.weekendDays} 天 + 國定/補假 ${res.holidayDays} 天`;
+    // ===== 5. 抓取班表 =====
+    async function fetchEvents(info, successCallback, failureCallback) {
+      try {
+        const res = await api("get_schedule", { start: info.startStr, end: info.endStr });
+        if(res.ok) successCallback(res.events || []);
+        else failureCallback(res.message);
+      } catch (e) {
+        failureCallback(e);
+      }
     }
 
-    // ===== Modal UI =====
+    // ===== 6. 更新應休天數 =====
+    async function updateMonthlyQuota(year, month) {
+      document.getElementById("currentMonthStr").textContent = `${year}年 ${month}月`;
+      const elDays = document.getElementById("monthlyQuota");
+      const elMsg = document.getElementById("quotaDetail");
+      
+      elDays.textContent = "...";
+      
+      try {
+        // 呼叫後端 get_month_quota
+        const res = await api("get_month_quota", { ym: `${year}-${String(month).padStart(2,'0')}` });
+        if(res.ok){
+          elDays.textContent = res.totalOffDays;
+          elMsg.textContent = `(週末 ${res.weekendDays} 天 + 國定 ${res.holidayDays} 天)`;
+        } else {
+          elDays.textContent = "-";
+        }
+      } catch(e) {
+        elDays.textContent = "Err";
+      }
+    }
+
+    // ===== 7. Modal 操作 (新增/修改/刪除) =====
     function openModal(dateStr, eventObj) {
       document.getElementById("eventModal").style.display = "flex";
       document.getElementById("selectedDate").value = dateStr;
@@ -286,213 +238,131 @@
       const btnApprove = document.getElementById("btnApprove");
       const btnRequest = document.getElementById("btnRequest");
       const shiftSel = document.getElementById("shiftSelect");
+      const empSel = document.getElementById("empSelect");
       const info = document.getElementById("statusInfo");
 
-      btnSave.style.display = "block";
-      btnDel.style.display = "none";
-      btnApprove.style.display = "none";
-      btnRequest.style.display = "none";
+      // 重置按鈕狀態
+      [btnSave, btnDel, btnApprove, btnRequest].forEach(b => b.style.display = "none");
       info.textContent = "";
-      info.style.color = "#888";
 
-      btnSave.disabled = false; btnSave.textContent = "💾 儲存";
-      btnDel.disabled = false; btnDel.textContent = "🗑️ 刪除";
-      btnApprove.disabled = false; btnApprove.textContent = "✅ 核准";
-      btnRequest.disabled = false; btnRequest.textContent = "📣 申請改班";
+      // 標題
+      document.getElementById("modalTitle").textContent = eventObj 
+        ? `${eventObj.title} - ${dateStr}` 
+        : `新增排班 (${dateStr})`;
 
       if (eventObj) {
-        document.getElementById("modalTitle").textContent = `${dateStr} 排班詳情`;
-        shiftSel.value = eventObj.extendedProps.shift || "早班";
+        // === 編輯模式 ===
+        const props = eventObj.extendedProps;
+        empSel.value = props.empId;
+        shiftSel.value = props.shift;
+        
+        // 鎖定員工選單 (編輯時不建議換人，避免邏輯混亂)
+        empSel.disabled = true; 
 
-        const status = eventObj.extendedProps.reqStatus || "PENDING";
-        const ownerId = eventObj.extendedProps.empId;
-        const isOwner = String(ownerId) === String(userId);
-
+        const status = props.reqStatus;
         info.textContent = `狀態：${status}`;
 
-        if (status === "APPROVED") {
-          btnSave.style.display = "none";
-          if (isManager) {
-            btnDel.style.display = "block";
+        if (isManager) {
+          // 主管權限
+          if (status === 'PENDING') {
+             btnApprove.style.display = "block"; // 可核准
+             btnSave.style.display = "block";    // 可修改
+             btnDel.style.display = "block";     // 可刪除
           } else {
-            // 員工：已核准只能申請改班（自己）
-            if (isOwner) {
-              btnRequest.style.display = "block";
-              info.textContent = "狀態：已核准（如需調班，請點擊申請改班）";
-              info.style.color = "#d9534f";
-            }
+             // 已核准：主管仍可刪除或修改 (視需求)
+             btnDel.style.display = "block";
+             btnSave.style.display = "block"; 
           }
         } else {
-          // PENDING
-          if (isOwner || isManager) btnDel.style.display = "block";
-          if (isManager) btnApprove.style.display = "block";
+          // 員工權限
+          if (String(props.empId) === userId) {
+             if (status === 'PENDING') {
+                btnDel.style.display = "block"; // 自己可刪待審核
+             } else {
+                btnRequest.style.display = "block"; // 已核准只能申請改班
+             }
+          }
         }
+
       } else {
-        document.getElementById("modalTitle").textContent = `新增排班 (${dateStr})`;
+        // === 新增模式 ===
+        empSel.disabled = !isManager; // 主管可選人，員工鎖定
+        if(!isManager) empSel.value = userId;
+        
         shiftSel.value = "早班";
-        // empSelect 永遠固定自己（上面已 disabled）
+        btnSave.style.display = "block";
       }
     }
 
     function closeModal() { document.getElementById("eventModal").style.display = "none"; }
 
-    // ===== 新增排班（永遠只能幫自己排）=====
+    // ===== 8. 按鈕動作 =====
+    
+    // 儲存 (新增/修改)
     async function saveEvent() {
-      const dateVal = document.getElementById("selectedDate").value;
-      const shiftVal = document.getElementById("shiftSelect").value;
+      const date = document.getElementById("selectedDate").value;
+      const shift = document.getElementById("shiftSelect").value;
+      const targetId = document.getElementById("empSelect").value; // 主管選的人
 
-      const btn = document.getElementById("btnSave");
-      btn.disabled = true;
-      btn.textContent = "儲存中...";
+      if(!targetId) return alert("請選擇員工");
 
-      // 樂觀 UI
-      const fakeEvent = {
-        title: `${userName} (${shiftVal})`,
-        start: dateVal,
-        color: "#6c757d",
-        extendedProps: {
-          empId: userId,
-          reqStatus: "PENDING",
-          shift: shiftVal,
-          temp: true
-        }
+      // 判斷是新增還是修改
+      const action = currentEventObj ? "update_schedule" : "add_schedule";
+      const payload = {
+         date, shift, empId: targetId,
+         scheduleId: currentEventObj ? currentEventObj.extendedProps.scheduleId : null
       };
-      const addedEvent = calendar.addEvent(fakeEvent);
+
+      const res = await api(action, payload);
+      alert(res.message);
       closeModal();
-
-      try {
-        const res = await api("add_schedule", {
-          date: dateVal,
-          empId: userId,
-          empName: userName,
-          shift: shiftVal
-        });
-
-        // 成功：刷新
-        addedEvent.remove();
-        calendar.refetchEvents();
-        alert(res.message || "已送出");
-      } catch (e) {
-        addedEvent.remove();
-        alert("❌ 儲存失敗：" + e.message);
-      } finally {
-        btn.disabled = false;
-        btn.textContent = "💾 儲存";
-      }
+      calendar.refetchEvents();
     }
 
-    // ===== 刪除 =====
+    // 刪除
     async function deleteEvent() {
-      if (!confirm("確定刪除？")) return;
-      if (!currentEventObj) return;
-
-      const btn = document.getElementById("btnDelete");
-      btn.disabled = true;
-      btn.textContent = "刪除中...";
-
-      const targetDate = document.getElementById("selectedDate").value;
-      const scheduleId = currentEventObj.extendedProps.scheduleId;
-
-      currentEventObj.remove();
+      if(!currentEventObj || !confirm("確定刪除？")) return;
+      const res = await api("del_schedule", { scheduleId: currentEventObj.extendedProps.scheduleId });
+      alert(res.message);
       closeModal();
-
-      try {
-        const res = await api("del_schedule", { scheduleId, date: targetDate });
-        alert(res.message || "完成");
-        calendar.refetchEvents();
-      } catch (e) {
-        alert("❌ 刪除失敗：" + e.message);
-        calendar.refetchEvents();
-      } finally {
-        btn.disabled = false;
-        btn.textContent = "🗑️ 刪除";
-      }
+      calendar.refetchEvents();
     }
 
-    // ===== 核准（只有主管可核准）=====
+    // 核准
     async function approveEvent() {
-      if (!currentEventObj) return;
-
-      const btn = document.getElementById("btnApprove");
-      btn.disabled = true;
-      btn.textContent = "核准中...";
-
-      const scheduleId = currentEventObj.extendedProps.scheduleId;
-
-      try {
-        const res = await api("approve_schedule", { scheduleId });
-        alert(res.message || "完成");
-        closeModal();
-        calendar.refetchEvents();
-      } catch (e) {
-        alert("❌ 核准失敗：" + e.message);
-        btn.disabled = false;
-        btn.textContent = "✅ 核准";
-      }
+      if(!currentEventObj) return;
+      const res = await api("approve_schedule", { scheduleId: currentEventObj.extendedProps.scheduleId });
+      alert(res.message);
+      closeModal();
+      calendar.refetchEvents();
     }
 
-    // ===== 一鍵核准本月 =====
-    async function approveMonthAll() {
-      if (!confirm(`確定核准 ${currentYear}年${currentMonth}月 所有班表？`)) return;
-
-      const btn = document.getElementById("btnApproveAll");
-      btn.disabled = true;
-      btn.textContent = "處理中...";
-
-      try {
-        const res = await api("approve_month_all", { year: currentYear, month: currentMonth });
-        alert(res.message || "完成");
-        calendar.refetchEvents();
-      } catch (e) {
-        alert("❌ 失敗：" + e.message);
-      } finally {
-        btn.disabled = false;
-        btn.textContent = "✅ 一鍵核准本月所有班表";
-      }
-    }
-
-    // ===== 申請改班 =====
+    // 申請改班 (員工用)
     async function requestChange() {
-      if (!currentEventObj) return;
+      if(!currentEventObj) return;
+      const toShift = (currentEventObj.extendedProps.shift === "早班") ? "午班" : "早班";
+      if(!confirm(`確定申請改為 ${toShift} 嗎？`)) return;
 
-      const ownerId = currentEventObj.extendedProps.empId;
-      if (String(ownerId) !== String(userId)) {
-        alert("只能對自己的班表申請改班");
-        return;
-      }
-
-      const currentShift = currentEventObj.extendedProps.shift;
-      const targetShift = currentShift === "早班" ? "午班" : "早班";
-
-      const reason = prompt(
-        `你目前是 ${currentShift}，想申請改成 ${targetShift} 嗎？\n請輸入原因：`,
-        "臨時有事"
-      );
-      if (!reason) return;
-
-      const btn = document.getElementById("btnRequest");
-      btn.disabled = true;
-      btn.textContent = "申請中...";
-
-      const scheduleId = currentEventObj.extendedProps.scheduleId;
-
-      try {
-        const res = await api("request_schedule_change", {
-          scheduleId,
-          fromShift: currentShift,
-          toShift: targetShift,
-          reason
-        });
-        alert(res.message || "已送出");
-        closeModal();
-        calendar.refetchEvents();
-      } catch (e) {
-        alert("❌ 申請失敗：" + e.message);
-      } finally {
-        btn.disabled = false;
-        btn.textContent = "📣 申請改班";
-      }
+      const res = await api("request_schedule_change", { 
+         scheduleId: currentEventObj.extendedProps.scheduleId,
+         toShift: toShift
+      });
+      alert(res.message);
+      closeModal();
+      calendar.refetchEvents();
     }
+
+    // 一鍵核准本月
+    async function approveMonthAll() {
+      if(!confirm("確定核准本頁面所有待審核班表？")) return;
+      const res = await api("approve_month_all", { 
+         year: currentYear, 
+         month: currentMonth 
+      });
+      alert(res.message);
+      calendar.refetchEvents();
+    }
+
   </script>
 </body>
 </html>

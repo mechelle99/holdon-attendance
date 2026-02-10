@@ -4,19 +4,19 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>門市排班管理</title>
-  
+
   <link rel="icon" href="./assets/icon/favicon.ico">
 
-  <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
-  
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; background: #f4f6f8; margin: 0; }
     .container { max-width: 900px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-    
+
     /* 按鈕樣式 */
     .btn-back { display: inline-block; padding: 8px 16px; background: #333; color: #fff; text-decoration: none; border-radius: 6px; margin-bottom: 20px; font-size: 14px; transition: background 0.2s; }
     .btn-back:hover { background: #555; }
-    
+
     /* 統計區塊 */
     .quota-box { background:#e3f2fd; color:#0d47a1; padding:15px; border-radius:8px; text-align:center; margin-bottom:20px; }
     .btn-approve-all { background: #007aff; color: #fff; border: none; padding: 8px 16px; border-radius: 20px; font-weight: bold; cursor: pointer; margin-top: 10px; font-size: 14px; display: none; }
@@ -26,11 +26,11 @@
     /* Modal 彈窗 */
     .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
     .modal-content { background: #fff; padding: 24px; border-radius: 12px; width: 300px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
-    
+
     /* 表單元件 */
     select, input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; margin-top: 5px; font-size: 16px; box-sizing: border-box; }
     label { display: block; margin-top: 15px; font-size: 14px; color: #666; }
-    
+
     /* 按鈕群組 */
     .btn-group { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
     button { flex: 1; padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; min-width: 80px; transition: opacity 0.2s; }
@@ -66,9 +66,9 @@
 
   <div class="container">
     <a href="manager.html" class="btn-back">← 回主管頁</a>
-    
+
     <div class="quota-box">
-      <span id="currentMonthStr" style="font-weight:bold; font-size:18px;">...</span> 
+      <span id="currentMonthStr" style="font-weight:bold; font-size:18px;">...</span>
       <br>
       應休天數：<span id="monthlyQuota" style="font-size:24px; font-weight:bold; color:#c22;">-</span> 天
       <div id="quotaDetail" style="font-size:13px; color:#555; margin-top:5px;"></div>
@@ -81,14 +81,15 @@
       <span style="color:#6c757d">● 待核准</span> &nbsp;
       <span style="color:#000000">● 曠職</span>
     </div>
-    <div id='calendar'></div>
+
+    <div id="calendar"></div>
   </div>
 
   <div id="eventModal" class="modal">
     <div class="modal-content">
       <h3 id="modalTitle">排班設定</h3>
       <input type="hidden" id="selectedDate">
-      
+
       <label>選擇員工</label>
       <select id="empSelect"><option value="">載入中...</option></select>
 
@@ -97,7 +98,7 @@
         <option value="早班">☀️ 早班 (10:00-18:00)</option>
         <option value="午班">🌙 午班 (12:00-21:00)</option>
       </select>
-      
+
       <div id="statusInfo" style="margin-top:10px; font-size:12px; color:#888;"></div>
 
       <div class="btn-group">
@@ -111,17 +112,17 @@
   </div>
 
   <script src="config.js"></script>
-  
+
   <script>
     // 1. 設定與變數
     const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || "";
     // 🔥 重要：從 Config 取得 API Key，若無則使用預設值 (需與後端 Script Properties 一致)
-    const API_KEY = window.CONFIG?.API_KEY || "MY_SECRET_KEY_2026"; 
-    
+    const API_KEY = window.CONFIG?.API_KEY || "MY_SECRET_KEY_2026";
+
     const userId = localStorage.getItem("employeeId");
     const userName = localStorage.getItem("employeeName") || "Unknown";
 
-    let isManager = false; 
+    let isManager = false;
     let calendar;
     let currentYear, currentMonth;
     let currentEventObj = null;
@@ -134,14 +135,14 @@
     // 重點：移除 Content-Type header，避免觸發 Preflight OPTIONS 請求
     async function postToGAS(action, dataObj = {}) {
       if (!ENDPOINT) { alert("尚未設定 GAS 網址 (config.js)"); return { ok: false }; }
-      
-      const payload = { 
-        action: action, 
-        userId: userId, 
-        displayName: userName, 
+
+      const payload = {
+        action: action,
+        userId: userId,
+        displayName: userName,
         userAgent: navigator.userAgent, // 傳送裝置資訊
         apiKey: API_KEY,                // 傳送 API Key
-        data: dataObj 
+        data: dataObj
       };
 
       try {
@@ -152,14 +153,14 @@
         });
 
         const text = await res.text();
-        
+
         // 檢查 HTTP 狀態
         if (!res.ok) {
           console.error("HTTP Error:", res.status, text);
           if (res.status === 403) return { ok: false, message: "存取被拒 (403): 請檢查 Webhook 設定" };
           return { ok: false, message: `伺服器錯誤 (HTTP ${res.status})`, raw: text.slice(0, 150) };
         }
-        
+
         // 解析 JSON
         try {
           return JSON.parse(text);
@@ -174,33 +175,33 @@
     }
 
     // 4. 初始化
-    document.addEventListener('DOMContentLoaded', async function() {
+    document.addEventListener("DOMContentLoaded", async function() {
       // 檢查登入
-      if (!userId) { 
+      if (!userId) {
         alert("請先登入");
-        location.href = "index.html"; 
-        return; 
+        location.href = "index.html";
+        return;
       }
 
-      showLoading(); 
+      showLoading();
       await loadEmployees(); // 載入員工與權限
 
       // 初始化日曆
-      const calendarEl = document.getElementById('calendar');
+      const calendarEl = document.getElementById("calendar");
       calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'dayGridMonth',
-        locale: 'zh-tw',
-        headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,listWeek' },
-        height: 'auto',
+        initialView: "dayGridMonth",
+        locale: "zh-tw",
+        headerToolbar: { left: "prev,next today", center: "title", right: "dayGridMonth,listWeek" },
+        height: "auto",
         events: fetchEvents,
-        
+
         // 點擊日期：新增排班
         dateClick: function(info) { openModal(info.dateStr, null); },
-        
+
         // 點擊事件：編輯/查看
-        eventClick: function(info) { 
+        eventClick: function(info) {
           // 系統固定班表不能改
-          if (info.event.extendedProps.type === 'auto') {
+          if (info.event.extendedProps.type === "auto") {
             alert("這是固定班表 (自動產生)，無法編輯。");
             return;
           }
@@ -209,9 +210,10 @@
             alert("⚠️ 資料寫入中，請稍候再操作...");
             return;
           }
-          openModal(info.event.startStr, info.event); 
+          openModal(info.event.startStr, info.event);
         }
       });
+
       calendar.render();
     });
 
@@ -220,11 +222,11 @@
       const json = await postToGAS("get_all_employees");
       const sel = document.getElementById("empSelect");
       sel.innerHTML = "";
-      
+
       if (json.ok) {
         isManager = json.isManager;
         if (isManager) document.getElementById("btnApproveAll").style.display = "inline-block";
-        
+
         json.list.forEach(emp => {
           const opt = document.createElement("option");
           opt.value = emp.id;
@@ -232,33 +234,33 @@
           sel.appendChild(opt);
         });
       } else {
-        alert("無法載入員工資料：" + json.message);
+        alert("無法載入員工資料：" + (json.message || ""));
       }
     }
 
     // 6. 抓取班表 (FullCalendar 呼叫)
     async function fetchEvents(info, successCallback, failureCallback) {
       showLoading();
-      
+
       // 計算當前顯示的月份
-      const start = info.start; 
-      const end = info.end; 
+      const start = info.start;
+      const end = info.end;
       const mid = new Date((start.getTime() + end.getTime()) / 2);
-      
+
       currentYear = mid.getFullYear();
       currentMonth = mid.getMonth() + 1;
-      
+
       document.getElementById("currentMonthStr").textContent = `${currentYear}年 ${currentMonth}月`;
       updateMonthlyQuota(currentYear, currentMonth); // 更新應休天數
 
       const json = await postToGAS("get_schedule", { start: info.startStr, end: info.endStr });
-      
+
       hideLoading();
 
       if (json.ok) {
         successCallback(json.events);
       } else {
-        failureCallback(json.message);
+        failureCallback(json.message || "載入失敗");
         console.error(json.message);
       }
     }
@@ -268,36 +270,38 @@
       const elDays = document.getElementById("monthlyQuota");
       const elMsg = document.getElementById("quotaDetail");
       elDays.textContent = "...";
-      
+
       const json = await postToGAS("get_month_quota", { year, month });
-      if (json.ok) { 
-        elDays.textContent = json.days; 
-        elMsg.textContent = json.msg; 
-      } else { 
-        elDays.textContent = "??"; 
+      if (json.ok) {
+        elDays.textContent = json.days;
+        elMsg.textContent = json.msg;
+      } else {
+        elDays.textContent = "??";
       }
     }
 
     // 8. 批量核准
     async function approveMonthAll() {
-      if(!confirm(`確定核准 ${currentYear}年${currentMonth}月 所有班表？`)) return;
-      
+      if (!confirm(`確定核准 ${currentYear}年${currentMonth}月 所有班表？`)) return;
+
       const btn = document.getElementById("btnApproveAll");
-      btn.disabled = true; btn.textContent = "處理中...";
-      
+      btn.disabled = true;
+      btn.textContent = "處理中...";
+
       const json = await postToGAS("approve_month_all", { year: currentYear, month: currentMonth });
-      alert(json.message);
+      alert(json.message || "完成");
       calendar.refetchEvents();
-      
-      btn.disabled = false; btn.textContent = "✅ 一鍵核准本月所有班表";
+
+      btn.disabled = false;
+      btn.textContent = "✅ 一鍵核准本月所有班表";
     }
 
     // 9. 打開 Modal (核心 UI 邏輯)
     function openModal(dateStr, eventObj) {
       document.getElementById("eventModal").style.display = "flex";
       document.getElementById("selectedDate").value = dateStr;
-      currentEventObj = eventObj; 
-      
+      currentEventObj = eventObj;
+
       const btnSave = document.getElementById("btnSave");
       const btnDel = document.getElementById("btnDelete");
       const btnApprove = document.getElementById("btnApprove");
@@ -328,7 +332,7 @@
         empSel.disabled = true; // 編輯時不能改人
         shiftSel.value = eventObj.extendedProps.shift || "早班";
 
-        const status = eventObj.extendedProps.reqStatus; 
+        const status = eventObj.extendedProps.reqStatus;
         info.textContent = `狀態：${status}`;
 
         if (status === "APPROVED") {
@@ -339,15 +343,15 @@
           } else {
             // 員工只能申請改班
             btnDel.style.display = "none";
-            btnRequest.style.display = "block"; 
+            btnRequest.style.display = "block";
             info.textContent = "狀態：已核准（如需調班，請點擊申請）";
             info.style.color = "#d9534f";
           }
         } else {
           // PENDING 狀態
-          btnDel.style.display = "block"; 
-          if (isManager) { 
-            btnApprove.style.display = "block"; 
+          btnDel.style.display = "block";
+          if (isManager) {
+            btnApprove.style.display = "block";
             btnSave.style.display = "none"; // 主管核准就好，不用儲存
           }
         }
@@ -367,37 +371,41 @@
       const empSel = document.getElementById("empSelect");
       const dateVal = document.getElementById("selectedDate").value;
       const shiftVal = document.getElementById("shiftSelect").value;
-      const empNameText = empSel.options[empSel.selectedIndex].text;
+      const empNameText = empSel.options[empSel.selectedIndex]?.text || "";
       const empIdVal = empSel.value;
 
       if (!empIdVal) { alert("請先選擇員工"); return; }
 
       const btn = document.getElementById("btnSave");
-      btn.disabled = true; btn.textContent = "儲存中...";
+      btn.disabled = true;
+      btn.textContent = "儲存中...";
 
       // 樂觀 UI: 先畫一個半透明事件
       const fakeEvent = {
         title: `${empNameText} (${shiftVal})`,
         start: dateVal,
-        color: isManager ? (shiftVal.includes("午") ? "#dc3545" : "#3788d8") : "#6c757d", 
-        extendedProps: { 
-          empId: empIdVal, 
-          reqStatus: isManager?"APPROVED":"PENDING", 
-          shift: shiftVal, 
-          type: 'manual', 
-          temp: true 
+        color: isManager ? (shiftVal.includes("午") ? "#dc3545" : "#3788d8") : "#6c757d",
+        extendedProps: {
+          empId: empIdVal,
+          reqStatus: isManager ? "APPROVED" : "PENDING",
+          shift: shiftVal,
+          type: "manual",
+          temp: true
         }
       };
       const addedEvent = calendar.addEvent(fakeEvent);
       closeModal();
 
       const json = await postToGAS("add_schedule", {
-        date: dateVal, empId: empIdVal, empName: empNameText, shift: shiftVal
+        date: dateVal,
+        empId: empIdVal,
+        empName: empNameText,
+        shift: shiftVal
       });
 
       if (!json.ok) {
         addedEvent.remove(); // 失敗回滾
-        alert("❌ 儲存失敗：" + json.message);
+        alert("❌ 儲存失敗：" + (json.message || ""));
       } else {
         addedEvent.remove(); // 移除假事件
         calendar.refetchEvents(); // 重抓真事件 (獲取正確 ID)
@@ -406,25 +414,28 @@
 
     // 11. 刪除
     async function deleteEvent() {
-      if(!confirm("確定刪除？")) return;
+      if (!confirm("確定刪除？")) return;
       if (!currentEventObj) return;
 
       const btn = document.getElementById("btnDelete");
-      btn.disabled = true; btn.textContent = "刪除中...";
+      btn.disabled = true;
+      btn.textContent = "刪除中...";
 
       const targetDate = document.getElementById("selectedDate").value;
       const targetEmpId = currentEventObj.extendedProps.empId;
-      const targetScheduleId = currentEventObj.extendedProps.scheduleId; 
+      const targetScheduleId = currentEventObj.extendedProps.scheduleId;
 
       currentEventObj.remove(); // 樂觀刪除
       closeModal();
 
       const json = await postToGAS("del_schedule", {
-        date: targetDate, empId: targetEmpId, scheduleId: targetScheduleId
+        date: targetDate,
+        empId: targetEmpId,
+        scheduleId: targetScheduleId
       });
 
       if (!json.ok) {
-        alert("❌ 刪除失敗：" + json.message);
+        alert("❌ 刪除失敗：" + (json.message || ""));
         calendar.refetchEvents(); // 失敗就把事件補回來
       }
     }
@@ -432,40 +443,49 @@
     // 12. 核准
     async function approveEvent() {
       if (!currentEventObj) return;
+
       const btn = document.getElementById("btnApprove");
-      btn.disabled = true; btn.textContent = "核准中...";
+      btn.disabled = true;
+      btn.textContent = "核准中...";
 
       const targetDate = document.getElementById("selectedDate").value;
       const targetEmpId = currentEventObj.extendedProps.empId;
       const targetScheduleId = currentEventObj.extendedProps.scheduleId;
 
       const json = await postToGAS("approve_schedule", {
-        date: targetDate, empId: targetEmpId, scheduleId: targetScheduleId
+        date: targetDate,
+        empId: targetEmpId,
+        scheduleId: targetScheduleId
       });
-      
-      alert(json.message);
-      
-      if(json.ok) { 
-        closeModal(); 
-        calendar.refetchEvents(); 
+
+      alert(json.message || "完成");
+
+      if (json.ok) {
+        closeModal();
+        calendar.refetchEvents();
       } else {
-        btn.disabled = false; btn.textContent = "✅ 核准"; 
+        btn.disabled = false;
+        btn.textContent = "✅ 核准";
       }
     }
 
     // 13. 改班申請 (新功能)
     async function requestChange() {
       if (!currentEventObj) return;
-      
+
       const currentShift = currentEventObj.extendedProps.shift;
       // 自動判定對調班別
       const targetShift = currentShift === "早班" ? "午班" : "早班";
-      
-      const reason = prompt(`您目前是 ${currentShift}，想申請改成 ${targetShift} 嗎？\n請輸入改班原因：`, "臨時有事");
+
+      const reason = prompt(
+        `您目前是 ${currentShift}，想申請改成 ${targetShift} 嗎？\n請輸入改班原因：`,
+        "臨時有事"
+      );
       if (!reason) return; // 取消
 
       const btn = document.getElementById("btnRequest");
-      btn.disabled = true; btn.textContent = "申請中...";
+      btn.disabled = true;
+      btn.textContent = "申請中...";
 
       const targetDate = document.getElementById("selectedDate").value;
       const targetEmpId = currentEventObj.extendedProps.empId;
@@ -480,7 +500,7 @@
         reason: reason
       });
 
-      alert(json.message);
+      alert(json.message || "已送出");
       closeModal();
     }
   </script>

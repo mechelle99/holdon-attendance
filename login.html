@@ -3,166 +3,133 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>登入系統</title>
+  <title>HOLDON 出勤系統 - 登入</title>
   <style>
     body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#f6f7f9;color:#111;display:flex;align-items:center;justify-content:center;height:100vh;}
-    .card{background:#fff;border-radius:16px;padding:24px;box-shadow:0 4px 20px rgba(0,0,0,.08);width:100%;max-width:320px;text-align:center;}
-    h1{font-size:22px;margin:0 0 20px;}
-    input{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;font-size:16px;box-sizing:border-box;margin-bottom:12px;outline:none;}
+    .card{background:#fff;border-radius:16px;padding:24px;box-shadow:0 4px 20px rgba(0,0,0,.08);width:100%;max-width:340px;text-align:left;}
+    h1{font-size:22px;margin:0 0 16px;}
+    .sub{color:#666;font-size:13px;margin-bottom:12px;line-height:1.5}
+    input{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;font-size:16px;box-sizing:border-box;margin:8px 0;outline:none;}
     input:focus{border-color:#111;}
-    button{width:100%;padding:14px;border:0;border-radius:10px;background:#111;color:#fff;font-weight:bold;font-size:16px;cursor:pointer;}
-    button:disabled{opacity:0.5;}
-    .error{color:#c22;font-size:14px;margin-top:12px;display:none;}
-    
-    /* 新增忘記密碼樣式 */
-    .link{margin-top:15px; font-size:13px; color:#666;}
-    .link a{color:#666; text-decoration:underline; cursor:pointer;}
+    button{width:100%;padding:14px;border:0;border-radius:12px;background:#111;color:#fff;font-weight:800;font-size:16px;cursor:pointer;}
+    button:disabled{opacity:.55;cursor:not-allowed;}
+    .row{display:flex;justify-content:space-between;align-items:center;margin-top:12px;}
+    .link{font-size:13px;color:#007aff;text-decoration:none;cursor:pointer}
+    .msg{margin-top:12px;font-size:13px;color:#c22;display:none;white-space:pre-line}
   </style>
 </head>
 <body>
   <div class="card">
-    <h1>HOLDON 登入</h1>
-    <input id="uid" type="text" placeholder="帳號 / 員工編號" />
-    <input id="upass" type="password" placeholder="密碼" />
+    <h1>HOLDON 出勤系統</h1>
+    <div class="sub">請使用員工編號登入。忘記密碼可用 Email 重設。</div>
+
+    <input id="uid" type="text" placeholder="員工編號（例如 M001）" autocomplete="username" />
+    <input id="upass" type="password" placeholder="密碼" autocomplete="current-password" />
     <button id="btnLogin">登入</button>
-    <div id="msg" class="error"></div>
-    
-    <div class="link">
-      <a id="btnForgot">忘記密碼？</a>
+
+    <div class="row">
+      <a class="link" id="btnForgot">忘記密碼？</a>
+      <a class="link" href="reset.html">更改密碼</a>
     </div>
+
+    <div id="msg" class="msg"></div>
   </div>
 
   <script src="config.js"></script>
   <script>
-    const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || window.GAS_ENDPOINT;
-    
-    if(localStorage.getItem("employeeId")) {
-      location.href = "index.html";
+    const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || "";
+    const WEBHOOK_KEY = window.CONFIG?.WEBHOOK_KEY || "";
+
+    function showMsg(text){
+      const el = document.getElementById("msg");
+      el.textContent = text;
+      el.style.display = "block";
+    }
+    function hideMsg(){
+      const el = document.getElementById("msg");
+      el.style.display = "none";
+      el.textContent = "";
     }
 
-    // 登入功能
-    document.getElementById("btnLogin").onclick = async function() {
-      const btn = this;
-      const uid = document.getElementById("uid").value.trim();
-      const upass = document.getElementById("upass").value.trim();
-      const msg = document.getElementById("msg");
+    function jsonp(action, dataObj={}, timeoutMs=20000){
+      return new Promise((resolve, reject)=>{
+        if(!ENDPOINT) return reject(new Error("尚未設定 GAS_ENDPOINT（config.js）"));
 
-      if(!uid || !upass) return alert("請輸入帳號與密碼");
-      if(!ENDPOINT) return alert("尚未設定 config.js");
+        const cb = "cb_" + Date.now() + "_" + Math.floor(Math.random()*1e6);
+        window[cb] = (res)=>{ cleanup(); resolve(res); };
+
+        const payload = { webhookKey: WEBHOOK_KEY, data: dataObj };
+        const qs = new URLSearchParams();
+        qs.set("action", action);
+        qs.set("payload", JSON.stringify(payload));
+        qs.set("callback", cb);
+
+        const s = document.createElement("script");
+        s.src = ENDPOINT + "?" + qs.toString();
+        s.onerror = ()=>{ cleanup(); reject(new Error("網路連線失敗（JSONP）")); };
+        document.head.appendChild(s);
+
+        const t = setTimeout(()=>{ cleanup(); reject(new Error("連線逾時（JSONP）")); }, timeoutMs);
+
+        function cleanup(){
+          clearTimeout(t);
+          try{ delete window[cb]; }catch(e){}
+          if(s && s.parentNode) s.parentNode.removeChild(s);
+        }
+      });
+    }
+
+    async function login(){
+      hideMsg();
+      const btn = document.getElementById("btnLogin");
+      const id = document.getElementById("uid").value.trim();
+      const pass = document.getElementById("upass").value.trim();
+      if(!id || !pass) return showMsg("請輸入員工編號與密碼");
 
       btn.disabled = true;
       btn.textContent = "驗證中...";
-      msg.style.display = "none";
 
-      try {
-        const res = await fetch(ENDPOINT, {
-          method: "POST",
-          headers: { "Content-Type": "text/plain;charset=utf-8" },
-          body: JSON.stringify({ action: "login", data: { id: uid, pass: upass } })
-        });
-        const json = await res.json();
+      try{
+        const res = await jsonp("login", { id, pass });
+        if(!res?.ok) throw new Error(res?.message || "登入失敗");
 
-        if (json.ok) {
-          localStorage.setItem("employeeId", json.user.id);
-          localStorage.setItem("employeeName", json.user.name);
-          location.href = "index.html";
-        } else {
-          msg.textContent = "❌ " + json.message;
-          msg.style.display = "block";
-        }
-      } catch (e) {
-        msg.textContent = "❌ 連線錯誤";
-        msg.style.display = "block";
-      } finally {
+        localStorage.setItem("employeeId", res.user.id);
+        localStorage.setItem("employeeName", res.user.name || "");
+        localStorage.setItem("isManager", res.user.isManager ? "Y":"N");
+        localStorage.setItem("canSchedule", res.user.canSchedule ? "Y":"N");
+
+        // 你原本的導頁邏輯
+        if(res.user.isManager) location.href = "manager.html";
+        else location.href = "app.html";
+      }catch(e){
+        showMsg("❌ " + e.message);
+      }finally{
         btn.disabled = false;
         btn.textContent = "登入";
       }
-    };
-    <div style="margin-top:12px;">
-  <a href="#" id="forgotLink" style="font-size:13px;color:#007aff;text-decoration:none;">
-    忘記密碼？
-  </a>
-</div>
-
-<script src="config.js"></script>
-<script>
-  const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || window.GAS_ENDPOINT;
-
-  function jsonp(action, data){
-    return new Promise((resolve, reject)=>{
-      const cb = "cb_" + Date.now() + "_" + Math.floor(Math.random()*1e6);
-      window[cb] = (res)=>{ cleanup(); resolve(res); };
-
-      const payload = { action, data };
-      const qs = new URLSearchParams();
-      qs.set("action", action);
-      qs.set("payload", JSON.stringify(payload));
-      qs.set("callback", cb);
-
-      const s = document.createElement("script");
-      s.src = ENDPOINT + "?" + qs.toString();
-      s.onerror = ()=>{ cleanup(); reject(new Error("JSONP network error")); };
-      document.head.appendChild(s);
-
-      const t = setTimeout(()=>{ cleanup(); reject(new Error("JSONP timeout")); }, 20000);
-
-      function cleanup(){
-        clearTimeout(t);
-        try{ delete window[cb]; }catch(e){}
-        if(s && s.parentNode) s.parentNode.removeChild(s);
-      }
-    });
-  }
-
-  document.getElementById("forgotLink").addEventListener("click", async (e)=>{
-    e.preventDefault();
-    const email = prompt("請輸入你的 Email（系統會寄出新的臨時密碼）");
-    if(!email) return;
-
-    try{
-      const res = await jsonp("forgot_password", { email });
-      if(res.ok) alert("✅ 已寄出新的臨時密碼，請去收信");
-      else alert("❌ " + (res.message || "失敗"));
-    }catch(err){
-      alert("❌ " + err.message);
     }
-  });
-</script>
 
+    async function forgot(){
+      hideMsg();
+      const id = prompt("請輸入員工編號（例如 M001），系統會寄出重設連結到你的 Email：");
+      if(!id) return;
 
-    // 新增：忘記密碼功能
-    document.getElementById("btnForgot").onclick = async function() {
-      const uid = prompt("請輸入您的員工編號 (Employee ID)：");
-      if(!uid) return;
-
-      if(!ENDPOINT) return alert("尚未設定 config.js");
-
-      const msg = document.getElementById("msg");
-      msg.style.display = "block";
-      msg.textContent = "⏳ 正在查詢並寄送郵件...";
-      msg.style.color = "#666"; // 暫時改灰色
-
-      try {
-        const res = await fetch(ENDPOINT, {
-          method: "POST",
-          headers: { "Content-Type": "text/plain;charset=utf-8" },
-          body: JSON.stringify({ action: "forgot_pass", data: { id: uid } })
-        });
-        const json = await res.json();
-        
-        if (json.ok) {
-          alert("✅ " + json.message);
-          msg.style.display = "none";
-        } else {
-          alert("❌ " + json.message);
-          msg.textContent = "❌ " + json.message;
-          msg.style.color = "#c22"; // 錯誤改回紅色
-        }
-      } catch (e) {
-        alert("❌ 連線錯誤：" + e);
-        msg.style.display = "none";
+      try{
+        const res = await jsonp("forgot_password", { id: id.trim() });
+        if(!res?.ok) throw new Error(res?.message || "寄送失敗");
+        alert("✅ 已寄出重設密碼連結（10 分鐘有效），請去收信。");
+      }catch(e){
+        alert("❌ " + e.message);
       }
-    };
+    }
+
+    document.getElementById("btnLogin").addEventListener("click", login);
+    document.getElementById("btnForgot").addEventListener("click", forgot);
+
+    // Enter 直接登入
+    document.addEventListener("keydown", (e)=>{
+      if(e.key === "Enter") login();
+    });
   </script>
 </body>
 </html>

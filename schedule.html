@@ -26,7 +26,7 @@
 <body>
 
   <div class="container">
-    <a href="index.html" class="btn-back">← 回首頁</a>
+    <a href="manager.html" class="btn-back">← 回主管頁</a>
     
     <div style="background:#e3f2fd; color:#0d47a1; padding:15px; border-radius:8px; text-align:center; margin-bottom:20px;">
       <span id="currentMonthStr" style="font-weight:bold; font-size:18px;">...</span> 
@@ -74,9 +74,9 @@
   <script>
     const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || window.GAS_ENDPOINT;
     const userId = localStorage.getItem("employeeId");
-    // 假設主管名單寫死在前端判斷顯示按鈕 (後端有雙重驗證)
-    const MANAGERS = ["M001", "M002"]; 
-    const isManager = MANAGERS.includes(userId);
+    
+    // 🔥 不再寫死名單，改成變數，等後端告訴我們
+    let isManager = false; 
 
     let calendar;
     
@@ -84,7 +84,7 @@
     document.addEventListener('DOMContentLoaded', async function() {
       if (!userId) { location.href = "login.html"; return; }
       
-      // 1. 先載入員工名單 (提速)
+      // 1. 先載入員工名單 (並確認權限)
       await loadEmployees();
 
       // 2. 初始化日曆
@@ -107,17 +107,22 @@
       calendar.render();
     });
 
-    // 載入員工 (獨立 API)
+    // 載入員工 (同時取得 isManager 權限)
     async function loadEmployees() {
       try {
         const res = await fetch(ENDPOINT, {
           method: "POST",
-          body: JSON.stringify({ action: "get_all_employees" })
+          body: JSON.stringify({ action: "get_all_employees", userId: userId })
         });
         const json = await res.json();
         const sel = document.getElementById("empSelect");
         sel.innerHTML = "";
+        
         if (json.ok) {
+          // 🔥 這裡接收後端的權限判斷
+          isManager = json.isManager;
+          console.log("Current User Manager Status:", isManager);
+
           json.list.forEach(emp => {
             const opt = document.createElement("option");
             opt.value = emp.id;
@@ -168,7 +173,7 @@
           elDays.textContent = json.days;
           elMsg.textContent = json.msg;
         } else {
-          elDays.textContent = "??"; // 權限不足或其他錯誤
+          elDays.textContent = "??"; 
         }
       } catch(e) {}
     }
@@ -198,10 +203,6 @@
         empSel.value = eventObj.extendedProps.empId;
         empSel.disabled = true; // 不能改人
         
-        // 讀取目前的班別 (如果前端有存的話，這裡簡化處理)
-        // 實際上應該把 shift 存在 extendedProps 裡傳過來
-        // 假設預設選中該員工原本的班別 (需後端配合傳回 shift)
-        
         const status = eventObj.extendedProps.reqStatus; // PENDING or APPROVED
         info.textContent = `狀態：${status}`;
 
@@ -211,27 +212,27 @@
           if (isManager) btnDel.style.display = "block";
         } else {
           // 待核准 (PENDING)
-          btnDel.style.display = "block"; // 大家都能刪除草稿
+          btnDel.style.display = "block"; 
           if (isManager) {
-            btnApprove.style.display = "block"; // 主管可以核准
-            btnSave.style.display = "none"; // 主管直接核准就好，不用再儲存
+            btnApprove.style.display = "block"; 
+            btnSave.style.display = "none"; 
           }
         }
 
       } else {
         // --- 新增模式 ---
         title.textContent = `新增排班 (${dateStr})`;
-        // 如果是員工，預設選自己
+        
+        // 🔥 關鍵判斷：如果不是主管，鎖定只能選自己
         if (!isManager) {
            empSel.value = userId;
-           empSel.disabled = true; // 員工只能排自己
+           empSel.disabled = true; 
         }
       }
     }
 
     function closeModal() { document.getElementById("eventModal").style.display = "none"; }
 
-    // API 呼叫包裝
     async function apiCall(payload) {
       try {
         const res = await fetch(ENDPOINT, {

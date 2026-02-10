@@ -16,16 +16,17 @@
     .btn{width:100%;padding:14px;border:none;border-radius:12px;font-weight:bold;font-size:16px;cursor:pointer;color:#fff;display:flex;justify-content:center;align-items:center;}
     .btn-in{background:#007aff;}
     .btn-out{background:#ff9500;}
-    .btn-outing-start{background:#34c759;} 
-    .btn-outing-end{background:#5856d6;}   
-    
     .btn-sub{background:#111;margin-top:12px;}
     .btn-mgr{background:#6f42c1;margin-bottom:12px;}
     
+    /* 外出按鈕樣式 */
+    .btn-outing-start { background:#28a745; margin-bottom:8px; }
+    .btn-outing-end { background:#6c757d; }
+
     input,select{width:100%;padding:12px;margin-top:8px;border:1px solid #ddd;border-radius:10px;box-sizing:border-box;font-size:16px;}
     .hidden{display:none;}
     #loading{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.8);display:none;justify-content:center;align-items:center;z-index:999;}
-    .calc-hint { font-size:13px; color:#c22; margin-top:5px; font-weight:bold; }
+    .calc-hint { font-size:13px; color:#c22; margin-top:5px; font-weight:bold; text-align:right; }
   </style>
 </head>
 <body>
@@ -98,7 +99,7 @@
     <label class="label" style="margin-top:10px">結束時間</label>
     <input type="datetime-local" id="end" onchange="calcHours()">
     
-    <div id="calcResult" class="calc-hint">共 0 小時</div>
+    <div id="calcResult" class="calc-hint"></div>
 
     <label class="label" style="margin-top:10px">事由</label>
     <input id="reason" placeholder="請輸入原因">
@@ -148,7 +149,6 @@
     }
     init();
 
-    // 自動計算時數
     function calcHours() {
       const s = document.getElementById("start").value;
       const e = document.getElementById("end").value;
@@ -156,9 +156,9 @@
         const diff = new Date(e) - new Date(s);
         if(diff > 0) {
           const hours = (diff / 3600000).toFixed(1);
-          document.getElementById("calcResult").textContent = `共 ${hours} 小時`;
+          document.getElementById("calcResult").textContent = `預估時數: ${hours} 小時`;
         } else {
-          document.getElementById("calcResult").textContent = "結束時間需晚於開始時間";
+          document.getElementById("calcResult").textContent = "時間無效";
         }
       }
     }
@@ -167,7 +167,7 @@
       if(!confirm("確定要執行此操作嗎？")) return;
       
       if (!navigator.geolocation) {
-        alert("您的瀏覽器不支援定位功能");
+        alert("不支援定位");
         return;
       }
 
@@ -182,19 +182,14 @@
            });
            
            alert(r.message);
-           document.getElementById("clockMsg").innerText = `${r.message}\n時間：${r.time}`;
+           document.getElementById("clockMsg").innerText = `${r.message} @ ${r.time}`;
          } catch(e) {
            alert("打卡錯誤：" + e);
          }
          document.getElementById("loading").style.display="none";
       }, (err) => {
-         // 定位失敗明確提示
          document.getElementById("loading").style.display="none";
-         let msg = "無法取得定位";
-         if (err.code === 1) msg = "請允許瀏覽器存取位置權限 (Permission Denied)";
-         else if (err.code === 2) msg = "定位訊號不良";
-         else if (err.code === 3) msg = "定位逾時";
-         alert("打卡失敗：" + msg);
+         alert("無法定位，請檢查瀏覽器權限或 GPS");
       }, {
          enableHighAccuracy: true,
          timeout: 10000,
@@ -207,7 +202,6 @@
       const s = document.getElementById("start").value;
       const e = document.getElementById("end").value;
       
-      // 計算時數
       let hours = 0;
       if(s && e) {
          hours = (new Date(e) - new Date(s)) / 3600000;
@@ -219,11 +213,16 @@
         leaveType: cat==="LEAVE" ? document.getElementById("lType").value : "",
         start: s,
         end: e,
-        hours: hours, // 傳送前端算好的時數
+        hours: hours,
         reason: document.getElementById("reason").value
       });
-      alert(r.message);
-      if(r.ok) location.reload();
+      
+      if(r.ok) {
+        alert("✅ " + r.message);
+        location.reload();
+      } else {
+        alert("❌ 失敗：" + r.message);
+      }
     }
 
     function toggle(){

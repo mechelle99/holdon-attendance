@@ -10,6 +10,10 @@
     .container { max-width: 900px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
     .btn-back { display: inline-block; padding: 8px 16px; background: #333; color: #fff; text-decoration: none; border-radius: 6px; margin-bottom: 20px; font-size: 14px; }
     
+    .quota-box { background:#e3f2fd; color:#0d47a1; padding:15px; border-radius:8px; text-align:center; margin-bottom:20px; }
+    .btn-approve-all { background: #007aff; color: #fff; border: none; padding: 8px 16px; border-radius: 20px; font-weight: bold; cursor: pointer; margin-top: 10px; font-size: 14px; display: none; }
+    .btn-approve-all:hover { background: #005bb5; }
+
     /* 彈窗樣式 */
     .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999; justify-content: center; align-items: center; }
     .modal-content { background: #fff; padding: 24px; border-radius: 12px; width: 300px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
@@ -28,11 +32,12 @@
   <div class="container">
     <a href="manager.html" class="btn-back">← 回主管頁</a>
     
-    <div style="background:#e3f2fd; color:#0d47a1; padding:15px; border-radius:8px; text-align:center; margin-bottom:20px;">
+    <div class="quota-box">
       <span id="currentMonthStr" style="font-weight:bold; font-size:18px;">...</span> 
       <br>
       應休天數：<span id="monthlyQuota" style="font-size:24px; font-weight:bold; color:#c22;">-</span> 天
       <div id="quotaDetail" style="font-size:13px; color:#555; margin-top:5px;"></div>
+      <button id="btnApproveAll" class="btn-approve-all" onclick="approveMonthAll()">✅ 一鍵核准本月所有班表</button>
     </div>
 
     <div style="text-align:center; font-size:12px; color:#666; margin-bottom:10px;">
@@ -49,9 +54,7 @@
       <input type="hidden" id="selectedDate">
       
       <label>選擇員工</label>
-      <select id="empSelect">
-        <option value="">載入中...</option>
-      </select>
+      <select id="empSelect"><option value="">載入中...</option></select>
 
       <label>班別</label>
       <select id="shiftSelect">
@@ -74,20 +77,39 @@
   <script>
     const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || window.GAS_ENDPOINT;
     const userId = localStorage.getItem("employeeId");
-    
-    // 🔥 不再寫死名單，改成變數，等後端告訴我們
     let isManager = false; 
-
     let calendar;
-    
-    // 初始化
+    let currentYear, currentMonth;
+
+    // 🔥 統一 API 呼叫函式 (修正 Paylod 格式)
+    async function postToGAS(action, dataObj = {}) {
+      if (!ENDPOINT) { alert("尚未設定 GAS 網址"); return { ok: false }; }
+      
+      // 這裡就是關鍵修正：把參數全部包進 data: {} 裡面
+      const payload = {
+        action: action,
+        userId: userId,
+        displayName: localStorage.getItem("employeeName") || "Unknown",
+        data: dataObj 
+      };
+
+      try {
+        const res = await fetch(ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" }, // 避免 CORS options
+          body: JSON.stringify(payload)
+        });
+        return await res.json();
+      } catch (e) {
+        console.error(e);
+        return { ok: false, message: "連線錯誤" };
+      }
+    }
+
     document.addEventListener('DOMContentLoaded', async function() {
       if (!userId) { location.href = "login.html"; return; }
-      
-      // 1. 先載入員工名單 (並確認權限)
       await loadEmployees();
 
-      // 2. 初始化日曆
       const calendarEl = document.getElementById('calendar');
       calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'dayGridMonth',
@@ -107,78 +129,71 @@
       calendar.render();
     });
 
-    // 載入員工 (同時取得 isManager 權限)
     async function loadEmployees() {
-      try {
-        const res = await fetch(ENDPOINT, {
-          method: "POST",
-          body: JSON.stringify({ action: "get_all_employees", userId: userId })
-        });
-        const json = await res.json();
-        const sel = document.getElementById("empSelect");
-        sel.innerHTML = "";
-        
-        if (json.ok) {
-          // 🔥 這裡接收後端的權限判斷
-          isManager = json.isManager;
-          console.log("Current User Manager Status:", isManager);
+      // 呼叫時，不需要帶 data，因為 get_all_employees 只看 userId (在外層)
+      const json = await postToGAS("get_all_employees");
+      const sel = document.getElementById("empSelect");
+      sel.innerHTML = "";
+      
+      if (json.ok) {
+        isManager = json.isManager;
+        if (isManager) document.getElementById("btnApproveAll").style.display = "inline-block";
 
-          json.list.forEach(emp => {
-            const opt = document.createElement("option");
-            opt.value = emp.id;
-            opt.textContent = `${emp.name}`;
-            sel.appendChild(opt);
-          });
-        }
-      } catch(e) {}
+        json.list.forEach(emp => {
+          const opt = document.createElement("option");
+          opt.value = emp.id;
+          opt.textContent = emp.name;
+          sel.appendChild(opt);
+        });
+      }
     }
 
-    // 抓班表 + 算假
     async function fetchEvents(info, successCallback, failureCallback) {
       const currentViewDate = new Date( (new Date(info.startStr).getTime() + new Date(info.endStr).getTime()) / 2 );
-      const year = currentViewDate.getFullYear();
-      const month = currentViewDate.getMonth() + 1;
+      currentYear = currentViewDate.getFullYear();
+      currentMonth = currentViewDate.getMonth() + 1;
       
-      document.getElementById("currentMonthStr").textContent = `${year}年 ${month}月`;
-      updateMonthlyQuota(year, month); // 呼叫算假 API
+      document.getElementById("currentMonthStr").textContent = `${currentYear}年 ${currentMonth}月`;
+      updateMonthlyQuota(currentYear, currentMonth); 
 
-      try {
-        const res = await fetch(ENDPOINT, {
-          method: "POST",
-          body: JSON.stringify({ 
-            action: "get_schedule", 
-            userId: userId,
-            start: info.startStr,
-            end: info.endStr
-          })
-        });
-        const json = await res.json();
-        if (json.ok) successCallback(json.events);
-        else failureCallback(json.message);
-      } catch (e) { failureCallback(e); }
+      // 🔥 修正：參數包在 data 裡傳送
+      const json = await postToGAS("get_schedule", { 
+        start: info.startStr, 
+        end: info.endStr 
+      });
+
+      if (json.ok) successCallback(json.events);
+      else failureCallback(json.message);
     }
 
-    // 算應休天數
     async function updateMonthlyQuota(year, month) {
       const elDays = document.getElementById("monthlyQuota");
       const elMsg = document.getElementById("quotaDetail");
       elDays.textContent = "...";
-      try {
-        const res = await fetch(ENDPOINT, {
-          method: "POST",
-          body: JSON.stringify({ action: "get_month_quota", year, month })
-        });
-        const json = await res.json();
-        if (json.ok) {
-          elDays.textContent = json.days;
-          elMsg.textContent = json.msg;
-        } else {
-          elDays.textContent = "??"; 
-        }
-      } catch(e) {}
+      
+      // 🔥 修正：參數包在 data 裡傳送
+      const json = await postToGAS("get_month_quota", { year, month });
+      
+      if (json.ok) {
+        elDays.textContent = json.days;
+        elMsg.textContent = json.msg;
+      } else {
+        elDays.textContent = "??"; 
+      }
     }
 
-    // Modal 控制
+    async function approveMonthAll() {
+      if(!confirm(`確定核准 ${currentYear}年${currentMonth}月 所有班表？`)) return;
+      const btn = document.getElementById("btnApproveAll");
+      btn.disabled = true; btn.textContent = "處理中...";
+      
+      const json = await postToGAS("approve_month_all", { year: currentYear, month: currentMonth });
+      alert(json.message);
+      calendar.refetchEvents();
+      
+      btn.disabled = false; btn.textContent = "✅ 一鍵核准本月所有班表";
+    }
+
     function openModal(dateStr, eventObj) {
       document.getElementById("eventModal").style.display = "flex";
       document.getElementById("selectedDate").value = dateStr;
@@ -190,7 +205,6 @@
       const empSel = document.getElementById("empSelect");
       const info = document.getElementById("statusInfo");
 
-      // 重置按鈕
       btnSave.style.display = "block";
       btnDel.style.display = "none";
       btnApprove.style.display = "none";
@@ -198,32 +212,25 @@
       info.textContent = "";
 
       if (eventObj) {
-        // --- 編輯模式 ---
         title.textContent = `${dateStr} 排班詳情`;
         empSel.value = eventObj.extendedProps.empId;
-        empSel.disabled = true; // 不能改人
+        empSel.disabled = true; 
         
-        const status = eventObj.extendedProps.reqStatus; // PENDING or APPROVED
+        const status = eventObj.extendedProps.reqStatus; 
         info.textContent = `狀態：${status}`;
 
         if (status === "APPROVED") {
-          // 已核准：員工不能動，主管可以刪除
           btnSave.style.display = "none";
           if (isManager) btnDel.style.display = "block";
         } else {
-          // 待核准 (PENDING)
           btnDel.style.display = "block"; 
           if (isManager) {
             btnApprove.style.display = "block"; 
             btnSave.style.display = "none"; 
           }
         }
-
       } else {
-        // --- 新增模式 ---
         title.textContent = `新增排班 (${dateStr})`;
-        
-        // 🔥 關鍵判斷：如果不是主管，鎖定只能選自己
         if (!isManager) {
            empSel.value = userId;
            empSel.disabled = true; 
@@ -233,49 +240,36 @@
 
     function closeModal() { document.getElementById("eventModal").style.display = "none"; }
 
-    async function apiCall(payload) {
-      try {
-        const res = await fetch(ENDPOINT, {
-          method: "POST",
-          body: JSON.stringify(payload)
-        });
-        const json = await res.json();
-        alert(json.message);
-        if(json.ok) {
-          closeModal();
-          calendar.refetchEvents();
-        }
-      } catch(e) { alert("連線錯誤"); }
+    // 🔥 動作按鈕：全面改用 postToGAS，確保格式正確
+    async function saveEvent() {
+      const empSel = document.getElementById("empSelect");
+      const json = await postToGAS("add_schedule", {
+        date: document.getElementById("selectedDate").value,
+        empId: empSel.value,
+        empName: empSel.options[empSel.selectedIndex].text, // 這裡抓名字存進去
+        shift: document.getElementById("shiftSelect").value
+      });
+      alert(json.message);
+      if(json.ok) { closeModal(); calendar.refetchEvents(); }
     }
 
-    function saveEvent() {
-      apiCall({
-        action: "add_schedule",
+    async function deleteEvent() {
+      if(!confirm("確定刪除？")) return;
+      const json = await postToGAS("del_schedule", {
         date: document.getElementById("selectedDate").value,
-        empId: document.getElementById("empSelect").value,
-        empName: document.getElementById("empSelect").options[document.getElementById("empSelect").selectedIndex].text,
-        shift: document.getElementById("shiftSelect").value,
-        userId: userId
+        empId: document.getElementById("empSelect").value
       });
+      alert(json.message);
+      if(json.ok) { closeModal(); calendar.refetchEvents(); }
     }
 
-    function deleteEvent() {
-      if(!confirm("確定要刪除/取消此排班嗎？")) return;
-      apiCall({
-        action: "del_schedule",
+    async function approveEvent() {
+      const json = await postToGAS("approve_schedule", {
         date: document.getElementById("selectedDate").value,
-        empId: document.getElementById("empSelect").value,
-        userId: userId
+        empId: document.getElementById("empSelect").value
       });
-    }
-
-    function approveEvent() {
-      apiCall({
-        action: "approve_schedule",
-        date: document.getElementById("selectedDate").value,
-        empId: document.getElementById("empSelect").value,
-        userId: userId
-      });
+      alert(json.message);
+      if(json.ok) { closeModal(); calendar.refetchEvents(); }
     }
   </script>
 </body>

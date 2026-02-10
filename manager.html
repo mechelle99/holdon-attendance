@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>主管管理後台</title>
   <style>
-    body { font-family: system-ui, -apple-system, sans-serif; background: #f0f2f5; color: #111; padding: 20px; margin: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #f0f2f5; color: #111; padding: 20px; }
     .container { max-width: 900px; margin: 0 auto; }
     
     .section { background: #fff; padding: 24px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 24px; }
@@ -32,7 +32,8 @@
   
   <div class="container">
     <a href="index.html" class="btn-back">← 回到打卡首頁</a>
-    <a href="schedule.html" class="btn-back" style="background:#007aff; color:#fff; margin-left:10px;">📅 進入排班表</a>
+    <a href="schedule.html" class="btn-back" style="background:#007aff; margin-left:10px;">📅 進入排班表</a>
+
     <div class="section">
       <h2>⚡️ 待審核申請 (Pending)</h2>
       <div id="loading-pending">載入中...</div>
@@ -73,6 +74,7 @@
 
     // 初始化：檢查權限並載入資料
     async function init() {
+      if (!ENDPOINT) return alert("Config 未設定");
       if (!userId) { alert("請先登入"); location.href = "login.html"; return; }
       
       loadPending();
@@ -91,6 +93,9 @@
         
         if (json.ok) {
           renderPending(json.list);
+        } else {
+          // 如果權限不足，這裡會顯示錯誤
+          document.getElementById("loading-pending").innerHTML = `<span style="color:red">❌ ${json.message}</span>`;
         }
       } catch (e) { console.error(e); }
     }
@@ -107,6 +112,8 @@
 
         if (json.ok) {
           renderStats(json.list);
+        } else {
+           document.getElementById("loading-stats").innerHTML = `<span style="color:red">❌ ${json.message}</span>`;
         }
       } catch (e) { console.error(e); }
     }

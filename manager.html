@@ -7,29 +7,23 @@
   <style>
     body { font-family: system-ui, -apple-system, sans-serif; background: #f0f2f5; color: #111; padding: 20px; }
     .container { max-width: 900px; margin: 0 auto; }
-    
     .section { background: #fff; padding: 24px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 24px; }
     h2 { margin-top: 0; font-size: 20px; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 15px; }
-    
     table { width: 100%; border-collapse: collapse; font-size: 14px; }
     th, td { padding: 12px 8px; text-align: left; border-bottom: 1px solid #eee; }
     th { color: #666; font-weight: 600; background: #fafafa; }
-    
     .btn-action { padding: 6px 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 12px; margin-right: 5px; }
     .btn-approve { background: #d4edda; color: #155724; }
     .btn-reject { background: #f8d7da; color: #721c24; }
     .btn-back { display: inline-block; padding: 8px 16px; background: #333; color: #fff; text-decoration: none; border-radius: 8px; font-size: 14px; margin-bottom: 20px; }
-
     .tag { padding: 3px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; }
     .tag-leave { background: #e3f2fd; color: #0d47a1; }
     .tag-ot { background: #fff3cd; color: #856404; }
     .tag-out { background: #d1e7dd; color: #0f5132; }
-
     .empty-msg { text-align: center; color: #999; padding: 20px; }
   </style>
 </head>
 <body>
-  
   <div class="container">
     <a href="index.html" class="btn-back">← 回到打卡首頁</a>
     <a href="schedule.html" class="btn-back" style="background:#007aff; margin-left:10px;">📅 進入排班表</a>
@@ -71,58 +65,67 @@
   <script>
     const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || window.GAS_ENDPOINT;
     const userId = localStorage.getItem("employeeId");
+    const userName = localStorage.getItem("employeeName") || "";
 
-    // 初始化：檢查權限並載入資料
+    function jsonpCall(payload){
+      return new Promise((resolve, reject)=>{
+        if(!ENDPOINT) return reject(new Error("未設定 GAS"));
+        const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random()*1e6);
+        window[cbName] = (resp)=>{ cleanup(); resolve(resp); };
+
+        const qs = new URLSearchParams();
+        qs.set("callback", cbName);
+        qs.set("payload", JSON.stringify(payload));
+
+        const script = document.createElement("script");
+        script.src = ENDPOINT + "?" + qs.toString();
+        script.onerror = ()=>{ cleanup(); reject(new Error("網路連線失敗（JSONP）")); };
+        document.body.appendChild(script);
+
+        const timer = setTimeout(()=>{ cleanup(); reject(new Error("逾時（JSONP）")); }, 20000);
+        function cleanup(){
+          try{ delete window[cbName]; }catch(e){ window[cbName]=undefined; }
+          if(script && script.parentNode) script.parentNode.removeChild(script);
+          clearTimeout(timer);
+        }
+      });
+    }
+
     async function init() {
       if (!ENDPOINT) return alert("Config 未設定");
       if (!userId) { alert("請先登入"); location.href = "login.html"; return; }
-      
+
+      // 後端會檢查你是不是主管，不是就會回錯誤
       loadPending();
       loadStats();
     }
 
-    // 1. 載入待審核清單
     async function loadPending() {
       try {
-        const res = await fetch(ENDPOINT, {
-          method: "POST",
-          body: JSON.stringify({ action: "get_pending", userId })
-        });
-        const json = await res.json();
+        const json = await jsonpCall({ action: "get_pending", userId, displayName: userName });
         document.getElementById("loading-pending").style.display = "none";
-        
-        if (json.ok) {
-          renderPending(json.list);
-        } else {
-          // 如果權限不足，這裡會顯示錯誤
-          document.getElementById("loading-pending").innerHTML = `<span style="color:red">❌ ${json.message}</span>`;
-        }
-      } catch (e) { console.error(e); }
+        if (json.ok) renderPending(json.list || []);
+        else document.getElementById("loading-pending").innerHTML = `<span style="color:red">❌ ${json.message}</span>`;
+      } catch (e) {
+        document.getElementById("loading-pending").innerHTML = `<span style="color:red">❌ ${e.message}</span>`;
+      }
     }
 
-    // 2. 載入假勤統計
     async function loadStats() {
       try {
-        const res = await fetch(ENDPOINT, {
-          method: "POST",
-          body: JSON.stringify({ action: "get_team_stats", userId })
-        });
-        const json = await res.json();
+        const json = await jsonpCall({ action: "get_team_stats", userId, displayName: userName });
         document.getElementById("loading-stats").style.display = "none";
-
-        if (json.ok) {
-          renderStats(json.list);
-        } else {
-           document.getElementById("loading-stats").innerHTML = `<span style="color:red">❌ ${json.message}</span>`;
-        }
-      } catch (e) { console.error(e); }
+        if (json.ok) renderStats(json.list || []);
+        else document.getElementById("loading-stats").innerHTML = `<span style="color:red">❌ ${json.message}</span>`;
+      } catch (e) {
+        document.getElementById("loading-stats").innerHTML = `<span style="color:red">❌ ${e.message}</span>`;
+      }
     }
 
-    // 渲染待審核表格
     function renderPending(list) {
       const tbody = document.getElementById("tbody-pending");
       const table = document.getElementById("pendingTable");
-      
+
       if (list.length === 0) {
         tbody.innerHTML = "<tr><td colspan='5' class='empty-msg'>目前沒有待審核的單據 🎉</td></tr>";
         table.style.display = "table";
@@ -132,8 +135,8 @@
       let html = "";
       list.forEach(item => {
         let tagClass = "tag-leave";
-        if(item.type === "加班") tagClass = "tag-ot";
-        if(item.type === "外出") tagClass = "tag-out";
+        if (item.type === "加班") tagClass = "tag-ot";
+        if (item.type === "外出") tagClass = "tag-out";
 
         html += `
           <tr>
@@ -152,7 +155,6 @@
       table.style.display = "table";
     }
 
-    // 渲染統計表格
     function renderStats(list) {
       const tbody = document.getElementById("tbody-stats");
       let html = "";
@@ -173,23 +175,17 @@
       document.getElementById("statsTable").style.display = "table";
     }
 
-    // 執行審核動作
     async function review(reqId, decision) {
       if(!confirm(`確定要 ${decision === "APPROVED" ? "核准" : "駁回"} 這張單據嗎？`)) return;
-
       const btns = document.querySelectorAll("button");
-      btns.forEach(b => b.disabled = true); // 防止連點
+      btns.forEach(b => b.disabled = true);
 
-      try {
-        const res = await fetch(ENDPOINT, {
-          method: "POST",
-          body: JSON.stringify({ action: "review_request", userId, data: { reqId, decision } })
-        });
-        const json = await res.json();
-        alert(json.message);
-        location.reload(); // 重新整理頁面更新清單
-      } catch (e) {
-        alert("連線錯誤");
+      try{
+        const json = await jsonpCall({ action: "review_request", userId, displayName:userName, data:{ reqId, decision } });
+        alert(json.message || "完成");
+        location.reload();
+      }catch(e){
+        alert("❌ " + e.message);
         btns.forEach(b => b.disabled = false);
       }
     }

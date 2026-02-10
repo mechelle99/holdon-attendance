@@ -14,14 +14,16 @@
     .label{font-size:13px;color:#666;margin-bottom:4px;}
     
     .btn{width:100%;padding:14px;border:none;border-radius:12px;font-weight:bold;font-size:16px;cursor:pointer;color:#fff;display:flex;justify-content:center;align-items:center;}
-    .btn-in{background:#007aff;}
-    .btn-out{background:#ff9500;}
-    .btn-sub{background:#111;margin-top:12px;}
-    .btn-mgr{background:#6f42c1;margin-bottom:12px;}
     
-    /* 外出按鈕樣式 */
-    .btn-outing-start { background:#28a745; margin-bottom:8px; }
-    .btn-outing-end { background:#6c757d; }
+    /* 按鈕顏色定義 */
+    .btn-in{background:#007aff;}       /* 上班藍 */
+    .btn-out{background:#ff9500;}      /* 下班橘 */
+    .btn-sub{background:#111;margin-top:12px;} /* 送出黑 */
+    .btn-mgr{background:#6f42c1;margin-bottom:8px;} /* 主管紫 */
+    .btn-sch{background:#17a2b8;margin-bottom:12px;} /* 排班青 */
+    
+    .btn-outing-start{background:#28a745; margin-bottom:8px;} /* 外出綠 */
+    .btn-outing-end{background:#6c757d;}   /* 返回灰 */
 
     input,select{width:100%;padding:12px;margin-top:8px;border:1px solid #ddd;border-radius:10px;box-sizing:border-box;font-size:16px;}
     .hidden{display:none;}
@@ -39,6 +41,8 @@
   </div>
 
   <button id="btnMgr" class="btn btn-mgr hidden" onclick="location.href='manager.html'">👑 進入主管審核後台</button>
+  
+  <button class="btn btn-sch" onclick="location.href='schedule.html'">📅 進入排班表</button>
 
   <div class="grid">
     <div class="card">
@@ -115,7 +119,10 @@
     if(!userId) location.href="index.html";
     document.getElementById("who").textContent = `${localStorage.getItem("employeeName")} (${userId})`;
     
-    if(localStorage.getItem("isManager")==="Y") document.getElementById("btnMgr").classList.remove("hidden");
+    // 主管按鈕顯示邏輯
+    if(localStorage.getItem("isManager")==="Y") {
+        document.getElementById("btnMgr").classList.remove("hidden");
+    }
 
     function api(act, data={}){
       document.getElementById("loading").style.display="flex";
@@ -149,6 +156,7 @@
     }
     init();
 
+    // 時數計算
     function calcHours() {
       const s = document.getElementById("start").value;
       const e = document.getElementById("end").value;
@@ -158,11 +166,12 @@
           const hours = (diff / 3600000).toFixed(1);
           document.getElementById("calcResult").textContent = `預估時數: ${hours} 小時`;
         } else {
-          document.getElementById("calcResult").textContent = "時間無效";
+          document.getElementById("calcResult").textContent = "結束時間需晚於開始時間";
         }
       }
     }
 
+    // 打卡功能
     async function clock(type){
       if(!confirm("確定要執行此操作嗎？")) return;
       
@@ -197,6 +206,7 @@
       });
     }
 
+    // 送出申請
     async function submit(){
       const cat = document.getElementById("cat").value;
       const s = document.getElementById("start").value;

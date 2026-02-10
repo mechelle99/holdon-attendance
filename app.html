@@ -9,13 +9,19 @@
     .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
     .card{background:#fff;border-radius:16px;padding:20px;box-shadow:0 4px 12px rgba(0,0,0,0.05);margin-bottom:16px;}
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+    
     .big-num{font-size:32px;font-weight:800;color:#111;}
     .label{font-size:13px;color:#666;margin-bottom:4px;}
+    
     .btn{width:100%;padding:14px;border:none;border-radius:12px;font-weight:bold;font-size:16px;cursor:pointer;color:#fff;display:flex;justify-content:center;align-items:center;}
     .btn-in{background:#007aff;}
     .btn-out{background:#ff9500;}
+    .btn-outing-start{background:#34c759; margin-top:8px;} /* 外出綠色 */
+    .btn-outing-end{background:#5856d6;}   /* 返回紫色 */
+    
     .btn-sub{background:#111;margin-top:12px;}
     .btn-mgr{background:#6f42c1;margin-bottom:12px;}
+    
     input,select{width:100%;padding:12px;margin-top:8px;border:1px solid #ddd;border-radius:10px;box-sizing:border-box;font-size:16px;}
     .hidden{display:none;}
     #loading{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.8);display:none;justify-content:center;align-items:center;z-index:999;}
@@ -46,10 +52,18 @@
   <div class="card">
     <h3 style="margin:0 0 12px">📍 上下班打卡</h3>
     <div class="grid">
-      <button class="btn btn-in" onclick="clock('clock_in')">上班打卡</button>
-      <button class="btn btn-out" onclick="clock('clock_out')">下班打卡</button>
+      <button class="btn btn-in" onclick="clock('clock_in')">上班</button>
+      <button class="btn btn-out" onclick="clock('clock_out')">下班</button>
     </div>
-    <div id="msg" style="margin-top:10px;color:#007aff;font-size:13px;text-align:center;"></div>
+    <div id="clockMsg" style="margin-top:10px;color:#007aff;font-size:13px;text-align:center;"></div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 12px">🚀 外出 / 公務</h3>
+    <div class="grid">
+      <button class="btn btn-outing-start" onclick="clock('clock_outing_start')">外出出發</button>
+      <button class="btn btn-outing-end" onclick="clock('clock_outing_end')">外出返回</button>
+    </div>
   </div>
 
   <div class="card">
@@ -58,7 +72,7 @@
     <select id="cat" onchange="toggle()">
       <option value="LEAVE">請假</option>
       <option value="OT">加班 (轉補休)</option>
-      <option value="OUTING">外出</option>
+      <option value="OUTING">外出申請單 (事先申請)</option>
     </select>
     
     <div id="areaLeave">
@@ -66,8 +80,14 @@
       <select id="lType">
         <option value="annual">特休</option>
         <option value="comp">補休</option>
+        <option value="personal">事假</option>
         <option value="sick">病假</option>
-        <option value="birthday">生日假</option>
+        <option value="menstrual">生理假</option>
+        <option value="family">家庭照顧假</option>
+        <option value="wedding">婚假</option>
+        <option value="funeral">喪假</option>
+        <option value="maternity">產假/陪產假</option>
+        <option value="birthday">生日假 (限當月)</option>
       </select>
     </div>
 
@@ -125,12 +145,43 @@
     init();
 
     async function clock(type){
-      if(!confirm("確定打卡？")) return;
+      if(!confirm("確定要打卡嗎？")) return;
+      
+      if (!navigator.geolocation) {
+        alert("您的裝置不支援定位功能");
+        return;
+      }
+
+      document.getElementById("loading").style.display="flex";
+
       navigator.geolocation.getCurrentPosition(async pos => {
-         const r = await api(type, { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy });
-         alert(r.message);
-         document.getElementById("msg").textContent = `${r.message} @ ${r.time}`;
-      }, () => alert("無法定位，請允許瀏覽器存取位置"));
+         try {
+           const r = await api(type, { 
+             lat: pos.coords.latitude, 
+             lng: pos.coords.longitude, 
+             accuracy: pos.coords.accuracy 
+           });
+           
+           // 顯示後端回傳的訊息 (含距離檢核結果)
+           alert(r.message);
+           document.getElementById("clockMsg").innerText = `${r.message}\n時間：${r.time}`;
+         } catch(e) {
+           alert("打卡失敗：" + e);
+         }
+         document.getElementById("loading").style.display="none";
+      }, (err) => {
+         // 定位失敗的處理
+         document.getElementById("loading").style.display="none";
+         let msg = "無法取得定位";
+         if (err.code === 1) msg = "請允許瀏覽器存取位置權限 (Permission Denied)";
+         else if (err.code === 2) msg = "定位訊號不良 (Position Unavailable)";
+         else if (err.code === 3) msg = "定位逾時 (Timeout)";
+         alert("打卡失敗：" + msg);
+      }, {
+         enableHighAccuracy: true,
+         timeout: 10000,
+         maximumAge: 0
+      });
     }
 
     async function submit(){

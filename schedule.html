@@ -3,241 +3,134 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>排班管理表</title>
+  <title>排班表</title>
   <style>
-    :root {
-      --primary: #1a73e8;
-      --cell-w: 70px;
-      --cell-h: 50px;
-      --name-w: 110px;
-      --border-color: #ddd;
-    }
-    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; background: #fff; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
-    
-    /* 1. Header */
-    .header { padding: 10px 16px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; background: #fff; z-index: 100; flex-shrink: 0; }
-    .title { font-size: 18px; font-weight: bold; }
-    .controls { display: flex; gap: 8px; }
-    select, button { padding: 6px; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; }
-    .btn-save { background: var(--primary); color: #fff; border: none; font-weight: bold; }
-    .btn-back { text-decoration: none; color: #333; background: #f0f0f0; padding: 6px 12px; border-radius: 4px; font-size: 14px; }
-
-    /* 2. Scrollable Area */
-    .roster-wrap { 
-      flex: 1; 
-      overflow: auto; 
-      position: relative; 
-      width: 100%; 
-      background: #fff;
-    }
-    
-    /* 3. Table Structure (關鍵: separate) */
-    table { 
-      border-collapse: separate; 
-      border-spacing: 0; 
-      min-width: 100%; 
-    }
-    
-    th, td { 
-      border-right: 1px solid var(--border-color); 
-      border-bottom: 1px solid var(--border-color); 
-      text-align: center; 
-      padding: 0;
-      box-sizing: border-box;
-      height: var(--cell-h);
-    }
-
-    /* --- 4. Freeze Panes Logic (凍結核心) --- */
-
-    /* A. 左上角 (Corner) - 最頂層 */
-    thead th:first-child {
-      position: sticky;
-      top: 0;
-      left: 0;
-      z-index: 30; /* 最高 */
-      background: #fff;
-      min-width: var(--name-w);
-      border-right: 2px solid #aaa; /* 明顯分隔線 */
-      border-bottom: 2px solid #aaa;
-    }
-
-    /* B. 第一列 (Top Header - 日期) */
-    thead th {
-      position: sticky;
-      top: 0;
-      z-index: 20; /* 次高 */
-      background: #f8f9fa;
-      height: 40px;
-      min-width: var(--cell-w);
-      border-bottom: 2px solid #aaa;
-    }
-
-    /* C. 第一欄 (Left Column - 員工) */
-    tbody td:first-child {
-      position: sticky;
-      left: 0;
-      z-index: 10; /* 第三 */
-      background: #fff;
-      font-weight: bold;
-      min-width: var(--name-w);
-      border-right: 2px solid #aaa; /* 明顯分隔線 */
-      box-shadow: 2px 0 5px rgba(0,0,0,0.05); /* 加陰影 */
-    }
-
-    /* D. 普通儲存格 */
-    tbody td {
-      z-index: 1;
-      background: #fff; /* 必須有背景色，不然捲動時字會透過去 */
-    }
-
-    /* 5. Cell Styles */
-    .shift-select { width: 100%; height: 100%; border: none; background: transparent; text-align: center; text-align-last: center; font-weight: 600; cursor: pointer; outline: none; appearance: none; }
-    
-    .st-EARLY { background-color: #e8f0fe !important; color: #1967d2; }
-    .st-LATE  { background-color: #fff3e0 !important; color: #ea8600; }
-    .st-OFF   { background-color: #f8f9fa !important; color: #999; }
-    .st-LEAVE { background-color: #fce8e6 !important; color: #c5221f; pointer-events: none; display: flex; align-items: center; justify-content: center; font-size: 12px; }
-    
-    .weekend { color: #d93025; background-color: #fff0f0; }
-    .col-emp-txt { padding: 0 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-    #loading { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); display: flex; justify-content: center; align-items: center; z-index: 999; }
-    .hidden { display: none; }
+    body{font-family:-apple-system,sans-serif;margin:0;padding:0;background:#fff;display:flex;flex-direction:column;height:100vh;}
+    .header{padding:12px;border-bottom:1px solid #ddd;display:flex;justify-content:space-between;align-items:center;background:#f9f9f9;}
+    .controls{display:flex;gap:6px;}
+    select, button{padding:6px;border-radius:4px;border:1px solid #ccc;font-size:14px;}
+    .btn-save{background:#007aff;color:#fff;border:none;font-weight:bold;}
+    .btn-back{text-decoration:none;color:#333;font-weight:bold;font-size:16px;}
+    .table-container{flex:1;overflow:auto;position:relative;}
+    table{border-collapse:separate;border-spacing:0;min-width:100%;}
+    th, td{border-right:1px solid #ddd;border-bottom:1px solid #ddd;text-align:center;min-width:50px;height:40px;box-sizing:border-box;font-size:13px;}
+    thead th {position:sticky;top:0;background:#f0f0f0;z-index:2;}
+    tbody td:first-child {position:sticky;left:0;background:#fff;z-index:1;border-right:2px solid #ccc;font-weight:bold;min-width:80px;}
+    thead th:first-child {z-index:3;left:0;border-right:2px solid #ccc;}
+    .weekend{background:#fff0f0;color:#c00;}
+    .shift-sel{width:100%;height:100%;border:none;background:transparent;text-align:center;font-weight:bold;}
+    .bg-early{background:#e8f0fe;color:#1967d2;}
+    .bg-late{background:#fff3e0;color:#ea8600;}
+    .bg-off{background:#fafafa;color:#ccc;}
   </style>
 </head>
 <body>
 
-<div id="loading">讀取班表...</div>
-
 <div class="header">
-  <div class="title">
-    <a href="app.html" class="btn-back">← 返回</a>
-    <span style="margin-left:10px">排班表</span>
+  <div>
+    <a href="app.html" class="btn-back">←</a>
+    <span style="margin-left:8px;font-weight:bold;">排班</span>
   </div>
   <div class="controls">
-    <select id="selYear"></select>
-    <select id="selMonth"></select>
-    <button class="btn-save" onclick="loadRoster()">刷新</button>
-    <button id="btnApprove" class="btn-save hidden" style="background:#6f42c1;" onclick="approveAll()">主管核准</button>
+    <select id="selY"></select>
+    <select id="selM"></select>
+    <button class="btn-save" onclick="loadRoster()">刷</button>
   </div>
 </div>
 
-<div class="roster-wrap">
+<div class="table-container">
   <table id="rosterTable">
-    <thead><tr id="headRow"></tr></thead>
-    <tbody id="bodyRow"></tbody>
+    <thead><tr id="tHead"></tr></thead>
+    <tbody id="tBody"></tbody>
   </table>
 </div>
 
 <script src="config.js"></script>
 <script>
-  const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || "";
   const userId = localStorage.getItem("employeeId");
-  let isManager = false;
-
   if(!userId) location.href="index.html";
 
   const now = new Date();
-  const ySel = document.getElementById("selYear");
-  const mSel = document.getElementById("selMonth");
-
-  for(let y=now.getFullYear()-1; y<=now.getFullYear()+1; y++) ySel.add(new Option(y+"年", y, y===now.getFullYear(), y===now.getFullYear()));
-  for(let m=1; m<=12; m++) mSel.add(new Option(m+"月", m, m===(now.getMonth()+1), m===(now.getMonth()+1)));
+  const selY = document.getElementById("selY");
+  const selM = document.getElementById("selM");
+  
+  for(let y=now.getFullYear()-1; y<=now.getFullYear()+1; y++) 
+    selY.add(new Option(y, y, y===now.getFullYear(), y===now.getFullYear()));
+  for(let m=1; m<=12; m++) 
+    selM.add(new Option(m+"月", m, m===(now.getMonth()+1), m===(now.getMonth()+1)));
 
   function api(act, data={}) {
-    document.getElementById("loading").style.display = "flex";
     return new Promise((resolve, reject) => {
-      const cb = "cb" + Date.now();
+      const cb = "cb"+Date.now()+Math.floor(Math.random()*100);
       const payload = JSON.stringify({ ...data, userId, webhookKey: window.CONFIG?.WEBHOOK_KEY });
       const s = document.createElement("script");
-      s.src = `${ENDPOINT}?action=${act}&payload=${encodeURIComponent(payload)}&callback=${cb}`;
-      window[cb] = (res) => { resolve(res); try{delete window[cb];s.remove();}catch(e){} document.getElementById("loading").style.display="none"; };
-      s.onerror = () => { alert("連線失敗"); document.getElementById("loading").style.display="none"; };
+      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${act}&payload=${encodeURIComponent(payload)}&callback=${cb}`;
+      window[cb] = (res) => { resolve(res); try{delete window[cb];s.remove();}catch(e){} };
       document.body.appendChild(s);
     });
   }
 
   async function loadRoster() {
-    const y = ySel.value;
-    const m = mSel.value;
+    const y = selY.value;
+    const m = selM.value;
     const days = new Date(y, m, 0).getDate();
-    const headRow = document.getElementById("headRow");
     
-    // 建立表頭
-    let headHtml = '<th><div class="col-emp-txt">員工</div></th>';
-    for(let d=1; d<=days; d++) {
-      const date = new Date(y, m-1, d);
-      const day = date.getDay();
-      const weekStr = ['日','一','二','三','四','五','六'][day];
-      const cls = (day===0 || day===6) ? 'weekend' : '';
-      headHtml += `<th class="${cls}">${d}<br><small>${weekStr}</small></th>`;
+    let hHtml = '<th>員工</th>';
+    for(let d=1; d<=days; d++){
+      const week = new Date(y, m-1, d).getDay();
+      const isWk = (week===0||week===6);
+      hHtml += `<th class="${isWk?'weekend':''}">${d}<br><small>${['日','一','二','三','四','五','六'][week]}</small></th>`;
     }
-    headRow.innerHTML = headHtml;
+    document.getElementById("tHead").innerHTML = hHtml;
+    document.getElementById("tBody").innerHTML = '<tr><td colspan="35">載入中...</td></tr>';
 
     try {
       const res = await api("get_roster_data", { year: y, month: m });
-      if(!res.ok) return alert(res.message);
+      if(!res.ok) { alert(res.message); return; }
 
-      isManager = res.isManager;
-      if(isManager) document.getElementById("btnApprove").classList.remove("hidden");
-
-      const tbody = document.getElementById("bodyRow");
+      const tbody = document.getElementById("tBody");
       tbody.innerHTML = "";
+      
+      const roster = res.roster || {}; 
 
       res.employees.forEach(emp => {
         const tr = document.createElement("tr");
-        // 第一欄：員工姓名 (已設定 sticky)
-        let html = `<td><div class="col-emp-txt">${emp.name}</div></td>`;
+        let tds = `<td>${emp.name}</td>`;
         
-        for(let d=1; d<=days; d++) {
-          const cell = (res.roster[emp.id] && res.roster[emp.id][d]) ? res.roster[emp.id][d] : {};
-          const fullDate = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        for(let d=1; d<=days; d++){
+          const cell = (roster[emp.id] && roster[emp.id][d]) ? roster[emp.id][d] : {};
+          const val = cell.value || 'OFF';
+          let cls = 'bg-off';
+          if(val==='EARLY') cls = 'bg-early';
+          if(val==='LATE') cls = 'bg-late';
           
-          if (cell.type === 'LEAVE') {
-            html += `<td class="st-LEAVE">${cell.value}</td>`;
-          } else {
-            const val = cell.value || 'OFF';
-            const schId = cell.scheduleId || '';
-            const isApproved = cell.status === 'APPROVED';
-            const disabled = (isApproved && !isManager) ? 'disabled' : '';
-            // 這裡直接把 class 加在 td 上，讓背景色跟著 sticky 跑
-            const bgClass = val === 'EARLY' ? 'st-EARLY' : (val === 'LATE' ? 'st-LATE' : 'st-OFF');
-            
-            html += `
-              <td class="${bgClass}" id="td_${emp.id}_${d}">
-                <select class="shift-select" ${disabled} onchange="saveShift(this, '${emp.id}', '${emp.name}', '${fullDate}', '${schId}', ${d})">
-                  <option value="OFF" ${val==='OFF'?'selected':''}>休</option>
-                  <option value="EARLY" ${val==='EARLY'?'selected':''}>早</option>
-                  <option value="LATE" ${val==='LATE'?'selected':''}>午</option>
-                </select>
-              </td>`;
-          }
+          tds += `
+            <td class="${cls}" id="cell_${emp.id}_${d}">
+              <select class="shift-sel" onchange="updateShift(this, '${emp.id}', '${emp.name}', ${d})">
+                <option value="OFF" ${val==='OFF'?'selected':''}>休</option>
+                <option value="EARLY" ${val==='EARLY'?'selected':''}>早</option>
+                <option value="LATE" ${val==='LATE'?'selected':''}>午</option>
+              </select>
+            </td>`;
         }
-        tr.innerHTML = html;
+        tr.innerHTML = tds;
         tbody.appendChild(tr);
       });
-
-    } catch(e) { alert("錯誤: " + e); }
+      
+    } catch(e){ alert("錯誤:"+e); }
   }
-
-  async function saveShift(el, empId, empName, date, oldId, dayIdx) {
-    const shift = el.value;
-    const td = document.getElementById(`td_${empId}_${dayIdx}`);
-    // 即時變色
-    td.className = shift === 'EARLY' ? 'st-EARLY' : (shift === 'LATE' ? 'st-LATE' : 'st-OFF');
+  
+  async function updateShift(el, empId, empName, day) {
+    const val = el.value;
+    const y = selY.value;
+    const m = selM.value;
+    const dateStr = `${y}-${String(m).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const td = document.getElementById(`cell_${empId}_${day}`);
+    td.className = (val==='EARLY')?'bg-early':(val==='LATE'?'bg-late':'bg-off');
     
-    if (!oldId && shift === 'OFF') return;
     try {
-      const act = oldId ? "update_schedule" : "add_schedule";
-      await api(act, { scheduleId: oldId, empId, empName, date, shift });
-    } catch(e) { alert("儲存失敗"); loadRoster(); }
-  }
-
-  async function approveAll() {
-    if(!confirm("確定核准本月所有班表？")) return;
-    await api("approve_month_all", { year: ySel.value, month: mSel.value });
-    alert("已核准");
-    loadRoster();
+      await api("update_schedule", { empId, empName, date: dateStr, shift: val });
+    } catch(e){ console.error(e); }
   }
 
   loadRoster();

@@ -5,26 +5,35 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>出勤檢視</title>
   <style>
-    body{font-family:sans-serif;background:#f4f6f8;padding:16px;}
-    .card{background:#fff;padding:12px;border-radius:8px;margin-bottom:8px;box-shadow:0 2px 5px rgba(0,0,0,0.05);display:flex;align-items:center;justify-content:space-between;}
-    .date{font-weight:bold;font-size:15px;width:50px;}
-    .time{font-size:13px;color:#333;text-align:right;flex:1;margin-right:10px;}
-    .tag{font-size:12px;padding:3px 8px;border-radius:4px;color:#fff;min-width:50px;text-align:center;}
+    body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f4f6f8;padding:16px;margin:0;}
+    .header{margin-bottom:15px;display:flex;gap:10px;align-items:center;}
+    .card{background:#fff;padding:12px;border-radius:12px;margin-bottom:10px;box-shadow:0 2px 5px rgba(0,0,0,0.05);display:flex;align-items:center;}
     
-    .ok{background:#34c759} 
-    .late{background:#ffcc00;color:#000} 
-    .miss{background:#ff3b30} 
-    .abn{background:#5856d6}
-    .off{background:#ccc}
-    .leave{background:#007aff} /* 請假 */
+    .date-box{width:60px;text-align:center;border-right:1px solid #eee;margin-right:10px;}
+    .date-day{font-size:18px;font-weight:bold;color:#333;}
+    .date-w{font-size:12px;color:#999;}
     
-    select{padding:8px;border-radius:6px;border:1px solid #ddd;margin-right:5px;}
-    button{padding:8px 15px;background:#333;color:#fff;border:none;border-radius:6px;}
+    .info{flex:1;}
+    .time-row{font-size:14px;color:#444;line-height:1.6;}
+    .time-row span{color:#999;font-size:12px;margin-right:5px;}
+    
+    .tag{font-size:13px;padding:4px 10px;border-radius:6px;color:#fff;font-weight:bold;min-width:60px;text-align:center;}
+    
+    /* 狀態顏色 */
+    .ok{background:#34c759}       /* 正常 */
+    .late{background:#ff9500}     /* 遲到/早退 */
+    .miss{background:#ff3b30}     /* 缺卡/曠職 */
+    .abn{background:#8e8e93}      /* 異常(超時) - 改為灰色或自訂 */
+    .off{background:#e5e5ea;color:#999} /* 排休 */
+    .leave{background:#007aff}    /* 請假 */
+
+    select{padding:8px;border-radius:8px;border:1px solid #ddd;font-size:16px;}
+    button{padding:8px 15px;background:#111;color:#fff;border:none;border-radius:8px;font-size:14px;}
   </style>
 </head>
 <body>
-  <div style="margin-bottom:15px;">
-    <button onclick="location.href='app.html'">← 返回</button>
+  <div class="header">
+    <button onclick="location.href='app.html'">←</button>
     <select id="y"></select><select id="m"></select>
     <button onclick="load()">查詢</button>
   </div>
@@ -35,7 +44,8 @@
     const uid=localStorage.getItem("employeeId");
     const yS=document.getElementById("y"), mS=document.getElementById("m");
     const now=new Date();
-    for(let i=now.getFullYear();i>=2024;i--) yS.add(new Option(i,i));
+    // 預設選單
+    for(let i=2024;i<=2026;i++) yS.add(new Option(i,i,i===now.getFullYear(),i===now.getFullYear()));
     for(let i=1;i<=12;i++) mS.add(new Option(i,i,i===(now.getMonth()+1),i===(now.getMonth()+1)));
 
     function api(a,d={}){
@@ -47,24 +57,32 @@
       });
     }
 
+    // 將 HH:mm:ss 轉為分鐘數 (例如 10:00 -> 600)
+    function toMins(tStr) {
+      if(!tStr) return -1;
+      const p = tStr.split(':');
+      return parseInt(p[0])*60 + parseInt(p[1]);
+    }
+
     async function load(){
-      document.getElementById("list").innerHTML = "載入中...";
-      const y=yS.value, m=mS.value;
+      document.getElementById("list").innerHTML = "<div style='text-align:center;margin-top:20px;color:#999'>載入中...</div>";
+      const y=parseInt(yS.value), m=parseInt(mS.value);
       const r = await api("get_dashboard", {year:y, month:m});
       
       const d = document.getElementById("list");
       d.innerHTML = "";
       
       if(r.ok && r.schedule) {
-        const days = new Date(y, m, 0).getDate();
+        const daysInMonth = new Date(y, m, 0).getDate();
         const map = {};
         
-        // 1. 預設排班 (不在班表=早班)
-        for(let i=1; i<=days; i++) map[i] = { shift: r.schedule[i] || 'EARLY', in:null, out:null, leave:null };
+        // 1. 初始化每一天 (預設早班)
+        for(let i=1; i<=daysInMonth; i++) map[i] = { shift: r.schedule[i] || 'EARLY', in:null, out:null, leave:null };
         
-        // 2. 填入打卡
+        // 2. 填入打卡時間
         r.clocks.forEach(c => {
-          const day = parseInt(c.date.split('-')[2]);
+          // c.date 格式 YYYY-MM-DD
+          const day = parseInt(c.date.split('-')[2]); 
           if(map[day]) {
             if(c.type.includes('上班')) map[day].in = c.time;
             if(c.type.includes('下班')) map[day].out = c.time;
@@ -79,49 +97,89 @@
           });
         }
 
-        // 4. 渲染
-        for(let i=days; i>=1; i--) {
-          // 未來日期不顯示
-          if(new Date(y, m-1, i) > new Date()) continue;
+        // 4. 渲染 (倒序: 從月底到1號)
+        // ★重點：今天以後的日期不顯示
+        const today = new Date();
+        today.setHours(23,59,59,999); // 包含今天
+
+        for(let i=daysInMonth; i>=1; i--) {
+          const currentLoopDate = new Date(y, m-1, i);
+          if (currentLoopDate > today) continue; // 未來日期跳過
 
           const item = map[i];
+          const weekDay = ['日','一','二','三','四','五','六'][currentLoopDate.getDay()];
+          
           let stTag="正常", stCls="ok";
           
+          // --- 狀態判斷邏輯開始 ---
           if (item.leave) {
              stTag = item.leave; stCls = "leave";
-          } else if (item.shift === 'OFF') {
-             stTag = "排休"; stCls = "off";
-             if(item.in||item.out) { stTag="加班"; stCls="ok"; }
-          } else {
-             // 工作日邏輯
-             if(!item.in && !item.out) { stTag="曠職"; stCls="miss"; }
-             else if(!item.in) { stTag="缺上班卡"; stCls="miss"; }
-             else if(!item.out) { stTag="缺下班卡"; stCls="miss"; }
+          } 
+          else if (item.shift === 'OFF') {
+             stTag = "休假"; stCls = "off"; // 排休
+             if(item.in || item.out) { stTag="加班"; stCls="ok"; }
+          } 
+          else {
+             // 工作日: 曠職/缺卡/遲到/早退/異常/正常
+             if(!item.in && !item.out) { 
+                 stTag="曠職"; stCls="miss"; 
+             }
+             else if(!item.in) { 
+                 stTag="缺上班卡"; stCls="miss"; 
+             }
+             else if(!item.out) { 
+                 stTag="缺下班卡"; stCls="miss"; 
+             }
              else {
-                // 遲到/異常判斷
-                const startTarget = item.shift==='EARLY' ? '10:00:00' : '12:00:00';
-                const endHour = item.shift==='EARLY' ? 18 : 21;
+                // 有上班也有下班，進行時間計算
+                const minsIn = toMins(item.in);
+                const minsOut = toMins(item.out);
                 
-                if(item.in > startTarget) { stTag="遲到"; stCls="late"; }
-                
-                // 異常: 下班超過1小時
-                const outH = parseInt(item.out.split(':')[0]);
-                if(outH >= endHour + 1) { stTag="異常"; stCls="abn"; }
+                // 設定標準時間 (分)
+                // 早班: 10:00(600) ~ 18:00(1080)
+                // 午班: 12:00(720) ~ 21:00(1260)
+                let stdIn = 600, stdOut = 1080;
+                if(item.shift === 'LATE') { stdIn = 720; stdOut = 1260; }
+
+                let isLate = minsIn > stdIn;
+                let isEarly = minsOut < stdOut; // ★這裡修正了早退判斷
+                let isAbn = minsOut >= (stdOut + 60); // 超過1小時
+
+                if (isAbn) {
+                    stTag = "異常"; stCls = "abn";
+                } else if (isLate && isEarly) {
+                    stTag = "遲到/早退"; stCls = "late";
+                } else if (isLate) {
+                    stTag = "遲到"; stCls = "late";
+                } else if (isEarly) {
+                    stTag = "早退"; stCls = "late";
+                } else {
+                    stTag = "正常"; stCls = "ok";
+                }
              }
           }
+          // --- 狀態判斷邏輯結束 ---
 
           d.innerHTML += `
             <div class="card">
-              <div class="date">${m}/${i}</div>
-              <div class="time">
-                上: ${item.in||'--:--'}<br>
-                下: ${item.out||'--:--'}
+              <div class="date-box">
+                <div class="date-day">${i}</div>
+                <div class="date-w">${weekDay}</div>
+              </div>
+              <div class="info">
+                <div class="time-row"><span>上班</span> ${item.in||'--:--'}</div>
+                <div class="time-row"><span>下班</span> ${item.out||'--:--'}</div>
               </div>
               <div class="tag ${stCls}">${stTag}</div>
             </div>`;
         }
+        
+        if(d.innerHTML === "") d.innerHTML = "<div style='text-align:center;padding:20px;color:#999'>本月尚無已到期的紀錄</div>";
+
       } else { d.innerHTML = "<div style='text-align:center'>無資料</div>"; }
     }
+    
+    // 初始化載入
     load();
   </script>
 </body>

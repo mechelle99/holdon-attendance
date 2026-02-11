@@ -17,7 +17,15 @@
     .btn-sub{background:#111;margin-top:12px;}
     .btn-mgr{background:#6f42c1;margin-bottom:8px;}
     .btn-sch{background:#17a2b8;margin-bottom:12px;}
-    .btn-correct{background:#6c757d;} 
+    .btn-correct{background:#6c757d;}
+    
+    /* 歷史紀錄樣式 */
+    .hist-item { border-bottom:1px solid #eee; padding:10px 0; font-size:14px; }
+    .hist-status { font-size:12px; padding:2px 6px; border-radius:4px; float:right; }
+    .st-PENDING { background:#fff3e0; color:#ff9800; }
+    .st-APPROVED { background:#e8f5e9; color:#28a745; }
+    .st-REJECTED { background:#ffebee; color:#c62828; }
+    
     input,select{width:100%;padding:12px;margin-top:8px;border:1px solid #ddd;border-radius:10px;box-sizing:border-box;font-size:16px;}
     .hidden{display:none;}
     #loading{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.8);display:none;justify-content:center;align-items:center;z-index:999;}
@@ -58,9 +66,7 @@
 
   <div class="card">
     <h3 style="margin:0 0 12px">🛠️ 忘記打卡？(補卡)</h3>
-    <div style="font-size:13px;color:#666;margin-bottom:8px;">
-      每月限 5 次，需主管核准。
-    </div>
+    <div style="font-size:13px;color:#666;margin-bottom:8px;">每月限 5 次，需主管核准。</div>
     <label class="label">補卡時間</label>
     <input type="datetime-local" id="correctTime">
     <label class="label" style="margin-top:10px;">類型</label>
@@ -101,14 +107,12 @@
     <div id="areaOuting" class="hidden">
       <label class="label" style="margin-top:10px">自動打卡設定 (核准後生效)</label>
       <select id="autoClock">
-        <option value="">不自動打卡</option>
+        <option value="">不自動打卡 (需手動打卡)</option>
         <option value="IN">自動打上班卡 (依開始時間)</option>
         <option value="OUT">自動打下班卡 (依結束時間)</option>
         <option value="BOTH">自動打上下班卡</option>
       </select>
-      <div style="font-size:12px;color:#666;margin-top:4px;">
-        * 核准後系統自動生成出勤紀錄，不需再手動打卡。
-      </div>
+      <div style="font-size:12px;color:#666;margin-top:4px;">* 核准後系統自動生成出勤紀錄，不需再手動打卡。</div>
     </div>
 
     <label class="label" style="margin-top:10px">開始時間</label>
@@ -123,6 +127,11 @@
     <input id="reason" placeholder="請輸入原因">
 
     <button class="btn btn-sub" onclick="submit()">送出申請</button>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 12px">🗂️ 我的申請紀錄</h3>
+    <div id="historyArea" style="min-height:50px;">載入中...</div>
   </div>
 
   <script src="config.js"></script>
@@ -157,9 +166,44 @@
           document.getElementById("valAnnual").textContent = r.annual.left;
           document.getElementById("valComp").textContent = r.comp.left;
         }
+        loadHistory(); // 載入歷史紀錄
       } catch(e) { console.error(e); }
     }
     init();
+
+    // ★ 載入歷史紀錄函式
+    async function loadHistory() {
+      const div = document.getElementById("historyArea");
+      try {
+        const res = await api("list_requests"); // 查詢自己的紀錄
+        if (res.ok && res.list && res.list.length > 0) {
+           div.innerHTML = "";
+           res.list.forEach(r => {
+             // 排除打卡紀錄，只顯示申請單
+             if (r.category === 'CLOCK') return; 
+
+             const stMap = { 'PENDING':'審核中', 'APPROVED':'通過', 'REJECTED':'駁回' };
+             const catMap = { 'LEAVE':'請假', 'OT':'加班', 'OUTING':'外出', 'CORRECTION':'補卡' };
+             
+             let title = catMap[r.category] || r.category;
+             if (r.leaveType) title += ` (${r.leaveType})`;
+             
+             const timeStr = r.start.substring(5,16).replace('T',' ') + ' ~ ' + r.end.substring(5,16).replace('T',' ');
+             
+             div.innerHTML += `
+               <div class="hist-item">
+                 <span class="hist-status st-${r.status}">${stMap[r.status]||r.status}</span>
+                 <strong>${title}</strong><br>
+                 <span style="color:#666;font-size:12px">${timeStr}</span><br>
+                 <span style="color:#888;font-size:12px">事由: ${r.reason}</span>
+               </div>
+             `;
+           });
+        } else {
+           div.innerHTML = "<div style='color:#999;text-align:center;'>尚無紀錄</div>";
+        }
+      } catch(e) { div.innerHTML = "載入失敗"; }
+    }
 
     function calcHours() {
       const type = document.getElementById("lType").value;
@@ -203,25 +247,13 @@
       }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
     }
 
-    // ★ 補卡送出邏輯
     async function submitCorrection() {
       const time = document.getElementById("correctTime").value;
       const type = document.getElementById("correctType").value;
       const reason = document.getElementById("correctReason").value;
-      
       if(!time || !reason) return alert("請填寫補卡時間與原因");
-      
-      const r = await api("submit_request", {
-        category: "CORRECTION",
-        leaveType: type, // 借用 leaveType 欄位存 IN/OUT
-        start: time,
-        end: time, // 補卡是單點時間
-        hours: 0,
-        reason: reason
-      });
-      
-      if(r.ok) { alert("✅ " + r.message); location.reload(); }
-      else { alert("❌ " + r.message); }
+      const r = await api("submit_request", { category: "CORRECTION", leaveType: type, start: time, end: time, hours: 0, reason: reason });
+      if(r.ok) { alert("✅ " + r.message); location.reload(); } else { alert("❌ " + r.message); }
     }
 
     async function submit(){
@@ -229,23 +261,16 @@
       const s = document.getElementById("start").value;
       const e = document.getElementById("end").value;
       const autoClockVal = document.getElementById("autoClock").value;
-      
       let hours = 0;
       if(s && e) {
          hours = (new Date(e) - new Date(s)) / 3600000;
          hours = Math.round(hours * 10) / 10;
       }
-
       const r = await api("submit_request", {
-        category: cat,
-        leaveType: cat==="LEAVE" ? document.getElementById("lType").value : "",
-        start: s,
-        end: e,
-        hours: hours,
-        reason: document.getElementById("reason").value,
+        category: cat, leaveType: cat==="LEAVE" ? document.getElementById("lType").value : "",
+        start: s, end: e, hours: hours, reason: document.getElementById("reason").value,
         autoClock: (cat === 'OUTING') ? autoClockVal : "" 
       });
-      
       if(r.ok) { alert("✅ " + r.message); location.reload(); } 
       else { alert("❌ 失敗：" + r.message); }
     }
@@ -253,11 +278,8 @@
     function toggle(){
       const v = document.getElementById("cat").value;
       document.getElementById("areaLeave").style.display = v==="LEAVE"?"block":"none";
-      if(v === "OUTING") {
-         document.getElementById("areaOuting").style.display = "block";
-      } else {
-         document.getElementById("areaOuting").style.display = "none";
-      }
+      if(v === "OUTING") { document.getElementById("areaOuting").style.display = "block"; } 
+      else { document.getElementById("areaOuting").style.display = "none"; }
       calcHours();
     }
 

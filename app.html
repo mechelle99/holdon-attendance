@@ -59,6 +59,7 @@
 
   <div class="card">
     <h3 style="margin:0 0 12px">🚀 外出 / 公務 (不限地點)</h3>
+    <div style="margin-bottom:10px;color:#c22;font-size:13px;">* 需先提交外出單並經核准，才可使用此功能。</div>
     <div class="grid">
       <button class="btn btn-outing-start" onclick="clock('clock_outing_start')">外出出發</button>
       <button class="btn btn-outing-end" onclick="clock('clock_outing_end')">外出返回</button>
@@ -98,7 +99,10 @@
         <option value="OUT">自動打下班卡 (依結束時間)</option>
         <option value="BOTH">自動打上下班卡</option>
       </select>
-      <div style="font-size:12px;color:#666;margin-top:4px;">* 若啟用，核准後系統將自動生成打卡紀錄，避免曠職。</div>
+      <div style="font-size:12px;color:#666;margin-top:4px;">
+        * 選「自動打卡」：核准後系統自動生成出勤紀錄，不需再手動打卡。<br>
+        * 選「不自動」：核准後請使用上方的【外出出發/返回】按鈕打卡。
+      </div>
     </div>
 
     <label class="label" style="margin-top:10px">開始時間</label>

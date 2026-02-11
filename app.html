@@ -15,6 +15,7 @@
     .btn-in{background:var(--blue);} .btn-out{background:#ff9500;} .btn-gray{background:#555;}
     
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+    
     .bal-box{display:flex;gap:10px;}
     .bal-item{flex:1;background:#f0f7ff;padding:8px;border-radius:8px;text-align:center;}
     
@@ -25,9 +26,10 @@
     .rec-time { font-size: 14px; text-align: right; flex: 1; margin-right: 10px; line-height: 1.4; color:#333; }
     .status-tag { font-size: 12px; padding: 3px 8px; border-radius: 4px; color: #fff; font-weight: bold; min-width: 50px; text-align: center; }
     
-    .st-ok { background: #34c759; } 
-    .st-late { background: #ffcc00; color: #333; }
-    .st-miss { background: #ff3b30; }
+    .st-ok { background: #34c759; } /* 正常 */
+    .st-late { background: #ffcc00; color: #333; } /* 遲到 */
+    .st-miss { background: #ff3b30; } /* 缺卡/曠職 */
+    .st-abn { background: #5856d6; } /* 異常(超時) */
     .st-off { background: #ccc; color: #fff; }
 
     .hidden { display: none; }
@@ -185,10 +187,8 @@
         const days = new Date(yS.value, mS.value, 0).getDate();
         const map = {}; 
         
-        // 1. 初始化每一天
-        for(let i=1; i<=days; i++) map[i] = { shift: r.schedule[i] || 'OFF', in:null, out:null };
+        for(let i=1; i<=days; i++) map[i] = { shift: r.schedule[i] || 'EARLY', in:null, out:null }; // 預設早班
         
-        // 2. 填入打卡
         r.clocks.forEach(c => {
           const day = parseInt(c.date.split('/')[2]);
           if(map[day]) {
@@ -197,7 +197,6 @@
           }
         });
 
-        // 3. 渲染
         for(let i=days; i>=1; i--) { 
           const item = map[i];
           let stTag = "正常", stCls = "st-ok";
@@ -208,16 +207,23 @@
              if(item.in || item.out) { stTag="加班"; stCls="st-ok"; }
           } else {
              if (!item.in && !item.out) { stTag="曠職"; stCls="st-miss"; }
-             else if (!item.in) { stTag="缺上班"; stCls="st-miss"; }
-             else if (!item.out) { stTag="缺下班"; stCls="st-miss"; }
+             else if (!item.in) { stTag="缺上班卡"; stCls="st-miss"; }
+             else if (!item.out) { stTag="缺下班卡"; stCls="st-miss"; }
              else {
-                // 遲到判斷
-                const target = item.shift==='EARLY' ? '10:00:00' : '12:00:00';
-                if(item.in > target) { stTag="遲到"; stCls="st-late"; }
+                // 規則：早班10-18, 午班12-21
+                const startTarget = item.shift==='EARLY' ? '10:00:00' : '12:00:00';
+                const endTarget = item.shift==='EARLY' ? 18 : 21; // 小時
+                
+                // 遲到判定
+                if(item.in > startTarget) { stTag="遲到"; stCls="st-late"; }
+                
+                // 異常判定 (下班超過1小時)
+                const outH = parseInt(item.out.split(':')[0]);
+                if(outH >= endTarget + 1) { stTag="異常"; stCls="st-abn"; }
              }
           }
           
-          // 未來日期不顯示狀態
+          // 未來日期
           if(new Date(yS.value, mS.value-1, i) > new Date()) { stTag="--"; stCls="st-off"; }
 
           d.innerHTML += `

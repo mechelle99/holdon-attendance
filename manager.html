@@ -1,8 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
+  <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
   <title>主管後台</title>
   <style>
     body{font-family:-apple-system,sans-serif;background:#f4f6f8;padding:16px;margin:0;}
@@ -57,7 +56,6 @@
       
       if(res.ok && res.list.length > 0) {
         res.list.forEach(r => {
-          // 修復 undefined：後端回傳 empName
           const name = r.empName || "未知";
           const cat = r.category; 
           const type = r.leaveType ? `(${r.leaveType})` : "";
@@ -70,6 +68,7 @@
                 <strong>${name}</strong> <span class="tag">${cat}</span> ${type}<br>
                 <span style="color:#666;font-size:12px;">${t1} ~ ${t2}</span><br>
                 <span style="color:#666;font-size:12px;">事由: ${r.reason || '無'}</span>
+                <div style="font-size:12px;color:#555;">申請時數: ${r.hours}</div>
               </div>
               <div class="actions">
                 <button class="btn ok" onclick="rev('${r.reqId}','APPROVED')">准</button>
@@ -84,7 +83,7 @@
       // 2. 餘額
       const sRes = await api("get_team_stats");
       if(sRes.ok && sRes.list) {
-        let h = "<table><thead><tr><th>姓名</th><th>特休</th><th>補休</th></tr></thead><tbody>";
+        let h = "<table><thead><tr><th>姓名</th><th>特休(時)</th><th>補休(時)</th></tr></thead><tbody>";
         sRes.list.forEach(e => {
           h += `<tr><td>${e.name}</td><td>${e.annual}</td><td>${e.comp}</td></tr>`;
         });
@@ -96,7 +95,7 @@
     async function rev(id, dec) {
       if(!confirm("確定執行？")) return;
       await api("review_request", {reqId:id, decision:dec});
-      load(); // 重新整理
+      load();
     }
     load();
   </script>

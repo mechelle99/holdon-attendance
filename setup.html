@@ -3,80 +3,47 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>HOLDON 出勤系統｜身份設定</title>
+  <title>Setup (Debug)</title>
   <style>
-    :root{ --bg:#f6f7fb; --card:#fff; --text:#111; --muted:#666; --line:#e7e7ef; --btn:#111; --btn2:#374151; --ok:#0a7f3f; --bad:#c02626; }
-    body{ margin:0; font-family: ui-sans-serif, system-ui, -apple-system, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", Arial; background:var(--bg); color:var(--text); }
-    .wrap{ max-width:860px; margin:28px auto; padding:0 16px; }
-    .card{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px; box-shadow:0 6px 18px rgba(0,0,0,.06); }
-    h1{ margin:0 0 12px; font-size:26px; letter-spacing:.5px; }
-    .muted{ color:var(--muted); line-height:1.6; }
-    .grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:14px; }
-    @media (max-width:760px){ .grid{ grid-template-columns:1fr; } }
-    label{ display:block; font-size:14px; margin:10px 0 6px; color:#222; }
-    input{ width:100%; padding:12px 12px; border:1px solid var(--line); border-radius:12px; font-size:16px; outline:none; }
-    input:focus{ border-color:#b6b6c9; }
-    .row{ display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
-    button{ border:0; border-radius:12px; padding:12px 14px; font-size:15px; cursor:pointer; }
-    .btn{ background:var(--btn); color:#fff; }
-    .btn.secondary{ background:var(--btn2); color:#fff; }
-    .btn.ghost{ background:#fff; border:1px solid var(--line); color:#111; }
-    .status{ margin-top:12px; padding:12px; border-radius:12px; border:1px solid var(--line); background:#fff; }
-    .status.ok{ border-color:#bfe8cc; background:#f0fff5; color:var(--ok); }
-    .status.bad{ border-color:#f2b8b8; background:#fff1f1; color:var(--bad); }
-    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
-    .links a{ display:inline-block; margin-right:10px; }
+    body{font-family:monospace;padding:20px;background:#333;color:#fff;}
+    .box{background:#444;padding:20px;border-radius:8px;max-width:500px;margin:0 auto;}
+    input{width:100%;padding:10px;margin:5px 0;background:#222;border:1px solid #555;color:#fff;box-sizing:border-box;}
+    button{padding:10px 20px;cursor:pointer;background:#0f0;color:#000;border:none;font-weight:bold;margin-top:10px;}
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="card">
-      <h1>身份設定（Setup）</h1>
-      <div class="muted">
-        這頁做兩件事：<br/>
-        1) 設定員工身份（用於出勤/請假/加班送出）<br/>
-        2) 設定主管身份（用於外出單核准）<br/><br/>
-        ✅ 可「雙重身份」：同一人同時是員工 + 主管，只要兩邊都填即可。
-      </div>
-
-      <div class="grid">
-        <div class="card" style="box-shadow:none;">
-          <h2 style="margin:0 0 8px; font-size:18px;">員工身份</h2>
-          <label>employeeId（必填）</label>
-          <input id="employeeId" placeholder='例如：U001 或 LINE_userId' />
-          <label>employeeName（必填）</label>
-          <input id="employeeName" placeholder='例如：米雪' />
-          <div class="row">
-            <button class="btn" id="btnSaveEmployee">儲存員工身份</button>
-          </div>
-        </div>
-
-        <div class="card" style="box-shadow:none;">
-          <h2 style="margin:0 0 8px; font-size:18px;">主管身份</h2>
-          <label>managerId（可留空；有填才算主管）</label>
-          <input id="managerId" placeholder='例如：MGR001（需在 GAS 的 MANAGER_USER_IDS 白名單）' />
-          <div class="row">
-            <button class="btn secondary" id="btnSaveManager">儲存主管身份</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="row">
-        <button class="btn ghost" id="btnLoad">讀取目前設定</button>
-        <button class="btn ghost" id="btnClear">清除全部設定</button>
-      </div>
-
-      <div id="status" class="status" style="margin-top:14px;">
-        <div class="mono">尚未操作</div>
-      </div>
-
-      <div class="links muted" style="margin-top:12px;">
-        前往：<a href="./" target="_blank">出勤頁</a>
-        <a href="./manager.html" target="_blank">主管頁</a>
-      </div>
+  <div class="box">
+    <h2>🛠 身分設定 (開發用)</h2>
+    <label>Employee ID</label>
+    <input id="eid" placeholder="e.g. M001">
+    <label>Name</label>
+    <input id="name" placeholder="e.g. Admin">
+    <label>Is Manager? (Y/N)</label>
+    <input id="isMgr" placeholder="Y or N">
+    
+    <button onclick="save()">儲存設定</button>
+    <button onclick="localStorage.clear();load();" style="background:#f00;color:#fff">清除</button>
+    <div id="current" style="margin-top:15px;color:#0f0;"></div>
+    
+    <div style="margin-top:20px;">
+      <a href="index.html" style="color:#fff">登入頁</a> | 
+      <a href="app.html" style="color:#fff">App首頁</a>
     </div>
   </div>
-
-  <script src="./setup.js"></script>
+  <script>
+    function load() {
+      document.getElementById('eid').value = localStorage.getItem('employeeId') || '';
+      document.getElementById('name').value = localStorage.getItem('employeeName') || '';
+      document.getElementById('isMgr').value = localStorage.getItem('isManager') || 'N';
+      document.getElementById('current').innerText = localStorage.getItem('employeeId') ? `目前身分: ${localStorage.getItem('employeeId')}` : "無身分";
+    }
+    function save() {
+      localStorage.setItem('employeeId', document.getElementById('eid').value);
+      localStorage.setItem('employeeName', document.getElementById('name').value);
+      localStorage.setItem('isManager', document.getElementById('isMgr').value);
+      alert('Saved!'); load();
+    }
+    load();
+  </script>
 </body>
 </html>

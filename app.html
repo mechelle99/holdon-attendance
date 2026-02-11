@@ -18,6 +18,7 @@
     .bal-box{display:flex;gap:10px;}
     .bal-item{flex:1;background:#f0f7ff;padding:8px;border-radius:8px;text-align:center;}
     
+    /* 紀錄卡片 */
     .rec-card { background: #fff; padding: 12px; border-radius: 8px; border: 1px solid #eee; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
     .rec-date { font-weight: bold; font-size: 15px; width: 60px; }
     .rec-shift { font-size: 12px; color: #666; width: 40px; text-align: center; background: #eee; border-radius: 4px; padding: 2px 0; }
@@ -76,7 +77,6 @@
         <option value="checkup">產檢假</option><option value="paternity">陪產假</option>
         <option value="maternity">產假</option><option value="wedding">婚假</option>
         <option value="funeral">喪假</option><option value="injury">公傷病假</option>
-        <option value="epidemic">防疫照顧假</option>
       </select>
     </div>
     <div id="areaOut" class="hidden"><label>自動打卡</label><select id="autoClock"><option value="">手動</option><option value="OUT">自動外出(上班)</option><option value="BOTH">自動往返</option></select></div>
@@ -185,8 +185,8 @@
         for(let i=1; i<=days; i++) map[i] = { shift: r.schedule[i] || 'OFF', in:null, out:null };
         
         r.clocks.forEach(c => {
-          // ★關鍵修正：後端傳來的是 YYYY-MM-DD，必須用 '-' 分隔
-          const parts = c.date.split('-'); 
+          // ★關鍵修正：相容於 YYYY-MM-DD 或 YYYY/MM/DD
+          const parts = c.date.split(/[-/]/); 
           const day = parseInt(parts[2]);
           if(map[day]) {
             if(c.type.includes('上班')) map[day].in = c.time;

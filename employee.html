@@ -11,12 +11,22 @@
     .card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 4px 12px rgba(0,0,0,0.05);margin-bottom:16px;}
     h3{margin-top:0;border-bottom:1px solid #eee;padding-bottom:10px;}
     
+    /* 篩選器樣式 */
+    .controls { display:flex; gap:10px; margin-bottom:15px; }
+    select { padding:8px; border:1px solid #ddd; border-radius:6px; background:#fff; font-size:14px; }
+    button.btn-search { background:#007aff; color:#fff; border:none; padding:8px 12px; border-radius:6px; font-weight:bold; cursor:pointer; }
+
     table{width:100%;border-collapse:collapse;font-size:14px;}
     th,td{padding:10px 5px;text-align:left;border-bottom:1px solid #eee;}
     th{background:#fafafa;color:#666;font-weight:600;}
-    .badge{display:inline-block;padding:2px 6px;border-radius:4px;font-size:12px;color:#fff;}
-    .bg-red{background:#e74c3c;} .bg-green{background:#2ecc71;} .bg-gray{background:#95a5a6;}
     
+    .badge{display:inline-block;padding:2px 6px;border-radius:4px;font-size:12px;color:#fff;}
+    .bg-green{background:#2ecc71;} 
+    .bg-red{background:#e74c3c;} 
+    .bg-orange{background:#f39c12;} 
+    .bg-gray{background:#95a5a6;} /* 缺卡用灰色或深色 */
+    .bg-black{background:#333;}   /* 曠職 */
+
     #loading{text-align:center;padding:20px;color:#666;}
   </style>
 </head>
@@ -28,10 +38,17 @@
   </div>
 
   <div class="card">
-    <h3>📊 當月統計 (本月)</h3>
+    <h3>📊 月份統計</h3>
+    
+    <div class="controls">
+      <select id="selYear"></select>
+      <select id="selMonth"></select>
+      <button class="btn-search" onclick="loadMyData()">查詢</button>
+    </div>
+
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; text-align:center;">
       <div>
-        <div style="font-size:12px;color:#888">遲到次數</div>
+        <div style="font-size:12px;color:#888">遲到/異常次數</div>
         <div style="font-size:24px;font-weight:bold;color:#e74c3c;" id="statLate">-</div>
       </div>
       <div>
@@ -42,7 +59,7 @@
   </div>
 
   <div class="card">
-    <h3>📅 最近打卡 (日報表)</h3>
+    <h3>📅 詳細打卡紀錄</h3>
     <table>
       <thead>
         <tr><th>日期</th><th>上班</th><th>下班</th><th>狀態</th></tr>
@@ -59,10 +76,22 @@
 
     if(!userId) { alert("請先登入"); location.href="index.html"; }
 
+    // 初始化選單
+    const now = new Date();
+    const selY = document.getElementById("selYear");
+    const selM = document.getElementById("selMonth");
+
+    for(let y=now.getFullYear()-1; y<=now.getFullYear()+1; y++){
+      selY.add(new Option(y+"年", y, y===now.getFullYear(), y===now.getFullYear()));
+    }
+    for(let m=1; m<=12; m++){
+      selM.add(new Option(m+"月", m, m===(now.getMonth()+1), m===(now.getMonth()+1)));
+    }
+
     function api(act, data={}){
+      document.getElementById("loading").style.display="block";
       return new Promise((resolve, reject)=>{
         const cb = "cb"+Date.now();
-        // 確保加上 webhookKey
         const payload = JSON.stringify({ ...data, userId, webhookKey:window.CONFIG?.WEBHOOK_KEY });
         const s = document.createElement("script");
         s.src = `${ENDPOINT}?action=${act}&payload=${encodeURIComponent(payload)}&callback=${cb}`;
@@ -73,95 +102,87 @@
     }
 
     async function loadMyData(){
+      const y = selY.value;
+      const m = selM.value;
+      const tbody = document.getElementById("attendanceBody");
+      
+      tbody.innerHTML = "";
+      document.getElementById("loading").style.display = "block";
+
       try {
-        const res = await api("get_my_dashboard"); 
+        // 傳送年份月份給後端
+        const res = await api("get_my_dashboard", { year: y, month: m }); 
         document.getElementById("loading").style.display = "none";
 
         if(res.ok) {
-          // 1. 更新統計數字
           document.getElementById("statLate").textContent = res.stats?.lateCount || 0;
           document.getElementById("statLeave").textContent = res.stats?.leaveHours || 0;
 
-          // 2. 處理表格資料 (關鍵：將流水帳合併為日報表)
-          const tbody = document.getElementById("attendanceBody");
-          tbody.innerHTML = "";
-          
           if(res.attendance && res.attendance.length > 0){
-            // --- [新增] 資料合併邏輯 ---
+            // 1. 資料合併 (流水帳 -> 日報表)
             const dailyMap = {};
-            
             res.attendance.forEach(r => {
-              // 取出日期部分 (例如 2023-10-27)
               const dateKey = r.date.substring(0, 10);
-              
               if (!dailyMap[dateKey]) {
-                dailyMap[dateKey] = { 
-                  date: r.date, 
-                  in: '-', 
-                  out: '-', 
-                  isLate: false 
-                };
+                dailyMap[dateKey] = { date: r.date, in: '-', out: '-', isLate: false };
               }
-              
-              // 如果這筆是上班卡 (有 r.in)
               if (r.in && r.in !== '') dailyMap[dateKey].in = r.in;
-              
-              // 如果這筆是下班卡 (有 r.out)
               if (r.out && r.out !== '') dailyMap[dateKey].out = r.out;
-              
-              // 標記遲到
               if (r.isLate) dailyMap[dateKey].isLate = true;
             });
 
-            // 將 Map 轉回陣列並排序 (日期新到舊)
-            const mergedList = Object.values(dailyMap).sort((a,b) => 
-              new Date(b.date) - new Date(a.date)
-            );
-            // ------------------------
+            // 2. 排序 (新 -> 舊)
+            const list = Object.values(dailyMap).sort((a,b) => new Date(b.date) - new Date(a.date));
 
-            mergedList.forEach(r => {
-              let statusBadge = '<span class="badge bg-green">正常</span>';
-              
-              if(r.isLate) {
-                statusBadge = '<span class="badge bg-red">遲到</span>';
-              }
-              
-              // 檢查缺卡 (合併後判斷才準確)
-              // 邏輯：今天以前的日子，如果有空缺，就是異常
+            // 3. 渲染
+            list.forEach(r => {
               const isToday = new Date().toDateString() === new Date(r.date).toDateString();
               const hasIn = r.in !== '-';
               const hasOut = r.out !== '-';
 
-              if (!isToday) {
-                 if(hasIn && !hasOut) {
-                    statusBadge = '<span class="badge bg-gray">缺下班卡</span>';
-                 } else if (!hasIn && hasOut) {
-                    statusBadge = '<span class="badge bg-gray">缺上班卡</span>';
-                 }
-              } else {
-                 // 如果是今天，且只有上班沒下班，顯示「工作中」
-                 if(hasIn && !hasOut) statusBadge = '<span class="badge bg-green">工作中</span>';
+              // [核心修改] 狀態判斷邏輯
+              let badgeHtml = '';
+
+              if (r.isLate) {
+                // 優先顯示遲到 (即使有打卡，遲到就是遲到)
+                badgeHtml = '<span class="badge bg-red">遲到</span>';
+                // 如果遲到且缺下班卡
+                if (!isToday && !hasOut) badgeHtml += ' <span class="badge bg-gray">缺退</span>';
+              } 
+              else if (hasIn && hasOut) {
+                // 都有打卡且沒遲到 -> 正常
+                badgeHtml = '<span class="badge bg-green">正常</span>';
+              }
+              else if (isToday) {
+                 // 今天
+                 if(hasIn && !hasOut) badgeHtml = '<span class="badge bg-orange">工作中</span>';
+                 else if(!hasIn) badgeHtml = '<span class="badge bg-gray">未到班</span>';
+              } 
+              else {
+                 // 過去的日期 (異常判斷)
+                 if(hasIn && !hasOut) badgeHtml = '<span class="badge bg-gray">缺下班卡</span>';
+                 else if(!hasIn && hasOut) badgeHtml = '<span class="badge bg-gray">缺上班卡</span>';
+                 else badgeHtml = '<span class="badge bg-black">曠職/無紀錄</span>'; 
               }
 
               const tr = document.createElement("tr");
               tr.innerHTML = `
                 <td>${r.date.substring(5,10)}</td>
-                <td>${r.in}</td>
-                <td>${r.out}</td>
-                <td>${statusBadge}</td>
+                <td style="${!hasIn?'color:red':''}">${r.in}</td>
+                <td style="${!hasOut?'color:red':''}">${r.out}</td>
+                <td>${badgeHtml}</td>
               `;
               tbody.appendChild(tr);
             });
             
           } else {
-            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center">尚無打卡資料</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;">該月份尚無打卡資料</td></tr>';
           }
         } else {
           document.getElementById("loading").innerText = "載入失敗：" + (res.message || "未知錯誤");
         }
       } catch(e) {
-        console.error(e);
-        document.getElementById("loading").innerText = "系統錯誤，請看 Console";
+        document.getElementById("loading").innerText = "系統錯誤：" + e;
       }
     }
 

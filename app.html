@@ -1,5 +1,148 @@
-<script>
-if (!window.CONFIG.GAS_ENDPOINT) window.CONFIG.GAS_ENDPOINT = ""; // 安全賦值，不用 let window.xxx
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HOLDON 出勤系統</title>
+  <style>
+    :root{ --bg:#f4f6f8; --card:#fff; --ink:#111; --muted:#6b7280;
+    --blue:#0ea5e9; --green:#22c55e; --orange:#f59e0b; --red:#ef4444;
+    --radius:18px;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);font-family:system-ui,-apple-system,"Segoe UI","Noto Sans TC",sans-serif;color:var(--ink)}
+    .wrap{max-width:720px;margin:0 auto;padding:18px}
+    .top{display:flex;justify-content:space-between;align-items:center;margin:8px 0 14px}
+    .title{font-size:20px;font-weight:800}
+    .logout{color:#ef4444;font-weight:700;cursor:pointer}
+    .card{background:var(--card);border-radius:var(--radius);padding:16px;box-shadow:0 8px 20px rgba(0,0,0,.06);margin:12px 0}
+    .btn{border:0;border-radius:14px;padding:14px 16px;font-size:16px;font-weight:800;cursor:pointer;width:100%}
+    .btnBlue{background:var(--blue);color:#fff}
+    .btnGreen{background:var(--green);color:#fff}
+    .btnOrange{background:var(--orange);color:#fff}
+    .btnGray{background:#6b7280;color:#fff}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .muted{color:var(--muted);font-size:13px}
+    .big{font-size:44px;font-weight:900;line-height:1}
+    .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#eef2ff;color:#3730a3;font-weight:800;font-size:12px;margin-left:8px}
+    select,input,textarea{width:100%;padding:12px 12px;border:1px solid #e5e7eb;border-radius:14px;font-size:15px}
+    .row{display:flex;gap:10px}
+    .row > *{flex:1}
+    .secTitle{font-size:18px;font-weight:900;margin:0 0 10px}
+    .sep{height:1px;background:#e5e7eb;margin:12px 0}
+    .table{width:100%;border-collapse:collapse}
+    .table th,.table td{padding:10px 8px;border-bottom:1px solid #f1f5f9;font-size:14px;text-align:left}
+    .tagLate{color:#ef4444;font-weight:900}
+  </style>
+</head>
+<body>
+
+ <div class="wrap">
+ <div class="top">
+ <div class="title" id="who">載入中…</div>
+ <div class="logout" onclick="logout()">登出</div>
+ </div>
+
+ <div class="card">
+ <button class="btn btnBlue" id="btnSchedule" onclick="goSchedule()">📅 進入排班表</button>
+ </div>
+
+ <div class="card grid2">
+ <div>
+ <div class="muted">特休剩餘</div>
+ <div class="big" id="annualLeft">--</div>
+ <div class="muted">天</div>
+ </div>
+ <div>
+ <div class="muted">補休剩餘</div>
+ <div class="big" id="compLeft">--</div>
+ <div class="muted">時</div>
+ </div>
+ </div>
+
+ <div class="card">
+ <div class="secTitle">📍 上下班打卡</div>
+ <div class="grid2">
+ <button class="btn btnBlue" onclick="clock('IN')">上班</button>
+ <button class="btn btnOrange" onclick="clock('OUT')">下班</button>
+ </div>
+ </div>
+
+ <div class="card">
+ <div class="secTitle">🚀 外出 / 公務（不限地點）</div>
+ <div class="grid2">
+ <button class="btn btnGreen" onclick="outing('IN')">外出出發</button>
+ <button class="btn btnGray" onclick="outing('OUT')">外出返回</button>
+ </div>
+ <div class="muted" style="margin-top:8px">外出打卡不檢查公司座標</div>
+ </div>
+
+ <div class="card">
+ <div class="secTitle">📝 提出申請</div>
+
+ <div class="muted">類型</div>
+ <select id="reqCat" onchange="onCatChange()">
+ <option value="LEAVE">請假</option>
+ <option value="OT">加班 / 補休</option>
+ <option value="CORRECTION">補卡</option>
+ <option value="OUTING">外出申請（可選核准後自動生成打卡）</option>
+ </select>
+
+ <div id="leaveBox">
+ <div class="muted" style="margin-top:10px">假別</div>
+ <select id="leaveType">
+ <option value="annual">特休</option>
+ <option value="sick">病假</option>
+ <option value="personal">事假</option>
+ <option value="birthday">生日假</option>
+ <option value="comp">補休</option>
+ </select>
+ </div>
+
+ <div class="grid2" style="margin-top:10px">
+ <div>
+ <div class="muted">開始時間</div>
+ <input id="startAt" type="datetime-local"/>
+ </div>
+ <div>
+ <div class="muted">結束時間</div>
+ <input id="endAt" type="datetime-local"/>
+ </div>
+ </div>
+
+ <div class="muted" style="margin-top:10px">時數（可不填，會自動算）</div>
+ <input id="hours" type="number" step="0.5" placeholder="例如 4 或 8"/>
+
+ <div id="outingAuto" style="margin-top:10px;display:none">
+ <div class="muted">核准後自動生成打卡</div>
+ <select id="autoClock">
+ <option value="">不要</option>
+ <option value="IN">自動(上班)</option>
+ <option value="OUT">自動(下班)</option>
+ <option value="BOTH">自動(上下班)</option>
+ </select>
+ </div>
+
+ <div class="muted" style="margin-top:10px">原因 / 備註</div>
+ <textarea id="reason" rows="3" placeholder="簡短說明"></textarea>
+
+ <div style="margin-top:12px">
+ <button class="btn btnBlue" onclick="submitReq()">送出申請</button>
+ </div>
+ </div>
+
+ <div class="card">
+ <div class="secTitle">📊 我的紀錄</div>
+ <div class="muted">近一個月打卡（最新在上）</div>
+ <div class="sep"></div>
+ <div id="attBox" class="muted">載入中...</div>
+ </div>
+
+ </div>
+
+ <script src="config.js"></script>
+ <script>
+if (!window.CONFIG.GAS_ENDPOINT) window.CONFIG.GAS_ENDPOINT = ""; 
 const WEBHOOK_KEY = window.CONFIG?.WEBHOOK_KEY || "";
 
 function jsonp(action, data){
@@ -165,3 +308,6 @@ function logout(){
 
 boot().catch(e=>alert("初始化失敗: "+e));
 </script>
+
+</body>
+</html>

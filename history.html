@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>我的歷史紀錄</title>
+  <style>
+    body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f4f6f8;margin:0;padding:20px;color:#333;}
+    .container{max-width:800px;margin:0 auto;}
+    .btn-back{display:inline-block;padding:8px 16px;background:#333;color:#fff;text-decoration:none;border-radius:6px;margin-bottom:20px;}
+    .card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 4px 12px rgba(0,0,0,0.05);margin-bottom:20px;}
+    
+    .filter-box { display:flex; gap:10px; margin-bottom:15px; }
+    select, button { padding:10px; border:1px solid #ddd; border-radius:6px; font-size:16px; }
+    button { background:#007aff; color:#fff; border:none; cursor:pointer; font-weight:bold; }
+    
+    .hist-item { border-bottom:1px solid #eee; padding:12px 0; }
+    .hist-status { font-size:12px; padding:2px 6px; border-radius:4px; float:right; font-weight:bold; }
+    .st-PENDING { background:#fff3e0; color:#ff9800; }
+    .st-APPROVED { background:#e8f5e9; color:#28a745; }
+    .st-REJECTED { background:#ffebee; color:#c62828; }
+    
+    #loading{text-align:center;padding:20px;color:#666;}
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <a href="app.html" class="btn-back">← 回到打卡首頁</a>
+
+  <div class="card">
+    <h3 style="margin-top:0;">📜 歷史申請紀錄查詢</h3>
+    
+    <div class="filter-box">
+      <select id="selYear"></select>
+      <select id="selMonth"></select>
+      <button onclick="loadData()">查詢</button>
+    </div>
+
+    <div id="listArea">
+      <div id="loading">請選擇年份與月份進行查詢</div>
+    </div>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script>
+  const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || "";
+  const userId = localStorage.getItem("employeeId");
+
+  if(!userId) location.href="index.html";
+
+  function initSelects() {
+    const ySel = document.getElementById("selYear");
+    const mSel = document.getElementById("selMonth");
+    const now = new Date();
+    const curY = now.getFullYear();
+    const curM = now.getMonth() + 1;
+
+    // 年份：去年 ~ 明年
+    for(let y = curY - 1; y <= curY + 1; y++) {
+      const opt = document.createElement("option");
+      opt.value = y; opt.textContent = y + "年";
+      if(y === curY) opt.selected = true;
+      ySel.appendChild(opt);
+    }
+
+    // 月份：1 ~ 12
+    for(let m = 1; m <= 12; m++) {
+      const opt = document.createElement("option");
+      opt.value = m; opt.textContent = m + "月";
+      if(m === curM) opt.selected = true;
+      mSel.appendChild(opt);
+    }
+    
+    loadData(); // 預設載入當月
+  }
+
+  function api(act, data={}){
+    return new Promise((resolve, reject)=>{
+      const cb = "cb"+Date.now();
+      const payload = JSON.stringify({ ...data, userId, webhookKey:window.CONFIG?.WEBHOOK_KEY });
+      const s = document.createElement("script");
+      s.src = `${ENDPOINT}?action=${act}&payload=${encodeURIComponent(payload)}&callback=${cb}`;
+      window[cb] = (res) => { resolve(res); document.body.removeChild(s); };
+      s.onerror = () => reject("連線失敗");
+      document.body.appendChild(s);
+    });
+  }
+
+  async function loadData(){
+    const y = document.getElementById("selYear").value;
+    const m = document.getElementById("selMonth").value;
+    const div = document.getElementById("listArea");
+    
+    div.innerHTML = '<div id="loading">載入中...</div>';
+
+    try {
+      // ★ 呼叫後端，帶入 year, month 參數
+      const res = await api("list_requests", { year: y, month: m });
+      
+      if (res.ok && res.list && res.list.length > 0) {
+         div.innerHTML = "";
+         res.list.forEach(r => {
+           // 排除打卡，只看申請
+           if (r.category === 'CLOCK') return;
+
+           const stMap = { 'PENDING':'審核中', 'APPROVED':'通過', 'REJECTED':'駁回' };
+           const catMap = { 'LEAVE':'請假', 'OT':'加班', 'OUTING':'外出', 'CORRECTION':'補卡' };
+           
+           let title = catMap[r.category] || r.category;
+           if (r.leaveType) title += ` (${r.leaveType})`;
+           
+           const timeStr = r.start.substring(5,16).replace('T',' ') + ' ~ ' + r.end.substring(5,16).replace('T',' ');
+           
+           div.innerHTML += `
+             <div class="hist-item">
+               <span class="hist-status st-${r.status}">${stMap[r.status]||r.status}</span>
+               <div style="font-weight:bold; font-size:15px;">${title}</div>
+               <div style="color:#666; margin-top:4px;">${timeStr}</div>
+               <div style="color:#888; margin-top:4px;">事由: ${r.reason || '無'}</div>
+             </div>
+           `;
+         });
+         
+         if(div.innerHTML === "") div.innerHTML = "<div style='text-align:center;padding:20px;color:#999;'>該月份無申請紀錄</div>";
+         
+      } else {
+         div.innerHTML = "<div style='text-align:center;padding:20px;color:#999;'>該月份尚無紀錄</div>";
+      }
+    } catch(e) {
+      div.innerHTML = "載入失敗: " + e;
+    }
+  }
+
+  initSelects();
+</script>
+</body>
+</html>

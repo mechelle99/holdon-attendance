@@ -59,7 +59,7 @@
             const cls = v==='EARLY'?'bg-early':(v==='LATE'?'bg-late':'');
             const txt = v==='EARLY'?'早':(v==='LATE'?'午':'');
             
-            // 權限判斷：使用後端回傳的 canEdit
+            // 權限修復：根據後端回傳的 canEdit 顯示選單
             if(r.canEdit) {
                b+=`<td class="${cls}"><select class="shift-sel" onchange="save('${e.id}','${e.name}',${i},this.value)">
                <option value="OFF" ${v==='OFF'?'selected':''}></option>
@@ -74,7 +74,7 @@
     }
     async function save(eid,nm,d,v){
       await api("update_schedule",{empId:eid,empName:nm,date:`${yS.value}-${mS.value}-${d}`,shift:v});
-      load(); // 重新整理變色
+      load(); 
     }
     load();
   </script>

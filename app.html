@@ -14,11 +14,10 @@
     .btn{width:100%;padding:14px;border:none;border-radius:12px;font-weight:bold;font-size:16px;cursor:pointer;color:#fff;display:flex;justify-content:center;align-items:center;}
     .btn-in{background:#007aff;}
     .btn-out{background:#ff9500;}
-    .btn-outing-start{background:#28a745; margin-bottom:8px;}
-    .btn-outing-end{background:#6c757d;}
     .btn-sub{background:#111;margin-top:12px;}
     .btn-mgr{background:#6f42c1;margin-bottom:8px;}
     .btn-sch{background:#17a2b8;margin-bottom:12px;}
+    .btn-correct{background:#6c757d;} 
     input,select{width:100%;padding:12px;margin-top:8px;border:1px solid #ddd;border-radius:10px;box-sizing:border-box;font-size:16px;}
     .hidden{display:none;}
     #loading{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.8);display:none;justify-content:center;align-items:center;z-index:999;}
@@ -58,11 +57,20 @@
   </div>
 
   <div class="card">
-    <h3 style="margin:0 0 12px">🚀 外出 / 公務 (不限地點)</h3>
-    <div class="grid">
-      <button class="btn btn-outing-start" onclick="clock('clock_outing_start')">外出出發</button>
-      <button class="btn btn-outing-end" onclick="clock('clock_outing_end')">外出返回</button>
+    <h3 style="margin:0 0 12px">🛠️ 忘記打卡？(補卡)</h3>
+    <div style="font-size:13px;color:#666;margin-bottom:8px;">
+      每月限 5 次，需主管核准。
     </div>
+    <label class="label">補卡時間</label>
+    <input type="datetime-local" id="correctTime">
+    <label class="label" style="margin-top:10px;">類型</label>
+    <select id="correctType">
+      <option value="IN">補 上班卡</option>
+      <option value="OUT">補 下班卡</option>
+    </select>
+    <label class="label" style="margin-top:10px;">原因</label>
+    <input id="correctReason" placeholder="例：忘記打卡、系統異常">
+    <button class="btn btn-sub btn-correct" onclick="submitCorrection()">送出補卡申請</button>
   </div>
 
   <div class="card">
@@ -76,7 +84,7 @@
     
     <div id="areaLeave">
       <label class="label" style="margin-top:10px">假別</label>
-      <select id="lType">
+      <select id="lType" onchange="calcHours()">
         <option value="annual">特休</option>
         <option value="comp">補休</option>
         <option value="sick">病假</option>
@@ -93,14 +101,13 @@
     <div id="areaOuting" class="hidden">
       <label class="label" style="margin-top:10px">自動打卡設定 (核准後生效)</label>
       <select id="autoClock">
-        <option value="">不自動打卡 (需手動打卡)</option>
+        <option value="">不自動打卡</option>
         <option value="IN">自動打上班卡 (依開始時間)</option>
         <option value="OUT">自動打下班卡 (依結束時間)</option>
         <option value="BOTH">自動打上下班卡</option>
       </select>
       <div style="font-size:12px;color:#666;margin-top:4px;">
-        * 選「自動打卡」：核准後系統自動生成出勤紀錄，不需再手動打卡。<br>
-        * 選「不自動」：核准後請使用上方的【外出出發/返回】按鈕打卡。
+        * 核准後系統自動生成出勤紀錄，不需再手動打卡。
       </div>
     </div>
 
@@ -155,6 +162,12 @@
     init();
 
     function calcHours() {
+      const type = document.getElementById("lType").value;
+      const cat = document.getElementById("cat").value;
+      if (cat === 'LEAVE' && type === 'birthday') {
+         document.getElementById("calcResult").textContent = "🎂 生日假固定為 1 天 (8小時)";
+         return;
+      }
       const s = document.getElementById("start").value;
       const e = document.getElementById("end").value;
       if(s && e) {
@@ -165,6 +178,8 @@
         } else {
           document.getElementById("calcResult").textContent = "時間無效";
         }
+      } else {
+        document.getElementById("calcResult").textContent = "";
       }
     }
 
@@ -186,6 +201,27 @@
          document.getElementById("loading").style.display="none";
          alert("無法定位，請檢查瀏覽器權限或 GPS");
       }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+    }
+
+    // ★ 補卡送出邏輯
+    async function submitCorrection() {
+      const time = document.getElementById("correctTime").value;
+      const type = document.getElementById("correctType").value;
+      const reason = document.getElementById("correctReason").value;
+      
+      if(!time || !reason) return alert("請填寫補卡時間與原因");
+      
+      const r = await api("submit_request", {
+        category: "CORRECTION",
+        leaveType: type, // 借用 leaveType 欄位存 IN/OUT
+        start: time,
+        end: time, // 補卡是單點時間
+        hours: 0,
+        reason: reason
+      });
+      
+      if(r.ok) { alert("✅ " + r.message); location.reload(); }
+      else { alert("❌ " + r.message); }
     }
 
     async function submit(){
@@ -222,6 +258,7 @@
       } else {
          document.getElementById("areaOuting").style.display = "none";
       }
+      calcHours();
     }
 
     function logout(){ localStorage.clear(); location.href="index.html"; }

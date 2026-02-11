@@ -5,23 +5,34 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
   <title>HOLDON</title>
   <style>
-    :root{ --blue:#007aff; --bg:#f4f6f8; }
-    body{font-family:-apple-system,sans-serif;background:var(--bg);margin:0;padding:16px;color:#333;padding-bottom:100px;}
+    :root{ --blue:#007aff; --bg:#f4f6f8; --card:#fff; }
+    body{font-family:-apple-system,system-ui,sans-serif;background:var(--bg);margin:0;padding:16px;color:#333;padding-bottom:100px;}
+    
     input, select, textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; margin-top: 5px; box-sizing: border-box; font-size:16px; -webkit-appearance:none; background:#fff;}
-    .card{background:#fff;border-radius:12px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.05);margin-bottom:16px;}
+    
+    .card{background:var(--card);border-radius:12px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.05);margin-bottom:16px;}
+    
     .btn{width:100%;padding:12px;border:none;border-radius:8px;font-weight:bold;color:#fff;cursor:pointer;margin-top:10px;font-size:16px;}
     .btn-in{background:var(--blue);} .btn-out{background:#ff9500;} .btn-gray{background:#555;}
+    
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+    
     .bal-box{display:flex;gap:10px;}
     .bal-item{flex:1;background:#f0f7ff;padding:8px;border-radius:8px;text-align:center;}
-    .rec-item { padding: 12px 0; border-bottom: 1px solid #eee; }
-    .rec-row { display: flex; justify-content: space-between; align-items: center; }
-    .tag { font-size: 12px; padding: 2px 6px; border-radius: 4px; color: #fff; margin-left: 5px; }
-    .tag-ok { background: #34c759; } 
-    .tag-late { background: #ffcc00; color:#000; }
-    .tag-miss { background: #ff3b30; }
-    .tag-absent { background: #000; }
-    .search-bar { display: flex; gap: 8px; margin-bottom: 10px; }
+    
+    /* 打卡紀錄樣式 */
+    .rec-card { background: #fff; padding: 12px; border-radius: 8px; border: 1px solid #eee; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+    .rec-date { font-weight: bold; font-size: 15px; width: 60px; }
+    .rec-shift { font-size: 12px; color: #666; width: 40px; text-align: center; background: #eee; border-radius: 4px; padding: 2px 0; }
+    .rec-time { font-size: 14px; text-align: right; flex: 1; margin-right: 10px; }
+    .status-tag { font-size: 12px; padding: 3px 8px; border-radius: 4px; color: #fff; font-weight: bold; min-width: 40px; text-align: center; }
+    
+    .st-ok { background: #34c759; } /* 正常 */
+    .st-late { background: #ffcc00; color: #333; } /* 遲到 */
+    .st-miss { background: #ff3b30; } /* 缺卡/曠職 */
+    .st-off { background: #ccc; color: #fff; } /* 休假 */
+
+    .hidden { display: none; }
     #loading{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.8);display:none;justify-content:center;align-items:center;z-index:999;}
   </style>
 </head>
@@ -37,7 +48,7 @@
       <div class="bal-item"><small>特休剩餘</small><div style="font-size:18px;color:var(--blue);font-weight:bold;" id="bAnn">--</div></div>
       <div class="bal-item"><small>補休剩餘</small><div style="font-size:18px;color:var(--blue);font-weight:bold;" id="bComp">--</div></div>
     </div>
-    <div id="admBtns" style="margin-top:10px;display:none;">
+    <div id="admBtns" style="margin-top:10px;" class="hidden">
       <button class="btn" style="width:auto;background:#6f42c1;padding:8px 15px;" onclick="location.href='manager.html'">👑 主管</button>
       <button class="btn" style="width:auto;background:#17a2b8;padding:8px 15px;" onclick="location.href='schedule.html'">📅 排班</button>
     </div>
@@ -65,12 +76,12 @@
         <option value="annual">特休</option><option value="sick">病假</option><option value="personal">事假</option>
         <option value="menstrual">生理假</option><option value="family">家庭照顧假</option>
         <option value="comp">補休</option><option value="birthday">生日假</option>
-        <option value="wedding">婚假</option><option value="funeral">喪假</option>
-        <option value="maternity">產假</option><option value="paternity">陪產假</option>
-        <option value="injury">公傷病假</option><option value="epidemic">防疫照顧假</option>
+        <option value="checkup">產檢假</option><option value="paternity">陪產假</option>
+        <option value="maternity">產假</option><option value="wedding">婚假</option>
+        <option value="funeral">喪假</option><option value="injury">公傷病假</option>
       </select>
     </div>
-    <div id="areaOut" style="display:none"><label>自動打卡</label><select id="autoClock"><option value="">手動</option><option value="OUT">自動外出(上班)</option><option value="BOTH">自動往返</option></select></div>
+    <div id="areaOut" class="hidden"><label>自動打卡</label><select id="autoClock"><option value="">手動</option><option value="OUT">自動外出(上班)</option><option value="BOTH">自動往返</option></select></div>
     <div class="grid">
       <div><label>開始</label><input type="datetime-local" id="start" onchange="calc()"></div>
       <div><label>結束</label><input type="datetime-local" id="end" onchange="calc()"></div>
@@ -82,12 +93,12 @@
   </div>
 
   <div class="card">
-    <h3 style="margin:0 0 10px">📊 打卡紀錄</h3>
-    <div class="search-bar">
+    <h3 style="margin:0 0 10px">📊 出勤檢視</h3>
+    <div class="search-bar" style="display:flex;gap:5px;">
       <select id="y"></select><select id="m"></select>
-      <button class="btn" style="width:auto;margin:0;padding:0 15px;" onclick="search()">搜尋</button>
+      <button class="btn" style="width:auto;margin:0;padding:0 15px;" onclick="search()">搜</button>
     </div>
-    <div id="resList"></div>
+    <div id="resList" style="margin-top:10px;"></div>
   </div>
 
   <script src="config.js"></script>
@@ -95,7 +106,7 @@
     const uid=localStorage.getItem("employeeId");
     if(!uid) location.href="index.html";
     document.getElementById("uName").textContent = localStorage.getItem("employeeName");
-    if(localStorage.getItem("isManager")==='Y') document.getElementById("admBtns").style.display="block";
+    if(localStorage.getItem("isManager")==='Y') document.getElementById("admBtns").classList.remove("hidden");
 
     const now=new Date();
     const yS=document.getElementById("y"), mS=document.getElementById("m");
@@ -128,14 +139,23 @@
       document.getElementById("areaOut").style.display = (v==='OUTING')?'block':'none';
     }
     function calc(){
-      const s = new Date(document.getElementById("start").value), e = new Date(document.getElementById("end").value);
-      if(s&&e) document.getElementById("hrs").value = ((e-s)/36e5).toFixed(1);
+      const sVal = document.getElementById("start").value;
+      const eVal = document.getElementById("end").value;
+      if(sVal && eVal) {
+        const s = new Date(sVal), e = new Date(eVal);
+        if(e <= s) { 
+           alert("結束時間不能早於開始時間"); 
+           document.getElementById("end").value = "";
+           return;
+        }
+        document.getElementById("hrs").value = ((e-s)/36e5).toFixed(1);
+      }
     }
     async function clock(t){
       navigator.geolocation.getCurrentPosition(async p => {
         const r = await api(t, {lat:p.coords.latitude, lng:p.coords.longitude});
         alert(r.message); if(r.ok) search();
-      });
+      }, ()=>alert("無定位"));
     }
     async function submit(){
       const d = {
@@ -158,11 +178,10 @@
       d.innerHTML = "";
       
       if(r.ok && r.schedule) {
-        // 整理邏輯
         const days = new Date(yS.value, mS.value, 0).getDate();
-        const map = {}; // date -> {in, out, shift}
+        const map = {}; 
         
-        // 1. 填入排班
+        // 1. 初始化每一天
         for(let i=1; i<=days; i++) map[i] = { shift: r.schedule[i] || 'OFF', in:null, out:null };
         
         // 2. 填入打卡
@@ -177,33 +196,39 @@
         // 3. 渲染
         for(let i=days; i>=1; i--) { // 倒序
           const item = map[i];
-          if(item.shift === 'OFF') continue; // 休假不顯示曠職，除非有打卡
+          // 如果是 OFF 且沒打卡，就跳過不顯示 (或是顯示為休假)
+          // 這裡依照要求：每天都呈現
           
-          let stTag = "", stColor = "";
-          let stText = "正常";
+          let stTag = "正常", stCls = "st-ok";
+          let shiftTxt = item.shift==='EARLY'?'早':(item.shift==='LATE'?'午':'休');
           
-          // 判斷狀態
-          if (item.shift !== 'OFF') {
-             if (!item.in && !item.out) { stText="曠職"; stTag="tag-absent"; }
-             else if (!item.in) { stText="缺上班卡"; stTag="tag-miss"; }
-             else if (!item.out) { stText="缺下班卡"; stTag="tag-miss"; }
+          if (item.shift === 'OFF') {
+             stTag = "休假"; stCls = "st-off";
+             if(item.in || item.out) { stTag="加班"; stCls="st-ok"; } // 休假有打卡算加班
+          } else {
+             // 工作日判斷
+             if (!item.in && !item.out) { stTag="曠職"; stCls="st-miss"; }
+             else if (!item.in) { stTag="缺上班"; stCls="st-miss"; }
+             else if (!item.out) { stTag="缺下班"; stCls="st-miss"; }
              else {
                 // 遲到判斷 (範例：早班10:00, 午班12:00)
                 const target = item.shift==='EARLY' ? '10:00:00' : '12:00:00';
-                if(item.in > target) { stText="遲到"; stTag="tag-late"; }
-                else { stText="正常"; stTag="tag-ok"; }
+                if(item.in > target) { stTag="遲到"; stCls="st-late"; }
              }
           }
           
+          // 如果是未來日期，不顯示狀態
+          if(new Date(yS.value, mS.value-1, i) > new Date()) { stTag="--"; stCls="st-off"; }
+
           d.innerHTML += `
-            <div class="rec-item">
-              <div class="rec-row">
-                <b>${mS.value}/${i} (${item.shift==='EARLY'?'早':'午'})</b>
-                <span class="tag ${stTag}">${stText}</span>
+            <div class="rec-card">
+              <div class="rec-date">${mS.value}/${i}</div>
+              <div class="rec-shift">${shiftTxt}</div>
+              <div class="rec-time">
+                上: ${item.in||'--:--'}<br>
+                下: ${item.out||'--:--'}
               </div>
-              <div style="font-size:13px;color:#666;margin-top:5px;">
-                上班: ${item.in||'--'} | 下班: ${item.out||'--'}
-              </div>
+              <div class="status-tag ${stCls}">${stTag}</div>
             </div>`;
         }
       } else { d.innerHTML = "<div style='text-align:center'>無資料</div>"; }

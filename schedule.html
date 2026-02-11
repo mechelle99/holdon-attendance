@@ -8,28 +8,16 @@
     /* 1. 全局設定：禁止 Body 捲動，強制用 Flex 排版 */
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      margin: 0;
-      padding: 0;
-      background: #fff;
-      height: 100vh; /* 佔滿全螢幕 */
-      width: 100vw;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden; /* 關鍵：鎖死 Body */
+      margin: 0; padding: 0; background: #fff;
+      height: 100vh; width: 100vw;
+      display: flex; flex-direction: column; overflow: hidden;
     }
 
-    /* 2. 上方控制列 (固定高度 60px) */
+    /* 2. 上方控制列 */
     .header {
-      height: 60px;
-      padding: 0 16px;
-      border-bottom: 1px solid #ccc;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      background: #fff;
-      box-sizing: border-box;
-      flex-shrink: 0; /* 禁止縮放 */
-      z-index: 50;
+      height: 60px; padding: 0 16px; border-bottom: 1px solid #ccc;
+      display: flex; justify-content: space-between; align-items: center;
+      background: #fff; box-sizing: border-box; flex-shrink: 0; z-index: 50;
     }
     .title { font-size: 18px; font-weight: bold; display: flex; align-items: center; gap: 10px;}
     .controls { display: flex; gap: 8px; }
@@ -37,120 +25,70 @@
     .btn-save { background: #1a73e8; color: #fff; border: none; font-weight: bold; }
     .btn-back { text-decoration: none; color: #333; background: #f0f0f0; padding: 6px 12px; border-radius: 4px; }
 
-    /* 3. 表格捲動區 (佔滿剩下空間) */
+    /* 3. 表格捲動區 */
     .roster-wrap {
-      flex: 1; /* 吃掉剩下高度 */
-      width: 100%;
-      overflow: auto; /* 捲軸顯示在這裡 */
-      position: relative;
-      background: #fff;
+      flex: 1; width: 100%; overflow: auto; position: relative; background: #fff;
     }
 
     /* 4. 表格本體 */
-    table {
-      border-collapse: separate; /* 關鍵：一定要 separate */
-      border-spacing: 0;
-      min-width: max-content; /* 讓表格寬度依內容撐開 */
-    }
-
+    table { border-collapse: separate; border-spacing: 0; min-width: max-content; }
     th, td {
-      border-right: 1px solid #ddd;
-      border-bottom: 1px solid #ddd;
-      text-align: center;
-      padding: 0;
-      box-sizing: border-box;
-      height: 50px; /* 統一格高 */
-      width: 60px;  /* 統一格寬 */
+      border-right: 1px solid #ddd; border-bottom: 1px solid #ddd;
+      text-align: center; padding: 0; box-sizing: border-box;
+      height: 50px; width: 60px;
     }
 
-    /* --- 5. 凍結核心代碼 (Freeze Logic) --- */
-
-    /* [A] 左上角 (員工/日期) - 永遠最上層 */
+    /* --- 5. 凍結核心 --- */
+    /* 左上角 */
     thead th:first-child {
-      position: sticky;
-      left: 0;
-      top: 0;
-      z-index: 30;
-      background: #fff;
-      min-width: 100px; /* 姓名欄寬度 */
-      border-right: 2px solid #999; /* 加深邊線 */
-      border-bottom: 2px solid #999;
+      position: sticky; left: 0; top: 0; z-index: 30;
+      background: #fff; min-width: 100px;
+      border-right: 2px solid #999; border-bottom: 2px solid #999;
     }
-
-    /* [B] 第一列 (日期) - 上下捲動時凍結 */
+    /* 第一列 (日期) */
     thead th {
-      position: sticky;
-      top: 0;
-      z-index: 20;
-      background: #f8f9fa;
-      height: 40px;
-      border-bottom: 2px solid #999;
+      position: sticky; top: 0; z-index: 20;
+      background: #f8f9fa; height: 40px; border-bottom: 2px solid #999;
     }
-
-    /* [C] 第一欄 (員工姓名) - 左右捲動時凍結 */
+    /* 第一欄 (員工姓名) - 關鍵修正 */
     tbody td:first-child {
-      position: sticky;
-      left: 0;
-      z-index: 10;
-      background: #fff; /* 必須有背景色 */
-      min-width: 100px;
-      font-weight: bold;
-      border-right: 2px solid #999; /* 加深邊線 */
-      /* 加陰影讓凍結感更強 */
-      box-shadow: 2px 0 5px rgba(0,0,0,0.1); 
+      position: sticky; left: 0; z-index: 10;
+      background: #fff; min-width: 100px; font-weight: bold;
+      border-right: 2px solid #999; box-shadow: 2px 0 5px rgba(0,0,0,0.1); 
     }
+    tbody td { z-index: 1; background: #fff; }
 
     /* --- 6. 內容樣式 --- */
     .shift-select { width: 100%; height: 100%; border: 0; background: transparent; text-align: center; text-align-last: center; font-weight: 600; cursor: pointer; outline: none; appearance: none; }
-    
     .st-EARLY { background-color: #e8f0fe !important; color: #1967d2; }
     .st-LATE  { background-color: #fff3e0 !important; color: #ea8600; }
     .st-OFF   { background-color: #f8f9fa !important; color: #999; }
     .st-LEAVE { background-color: #fce8e6 !important; color: #c5221f; pointer-events: none; display: flex; align-items: center; justify-content: center; font-size: 12px; }
-    
     .weekend { color: #d93025; background-color: #fff0f0; }
     .col-emp-txt { padding: 0 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px; display:block;}
-
     #loading { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); display: flex; justify-content: center; align-items: center; z-index: 999; color: #1a73e8; font-weight: bold; }
     .hidden { display: none; }
   </style>
 </head>
 <body>
-
-<div id="loading">資料載入中...</div>
-
+<div id="loading">載入中...</div>
 <div class="header">
-  <div class="title">
-    <a href="app.html" class="btn-back">←</a>
-    <span style="margin-left:8px">排班表</span>
-  </div>
-  <div class="controls">
-    <select id="selYear"></select>
-    <select id="selMonth"></select>
-    <button class="btn-save" onclick="loadRoster()">刷</button>
-    <button id="btnApprove" class="btn-save hidden" style="background:#6f42c1;" onclick="approveAll()">核</button>
-  </div>
+  <div class="title"><a href="app.html" class="btn-back">←</a><span style="margin-left:8px">排班表</span></div>
+  <div class="controls"><select id="selYear"></select><select id="selMonth"></select><button class="btn-save" onclick="loadRoster()">刷</button><button id="btnApprove" class="btn-save hidden" style="background:#6f42c1;" onclick="approveAll()">核</button></div>
 </div>
-
 <div class="roster-wrap">
-  <table id="rosterTable">
-    <thead><tr id="headRow"></tr></thead>
-    <tbody id="bodyRow"></tbody>
-  </table>
+  <table id="rosterTable"><thead><tr id="headRow"></tr></thead><tbody id="bodyRow"></tbody></table>
 </div>
-
 <script src="config.js"></script>
 <script>
   const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || "";
   const userId = localStorage.getItem("employeeId");
   let isManager = false;
-
   if(!userId) location.href="index.html";
 
   const now = new Date();
   const ySel = document.getElementById("selYear");
   const mSel = document.getElementById("selMonth");
-
   for(let y=now.getFullYear()-1; y<=now.getFullYear()+1; y++) ySel.add(new Option(y+"年", y, y===now.getFullYear(), y===now.getFullYear()));
   for(let m=1; m<=12; m++) mSel.add(new Option(m+"月", m, m===(now.getMonth()+1), m===(now.getMonth()+1)));
 
@@ -173,7 +111,6 @@
     const days = new Date(y, m, 0).getDate();
     const headRow = document.getElementById("headRow");
     
-    // 建立表頭 (左上角 + 日期)
     let headHtml = '<th><span class="col-emp-txt">員工</span></th>';
     for(let d=1; d<=days; d++) {
       const date = new Date(y, m-1, d);
@@ -196,9 +133,7 @@
 
       res.employees.forEach(emp => {
         const tr = document.createElement("tr");
-        // 第一欄：員工姓名 (已設定 sticky)
         let html = `<td><span class="col-emp-txt">${emp.name}</span></td>`;
-        
         for(let d=1; d<=days; d++) {
           const cell = (res.roster[emp.id] && res.roster[emp.id][d]) ? res.roster[emp.id][d] : {};
           const fullDate = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
@@ -210,46 +145,29 @@
             const schId = cell.scheduleId || '';
             const isApproved = cell.status === 'APPROVED';
             const disabled = (isApproved && !isManager) ? 'disabled' : '';
-            // 這裡把顏色直接加在 td 上，確保滑動時背景色是對的
             const bgClass = val === 'EARLY' ? 'st-EARLY' : (val === 'LATE' ? 'st-LATE' : 'st-OFF');
-            
-            html += `
-              <td class="${bgClass}" id="td_${emp.id}_${d}">
-                <select class="shift-select" ${disabled} onchange="saveShift(this, '${emp.id}', '${emp.name}', '${fullDate}', '${schId}', ${d})">
-                  <option value="OFF" ${val==='OFF'?'selected':''}>休</option>
-                  <option value="EARLY" ${val==='EARLY'?'selected':''}>早</option>
-                  <option value="LATE" ${val==='LATE'?'selected':''}>午</option>
-                </select>
-              </td>`;
+            html += `<td class="${bgClass}" id="td_${emp.id}_${d}"><select class="shift-select" ${disabled} onchange="saveShift(this, '${emp.id}', '${emp.name}', '${fullDate}', '${schId}', ${d})"><option value="OFF" ${val==='OFF'?'selected':''}>休</option><option value="EARLY" ${val==='EARLY'?'selected':''}>早</option><option value="LATE" ${val==='LATE'?'selected':''}>午</option></select></td>`;
           }
         }
         tr.innerHTML = html;
         tbody.appendChild(tr);
       });
-
     } catch(e) { alert("錯誤: " + e); }
   }
 
   async function saveShift(el, empId, empName, date, oldId, dayIdx) {
     const shift = el.value;
     const td = document.getElementById(`td_${empId}_${dayIdx}`);
-    // 即時變色
     td.className = shift === 'EARLY' ? 'st-EARLY' : (shift === 'LATE' ? 'st-LATE' : 'st-OFF');
-    
     if (!oldId && shift === 'OFF') return;
-    try {
-      const act = oldId ? "update_schedule" : "add_schedule";
-      await api(act, { scheduleId: oldId, empId, empName, date, shift });
-    } catch(e) { alert("儲存失敗"); loadRoster(); }
+    try { await api(oldId ? "update_schedule" : "add_schedule", { scheduleId: oldId, empId, empName, date, shift }); } catch(e) { alert("儲存失敗"); loadRoster(); }
   }
-
   async function approveAll() {
     if(!confirm("確定核准本月所有班表？")) return;
     await api("approve_month_all", { year: ySel.value, month: mSel.value });
     alert("已核准");
     loadRoster();
   }
-
   loadRoster();
 </script>
 </body>

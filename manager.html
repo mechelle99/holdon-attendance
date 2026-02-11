@@ -1,117 +1,61 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>主管審核後台</title>
+  <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>主管後台</title>
   <style>
-    :root{ --blue:#007aff; --green:#34c759; --red:#ff3b30; --bg:#f4f6f8; }
-    body{font-family:-apple-system,sans-serif;background:var(--bg);margin:0;padding:20px;color:#333;padding-bottom:60px;}
-    .container{max-width:800px;margin:0 auto;}
-    .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
-    .btn-back{padding:8px 16px;background:#e5e5ea;color:#333;text-decoration:none;border-radius:8px;font-size:14px;font-weight:bold;}
-    .card{background:#fff;border-radius:16px;padding:20px;box-shadow:0 2px 10px rgba(0,0,0,0.05);margin-bottom:20px;}
-    h3{margin-top:0;border-bottom:1px solid #eee;padding-bottom:12px;font-size:18px;}
-    
-    .req-item{border-bottom:1px solid #f0f0f0;padding:16px 0;display:flex;justify-content:space-between;align-items:flex-start;}
-    .req-item:last-child{border-bottom:none;}
-    .req-info{font-size:15px;line-height:1.5;}
-    .req-meta{font-size:13px;color:#666;margin-top:4px;}
-    .tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:bold;margin-left:6px;}
-    .tag-blue{background:#e3f2fd;color:var(--blue);}
-    .tag-orange{background:#fff3e0;color:#ff9500;}
-
-    .btn-group{display:flex;gap:8px;}
-    .btn-act{border:none;border-radius:8px;padding:8px 16px;font-weight:bold;cursor:pointer;color:#fff;font-size:14px;}
-    .btn-approve{background:var(--green);}
-    .btn-reject{background:var(--red);}
-    .loading{text-align:center;padding:20px;color:#999;}
+    body{font-family:-apple-system,sans-serif;background:#f4f6f8;padding:16px;}
+    .card{background:#fff;padding:16px;border-radius:12px;margin-bottom:16px;}
+    .item{border-bottom:1px solid #eee;padding:12px 0;display:flex;justify-content:space-between;align-items:center;}
+    .btn{padding:6px 12px;border:none;border-radius:4px;color:#fff;margin-left:5px;cursor:pointer;}
+    .ok{background:#28a745;} .no{background:#dc3545;}
+    .tag{font-size:12px;padding:2px 5px;border-radius:4px;background:#e3f2fd;color:#007aff;}
   </style>
 </head>
 <body>
-
-<div class="container">
-  <div class="header">
-    <a href="app.html" class="btn-back">← 回首頁</a>
-    <div style="font-weight:bold">主管後台</div>
-  </div>
-
   <div class="card">
-    <h3>⚡ 待審核申請</h3>
-    <div id="pendingList" class="loading">載入中...</div>
+    <h3>待審核</h3>
+    <div id="list">載入中...</div>
   </div>
-</div>
-
-<script src="config.js"></script>
-<script>
-  const userId = localStorage.getItem("employeeId");
-  if(!userId) location.href="index.html";
-
-  function api(act, data={}){
-    return new Promise((resolve, reject)=>{
-      const cb = "cb"+Date.now()+Math.floor(Math.random()*100);
-      const payload = JSON.stringify({ ...data, userId, webhookKey: window.CONFIG?.WEBHOOK_KEY });
-      const s = document.createElement("script");
-      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${act}&payload=${encodeURIComponent(payload)}&callback=${cb}`;
-      window[cb] = (res) => { resolve(res); try{delete window[cb]; s.remove();}catch(e){} };
-      s.onerror = () => reject("連線失敗");
-      document.body.appendChild(s);
-    });
-  }
-
-  async function init(){
-    try {
-      const pRes = await api("get_pending");
-      const pDiv = document.getElementById("pendingList");
-      pDiv.innerHTML = "";
-      
-      if(pRes.ok && pRes.list && pRes.list.length > 0) {
-        pRes.list.forEach(r => {
-          const div = document.createElement("div");
-          div.className = "req-item";
-          
-          const typeName = r.leaveType || "";
-          const catName = r.category;
-          const tStart = r.start.replace('T', ' ').substring(0, 16);
-          const tEnd = r.end.replace('T', ' ').substring(0, 16);
-
-          div.innerHTML = `
-            <div class="req-info">
-              <div>
-                <strong>${r.empName}</strong> 
-                <span class="tag tag-blue">${catName}</span>
-                ${typeName ? `<span class="tag tag-orange">${typeName}</span>` : ''}
-              </div>
-              <div class="req-meta">
-                時間: ${tStart} ~ ${tEnd}<br>
-                時數: ${r.hours}小時 / 事由: ${r.reason || '無'}
-              </div>
-            </div>
-            <div class="btn-group">
-              <button class="btn-act btn-approve" onclick="doReview('${r.reqId}', 'APPROVED')">准</button>
-              <button class="btn-act btn-reject" onclick="doReview('${r.reqId}', 'REJECTED')">駁</button>
-            </div>
-          `;
-          pDiv.appendChild(div);
-        });
-      } else {
-        pDiv.innerHTML = '<div style="padding:10px;color:#999;text-align:center">目前沒有待審核項目</div>';
-      }
-    } catch(e) { 
-      alert("載入失敗: " + e); 
+  <script src="config.js"></script>
+  <script>
+    const uid=localStorage.getItem("employeeId");
+    function api(a,d={}){
+      return new Promise(r=>{
+        const cb="c"+Date.now();
+        const s=document.createElement("script");
+        s.src=`${window.CONFIG.GAS_ENDPOINT}?action=${a}&payload=${encodeURIComponent(JSON.stringify({...d,userId:uid,webhookKey:window.CONFIG.WEBHOOK_KEY}))}&callback=${cb}`;
+        window[cb]=res=>{r(res);s.remove()};
+        document.body.appendChild(s);
+      });
     }
-  }
-
-  async function doReview(reqId, decision) {
-    if(!confirm(decision==='APPROVED' ? "確定核准？" : "確定駁回？")) return;
-    try {
-      const res = await api("review_request", { reqId, decision });
-      alert(res.message);
-      init();
-    } catch(e) { alert("操作失敗"); }
-  }
-
-  init();
-</script>
+    async function load(){
+      const res = await api("get_pending");
+      const div = document.getElementById("list");
+      div.innerHTML = "";
+      if(res.ok && res.list.length>0) {
+        res.list.forEach(r => {
+          // 後端已轉中文，直接顯示
+          div.innerHTML += `
+            <div class="item">
+              <div>
+                <strong>${r.empName}</strong> <span class="tag">${r.category}</span> ${r.leaveType||''}<br>
+                <small>${r.start.substring(5,16)} ~ ${r.end.substring(5,16)}</small><br>
+                <small>事由: ${r.reason}</small>
+              </div>
+              <div>
+                <button class="btn ok" onclick="rev('${r.reqId}','APPROVED')">准</button>
+                <button class="btn no" onclick="rev('${r.reqId}','REJECTED')">駁</button>
+              </div>
+            </div>`;
+        });
+      } else { div.innerHTML="無待審核"; }
+    }
+    async function rev(id, dec) {
+      await api("review_request",{reqId:id, decision:dec});
+      load();
+    }
+    load();
+  </script>
 </body>
 </html>

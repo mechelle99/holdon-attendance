@@ -8,206 +8,179 @@
     :root{ --blue:#007aff; --bg:#f4f6f8; }
     body{font-family:-apple-system,sans-serif;background:var(--bg);margin:0;padding:16px;color:#333;padding-bottom:80px;}
     .card{background:#fff;border-radius:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,0.05);margin-bottom:16px;}
-    .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
     .btn{width:100%;padding:14px;border:none;border-radius:12px;font-size:16px;font-weight:bold;color:#fff;cursor:pointer;margin-top:8px;}
     .btn-in{background:var(--blue);}
     .btn-out{background:#ff9500;}
     .btn-gray{background:#555;}
-    .btn-link{background:none;color:#007aff;border:1px solid #007aff;margin-top:10px;}
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
     input, select, textarea{width:100%;padding:12px;margin-top:6px;border:1px solid #ddd;border-radius:8px;box-sizing:border-box;font-size:16px;}
     label{font-size:13px;color:#666;font-weight:bold;margin-top:10px;display:block;}
-    .loading-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.8);display:none;justify-content:center;align-items:center;z-index:99;}
-    .history-item{padding:10px 0;border-bottom:1px solid #eee;font-size:14px;}
+    .recent-item{display:flex;justify-content:space-between;border-bottom:1px solid #eee;padding:10px 0;}
     .hidden{display:none;}
+    #loading{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.8);display:none;justify-content:center;align-items:center;z-index:99;}
   </style>
 </head>
 <body>
 
-  <div id="loading" class="loading-overlay">處理中...</div>
+  <div id="loading">處理中...</div>
 
-  <div class="header">
-    <div style="font-weight:bold;font-size:18px;" id="dispName">...</div>
-    <a href="javascript:logout()" style="color:#c00;font-size:14px;text-decoration:none;">登出</a>
-  </div>
-
-  <div id="managerArea" class="hidden">
-    <button class="btn" style="background:#6f42c1;" onclick="location.href='manager.html'">👑 主管審核後台</button>
-  </div>
-  <div id="scheduleArea" class="hidden">
-    <button class="btn" style="background:#17a2b8;" onclick="location.href='schedule.html'">📅 排班表</button>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;">
+      <h3 style="margin:0" id="userName">...</h3>
+      <a href="index.html" style="color:#c00;text-decoration:none;">登出</a>
+    </div>
+    
+    <div id="mgrBtn" class="hidden">
+      <button class="btn" style="background:#6f42c1;" onclick="location.href='manager.html'">👑 主管後台</button>
+    </div>
+    <div id="schBtn" class="hidden">
+      <button class="btn" style="background:#17a2b8;" onclick="location.href='schedule.html'">📅 排班表</button>
+    </div>
   </div>
 
   <div class="card">
-    <h3 style="margin-top:0">📍 打卡</h3>
+    <h3 style="margin:0 0 10px">📍 上下班打卡</h3>
     <div class="grid">
-      <button class="btn btn-in" onclick="doClock('clock_in')">上班</button>
-      <button class="btn btn-out" onclick="doClock('clock_out')">下班</button>
+      <button class="btn btn-in" onclick="clock('clock_in')">上班</button>
+      <button class="btn btn-out" onclick="clock('clock_out')">下班</button>
     </div>
-    <div class="grid">
-      <button class="btn btn-gray" onclick="doClock('outing_clock_in')">外出出發</button>
-      <button class="btn btn-gray" onclick="doClock('outing_clock_out')">外出返回</button>
-    </div>
-    <div id="clockStatus" style="text-align:center;font-size:13px;color:var(--blue);margin-top:8px;"></div>
+    <div id="clockMsg" style="text-align:center;margin-top:8px;font-size:13px;color:var(--blue);"></div>
   </div>
 
   <div class="card">
-    <h3 style="margin-top:0">📝 申請單</h3>
+    <h3 style="margin:0">📝 線上申請</h3>
     <label>類型</label>
-    <select id="reqType" onchange="toggleFields()">
+    <select id="cat" onchange="uiChange()">
       <option value="LEAVE">請假</option>
-      <option value="OT">加班</option>
-      <option value="OUTING">外出公務 (預先申請)</option>
+      <option value="OT">加班 (轉補休)</option>
+      <option value="OUTING">外出公務</option>
+      <option value="CORRECTION">補卡 (每月限5次)</option>
     </select>
 
-    <div id="fieldLeave">
+    <div id="areaLeave">
       <label>假別</label>
-      <select id="leaveType">
+      <select id="lType">
         <option value="annual">特休</option>
-        <option value="personal">事假</option>
         <option value="sick">病假</option>
+        <option value="personal">事假</option>
+        <option value="menstrual">生理假</option>
+        <option value="family">家庭照顧假</option>
+        <option value="wedding">婚假</option>
+        <option value="funeral">喪假</option>
+        <option value="maternity">產假</option>
+        <option value="birthday">生日假 (限當月/單日)</option>
         <option value="comp">補休</option>
       </select>
     </div>
 
+    <div id="areaAuto" class="hidden">
+      <label>自動打卡設定 (核准後生效)</label>
+      <select id="autoClock">
+        <option value="">手動打卡</option>
+        <option value="OUT">自動打外出(上班)卡</option>
+        <option value="BOTH">自動打往返卡</option>
+      </select>
+    </div>
+
     <div class="grid">
-      <div><label>開始</label><input type="datetime-local" id="startAt"></div>
-      <div><label>結束</label><input type="datetime-local" id="endAt"></div>
+      <div><label>開始</label><input type="datetime-local" id="start" onchange="calc()"></div>
+      <div><label>結束</label><input type="datetime-local" id="end" onchange="calc()"></div>
     </div>
     
-    <label>時數 (選填)</label>
-    <input type="number" id="hours" placeholder="例如: 8">
+    <label>時數 (系統自動計算)</label>
+    <input id="hours" readonly style="background:#f5f5f5;">
 
     <label>事由</label>
     <textarea id="reason" rows="2"></textarea>
-    
-    <button class="btn btn-gray" onclick="submitReq()">送出申請</button>
-    
-    <button class="btn btn-link" onclick="location.href='history.html'">📜 查看所有紀錄</button>
+
+    <button class="btn btn-gray" onclick="submit()">送出申請</button>
+    <button class="btn" style="background:#fff;color:#333;border:1px solid #ccc;margin-top:10px;" onclick="location.href='history.html'">📜 查詢歷史紀錄</button>
   </div>
 
   <div class="card">
-    <h3 style="margin-top:0">📊 最近打卡</h3>
-    <div id="historyList">載入中...</div>
+    <h3 style="margin:0 0 10px">📊 最近打卡 (5筆)</h3>
+    <div id="recentList">載入中...</div>
   </div>
 
   <script src="config.js"></script>
   <script>
     const userId = localStorage.getItem("employeeId");
-    if(!userId) location.href = "index.html";
-    document.getElementById("dispName").textContent = localStorage.getItem("employeeName");
+    if(!userId) location.href="index.html";
+    document.getElementById("userName").textContent = localStorage.getItem("employeeName");
 
-    // 權限顯示
-    if(localStorage.getItem("isManager")==="Y") document.getElementById("managerArea").classList.remove("hidden");
-    if(localStorage.getItem("isManager")==="Y" || localStorage.getItem("canSchedule")==="Y") {
-      document.getElementById("scheduleArea").classList.remove("hidden");
-    }
+    if(localStorage.getItem("isManager")==="Y") document.getElementById("mgrBtn").classList.remove("hidden");
+    if(localStorage.getItem("canSchedule")==="Y" || localStorage.getItem("isManager")==="Y") document.getElementById("schBtn").classList.remove("hidden");
 
-    // 通用 API 呼叫 (JSONP)
-    function api(action, payload = {}) {
-      return new Promise((resolve, reject) => {
-        document.getElementById("loading").style.display = "flex";
-        
-        payload.userId = userId;
-        payload.webhookKey = window.CONFIG.WEBHOOK_KEY;
-        
-        const cbName = "cb" + Date.now() + Math.floor(Math.random()*1000);
-        const script = document.createElement("script");
-        const url = `${window.CONFIG.GAS_ENDPOINT}?action=${action}&payload=${encodeURIComponent(JSON.stringify(payload))}&callback=${cbName}`;
-        
-        window[cbName] = (res) => {
-          document.getElementById("loading").style.display = "none";
-          resolve(res);
-          delete window[cbName];
-          script.remove();
-        };
-        
-        script.onerror = () => {
-          document.getElementById("loading").style.display = "none";
-          reject("Network Error");
-          delete window[cbName];
-          script.remove();
-        };
-        
-        script.src = url;
-        document.body.appendChild(script);
+    function api(act, data={}) {
+      document.getElementById("loading").style.display="flex";
+      return new Promise((resolve, reject)=>{
+        const cb = "cb"+Date.now();
+        const payload = JSON.stringify({...data, userId, webhookKey:window.CONFIG.WEBHOOK_KEY});
+        const s = document.createElement("script");
+        s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${act}&payload=${encodeURIComponent(payload)}&callback=${cb}`;
+        window[cb] = (res)=>{ resolve(res); document.body.removeChild(s); document.getElementById("loading").style.display="none"; };
+        document.body.appendChild(s);
       });
     }
 
-    // 1. 打卡
-    function doClock(type) {
-      if(!navigator.geolocation) return alert("不支援定位");
-      navigator.geolocation.getCurrentPosition(async (pos) => {
-        try {
-          const res = await api(type, {
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-            accuracy: pos.coords.accuracy
-          });
-          alert(res.message);
-          if(res.ok) {
-            document.getElementById("clockStatus").textContent = `最後打卡: ${res.time}`;
-            loadHistory();
-          }
-        } catch(e) { alert("錯誤: " + e); }
-      }, (err) => alert("無法定位: " + err.message));
+    async function init() {
+      const res = await api("get_dashboard");
+      if(res.ok && res.recent) {
+        document.getElementById("recentList").innerHTML = res.recent.map(r => `
+          <div class="recent-item">
+            <span>${r.date} ${r.type}</span>
+            <span>${r.time}</span>
+          </div>
+        `).join("");
+      }
+    }
+    init();
+
+    function uiChange() {
+      const v = document.getElementById("cat").value;
+      document.getElementById("areaLeave").style.display = (v==='LEAVE')?'block':'none';
+      document.getElementById("areaAuto").style.display = (v==='OUTING')?'block':'none';
     }
 
-    // 2. 申請
-    async function submitReq() {
-      const type = document.getElementById("reqType").value;
+    function calc() {
+      const s = document.getElementById("start").value;
+      const e = document.getElementById("end").value;
+      if(s && e) {
+        const diff = (new Date(e) - new Date(s)) / 36e5;
+        document.getElementById("hours").value = diff > 0 ? diff.toFixed(1) : 0;
+      }
+    }
+
+    async function clock(type) {
+      if(!navigator.geolocation) return alert("無定位權限");
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        const res = await api(type, { lat: pos.coords.latitude, lng: pos.coords.longitude });
+        alert(res.message);
+        if(res.ok) {
+          document.getElementById("clockMsg").textContent = `最後: ${res.time}`;
+          init();
+        }
+      });
+    }
+
+    async function submit() {
+      const cat = document.getElementById("cat").value;
       const data = {
-        category: type,
-        leaveType: (type === 'LEAVE') ? document.getElementById("leaveType").value : '',
-        start_ts: document.getElementById("startAt").value, 
-        end_ts: document.getElementById("endAt").value,
+        category: cat,
+        leaveType: (cat==='LEAVE') ? document.getElementById("lType").value : '',
+        autoClock: (cat==='OUTING') ? document.getElementById("autoClock").value : '',
+        start_ts: document.getElementById("start").value,
+        end_ts: document.getElementById("end").value,
         hours: document.getElementById("hours").value,
         reason: document.getElementById("reason").value
       };
       
-      if(data.start_ts) data.start_ts = new Date(data.start_ts).toISOString();
-      if(data.end_ts) data.end_ts = new Date(data.end_ts).toISOString();
-
-      try {
-        const res = await api("submit_request", data);
-        alert(res.message);
-        if(res.ok) {
-          document.getElementById("reason").value = "";
-          loadHistory();
-        }
-      } catch(e) { alert("錯誤: " + e); }
+      if(!data.start_ts || !data.end_ts) return alert("請填寫時間");
+      
+      const res = await api("submit_request", data);
+      alert(res.message);
+      if(res.ok) { document.getElementById("reason").value=""; init(); }
     }
-
-    function toggleFields() {
-      const t = document.getElementById("reqType").value;
-      document.getElementById("fieldLeave").style.display = (t === "LEAVE") ? "block" : "none";
-    }
-
-    // 3. 讀取歷史
-    async function loadHistory() {
-      try {
-        const res = await api("get_my_dashboard");
-        const div = document.getElementById("historyList");
-        if(res.ok && res.attendance) {
-          div.innerHTML = res.attendance.map(item => `
-            <div class="history-item">
-              <span style="font-weight:bold">${item.date}</span>
-              <span style="float:right">${item.time}</span>
-              <div style="color:#666;font-size:12px;">${item.type}</div>
-            </div>
-          `).join("");
-        } else {
-          div.innerHTML = "無資料";
-        }
-      } catch(e) { console.error(e); }
-    }
-
-    function logout() {
-      localStorage.clear();
-      location.href = "index.html";
-    }
-
-    loadHistory();
   </script>
 </body>
 </html>

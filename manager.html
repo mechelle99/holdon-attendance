@@ -87,19 +87,12 @@
           const div = document.createElement("div");
           div.className = "req-item";
           
-          // ★ 使用後端已修復的 CamelCase 變數
-          const name = r.empName || r.empname || "未知";
-          const reqId = r.reqId || r.reqid;
-          
-          // 假別中文對照
-          const typeMap = {
-            'annual':'特休', 'comp':'補休', 'sick':'病假', 'personal':'事假',
-            'menstrual':'生理假', 'family':'家庭照顧假', 'wedding':'婚假',
-            'funeral':'喪假', 'maternity':'產假', 'birthday':'生日假'
-          };
-          const typeStr = typeMap[r.leaveType || r.leavetype] || r.leaveType;
+          // ★ 已修復：後端會回傳正確的 CamelCase
+          const name = r.empName || "未知";
+          const reqId = r.reqId;
+          const typeMap = { 'annual':'特休', 'comp':'補休', 'sick':'病假', 'personal':'事假', 'menstrual':'生理假', 'family':'家庭照顧假', 'wedding':'婚假', 'funeral':'喪假', 'maternity':'產假', 'birthday':'生日假' };
+          const typeStr = typeMap[r.leaveType] || r.leaveType;
           const catStr = (r.category==='OT')?'加班':(r.category==='OUTING'?'外出':'請假');
-
           const start = r.start ? r.start.substring(0,16).replace('T',' ') : '';
           const end = r.end ? r.end.substring(0,16).replace('T',' ') : '';
 
@@ -131,26 +124,15 @@
           const tr = document.createElement("tr");
           const ann = e.annual ? e.annual.left : 0;
           const comp = e.comp ? e.comp.left : 0;
-          
-          tr.innerHTML = `
-            <td>${e.name} (${e.id})</td>
-            <td>${ann} 天</td>
-            <td>${comp} 時</td>
-          `;
+          tr.innerHTML = `<td>${e.name} (${e.id})</td><td>${ann} 天</td><td>${comp} 時</td>`;
           tbody.appendChild(tr);
         });
       }
-
-    } catch(e) {
-      alert("載入失敗: " + e);
-    }
+    } catch(e) { alert("載入失敗: " + e); }
   }
 
   async function decide(reqId, decision) {
-    if(!reqId || reqId === 'undefined') {
-        alert("錯誤：無法取得申請單編號 (reqId is undefined)");
-        return;
-    }
+    if(!reqId || reqId === 'undefined') { alert("錯誤：申請單編號無效"); return; }
     if(!confirm(decision==='APPROVED'?"確定核准？":"確定駁回？")) return;
     const res = await api("review_request", { data: { reqId, decision } });
     alert(res.message);

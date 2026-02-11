@@ -25,10 +25,12 @@
     .rec-time { font-size: 14px; text-align: right; flex: 1; margin-right: 10px; line-height: 1.4; color:#333; }
     .status-tag { font-size: 12px; padding: 3px 8px; border-radius: 4px; color: #fff; font-weight: bold; min-width: 50px; text-align: center; }
     
-    .st-ok { background: #34c759; } 
-    .st-late { background: #ffcc00; color: #333; }
-    .st-miss { background: #ff3b30; }
-    .st-off { background: #ccc; color: #fff; }
+    .st-ok { background: #34c759; } /* 正常 */
+    .st-late { background: #ffcc00; color: #333; } /* 遲到/早退 */
+    .st-miss { background: #ff3b30; } /* 缺卡/曠職 */
+    .st-abn { background: #5856d6; } /* 異常(超時) */
+    .st-off { background: #ccc; color: #fff; } /* 休假 */
+    .st-leave { background: #007aff; } /* 請假 */
 
     .hidden { display: none; }
     #loading{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.8);display:none;justify-content:center;align-items:center;z-index:999;}
@@ -91,10 +93,13 @@
   </div>
 
   <div class="card">
-  <button class="btn" style="width:100%;background:#333;color:#fff;" onclick="location.href='attendance.html'">
-    📅 查看詳細出勤紀錄
-  </button>
-</div>
+    <h3 style="margin:0 0 10px">📊 出勤檢視</h3>
+    <div class="search-bar" style="display:flex;gap:5px;">
+      <select id="y"></select><select id="m"></select>
+      <button class="btn" style="width:auto;margin:0;padding:0 15px;" onclick="search()">搜</button>
+    </div>
+    <div id="resList" style="margin-top:10px;"></div>
+  </div>
 
   <script src="config.js"></script>
   <script>
@@ -102,6 +107,7 @@
     if(!uid) location.href="index.html";
     document.getElementById("uName").textContent = localStorage.getItem("employeeName");
     
+    // 嚴格權限顯示
     if(localStorage.getItem("isManager")==='Y') document.getElementById("admBtns").classList.remove("hidden");
     else if(localStorage.getItem("canSchedule")==='Y') document.getElementById("admBtns").classList.remove("hidden");
 
@@ -179,11 +185,12 @@
         const days = new Date(yS.value, mS.value, 0).getDate();
         const map = {}; 
         
-        for(let i=1; i<=days; i++) map[i] = { shift: r.schedule[i] || 'OFF', in:null, out:null };
+        // 1. 初始化 (不在班表=預設早班)
+        for(let i=1; i<=days; i++) map[i] = { shift: r.schedule[i] || 'EARLY', in:null, out:null, leave:null };
         
+        // 2. 填入打卡
         r.clocks.forEach(c => {
-          // ★關鍵修正：相容於 YYYY-MM-DD 或 YYYY/MM/DD
-          const parts = c.date.split(/[-/]/); 
+          const parts = c.date.split('-');
           const day = parseInt(parts[2]);
           if(map[day]) {
             if(c.type.includes('上班')) map[day].in = c.time;
@@ -191,24 +198,54 @@
           }
         });
 
+        // 3. 填入請假
+        if(r.leaves) {
+          r.leaves.forEach(l => {
+            const parts = l.date.split('-');
+            const day = parseInt(parts[2]);
+            if(map[day]) map[day].leave = l.type; // 優先顯示假別
+          });
+        }
+
+        // 4. 渲染 (倒序)
         for(let i=days; i>=1; i--) { 
           const item = map[i];
           let stTag = "正常", stCls = "st-ok";
           let shiftTxt = item.shift==='EARLY'?'早':(item.shift==='LATE'?'午':'休');
           
-          if (item.shift === 'OFF') {
+          if (item.leave) {
+             stTag = item.leave; stCls = "st-leave";
+          } 
+          else if (item.shift === 'OFF') {
              stTag = "休假"; stCls = "st-off";
              if(item.in || item.out) { stTag="加班"; stCls="st-ok"; }
           } else {
+             // 工作日判斷
              if (!item.in && !item.out) { stTag="曠職"; stCls="st-miss"; }
              else if (!item.in) { stTag="缺上班卡"; stCls="st-miss"; }
              else if (!item.out) { stTag="缺下班卡"; stCls="st-miss"; }
              else {
-                const target = item.shift==='EARLY' ? '10:00:00' : '12:00:00';
-                if(item.in > target) { stTag="遲到"; stCls="st-late"; }
+                // 時間標準
+                const startTarget = item.shift==='EARLY' ? '10:00:00' : '12:00:00';
+                const endTarget   = item.shift==='EARLY' ? '18:00:00' : '21:00:00';
+                
+                // 1. 遲到
+                if(item.in > startTarget) { stTag="遲到"; stCls="st-late"; }
+                
+                // 2. 早退 (下班時間早於表定)
+                if(item.out < endTarget) { 
+                    stTag = (stTag==="遲到") ? "遲到/早退" : "早退";
+                    stCls="st-late"; 
+                }
+
+                // 3. 異常 (超過1小時下班)
+                const outH = parseInt(item.out.split(':')[0]);
+                const stdH = item.shift==='EARLY' ? 18 : 21;
+                if(outH >= stdH + 1) { stTag="異常"; stCls="st-abn"; }
              }
           }
           
+          // 未來日期不顯示
           if(new Date(yS.value, mS.value-1, i) > new Date()) { stTag="--"; stCls="st-off"; }
 
           d.innerHTML += `

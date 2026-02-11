@@ -9,22 +9,16 @@
     .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
     .card{background:#fff;border-radius:16px;padding:20px;box-shadow:0 4px 12px rgba(0,0,0,0.05);margin-bottom:16px;}
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-    
     .big-num{font-size:32px;font-weight:800;color:#111;}
     .label{font-size:13px;color:#666;margin-bottom:4px;}
-    
     .btn{width:100%;padding:14px;border:none;border-radius:12px;font-weight:bold;font-size:16px;cursor:pointer;color:#fff;display:flex;justify-content:center;align-items:center;}
-    
-    /* 按鈕顏色定義 */
-    .btn-in{background:#007aff;}       /* 上班藍 */
-    .btn-out{background:#ff9500;}      /* 下班橘 */
-    .btn-sub{background:#111;margin-top:12px;} /* 送出黑 */
-    .btn-mgr{background:#6f42c1;margin-bottom:8px;} /* 主管紫 */
-    .btn-sch{background:#17a2b8;margin-bottom:12px;} /* 排班青 */
-    
-    .btn-outing-start{background:#28a745; margin-bottom:8px;} /* 外出綠 */
-    .btn-outing-end{background:#6c757d;}   /* 返回灰 */
-
+    .btn-in{background:#007aff;}
+    .btn-out{background:#ff9500;}
+    .btn-outing-start{background:#28a745; margin-bottom:8px;}
+    .btn-outing-end{background:#6c757d;}
+    .btn-sub{background:#111;margin-top:12px;}
+    .btn-mgr{background:#6f42c1;margin-bottom:8px;}
+    .btn-sch{background:#17a2b8;margin-bottom:12px;}
     input,select{width:100%;padding:12px;margin-top:8px;border:1px solid #ddd;border-radius:10px;box-sizing:border-box;font-size:16px;}
     .hidden{display:none;}
     #loading{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.8);display:none;justify-content:center;align-items:center;z-index:999;}
@@ -41,7 +35,6 @@
   </div>
 
   <button id="btnMgr" class="btn btn-mgr hidden" onclick="location.href='manager.html'">👑 進入主管審核後台</button>
-  
   <button class="btn btn-sch" onclick="location.href='schedule.html'">📅 進入排班表</button>
 
   <div class="grid">
@@ -119,7 +112,6 @@
     if(!userId) location.href="index.html";
     document.getElementById("who").textContent = `${localStorage.getItem("employeeName")} (${userId})`;
     
-    // 主管按鈕顯示邏輯
     if(localStorage.getItem("isManager")==="Y") {
         document.getElementById("btnMgr").classList.remove("hidden");
     }
@@ -156,7 +148,6 @@
     }
     init();
 
-    // 時數計算
     function calcHours() {
       const s = document.getElementById("start").value;
       const e = document.getElementById("end").value;
@@ -166,17 +157,19 @@
           const hours = (diff / 3600000).toFixed(1);
           document.getElementById("calcResult").textContent = `預估時數: ${hours} 小時`;
         } else {
-          document.getElementById("calcResult").textContent = "結束時間需晚於開始時間";
+          document.getElementById("calcResult").textContent = "時間無效";
         }
       }
     }
 
-    // 打卡功能
     async function clock(type){
-      if(!confirm("確定要執行此操作嗎？")) return;
+      if(!confirm("確定打卡？")) return;
       
       if (!navigator.geolocation) {
-        alert("不支援定位");
+        alert("您的瀏覽器不支援定位");
+        // 即便不支援，也嘗試送出(無座標)
+        const r = await api(type, { lat:0, lng:0 });
+        alert(r.message);
         return;
       }
 
@@ -189,7 +182,6 @@
              lng: pos.coords.longitude, 
              accuracy: pos.coords.accuracy 
            });
-           
            alert(r.message);
            document.getElementById("clockMsg").innerText = `${r.message} @ ${r.time}`;
          } catch(e) {
@@ -197,8 +189,13 @@
          }
          document.getElementById("loading").style.display="none";
       }, (err) => {
+         // 定位失敗時，仍允許打卡 (後端會標記異常)
          document.getElementById("loading").style.display="none";
-         alert("無法定位，請檢查瀏覽器權限或 GPS");
+         let msg = "定位失敗";
+         if (err.code === 1) msg = "您拒絕了定位權限";
+         if (confirm(`${msg}，是否仍要打卡？(將標記為異常)`)) {
+             api(type, { lat:0, lng:0 }).then(r => alert(r.message));
+         }
       }, {
          enableHighAccuracy: true,
          timeout: 10000,
@@ -206,7 +203,6 @@
       });
     }
 
-    // 送出申請
     async function submit(){
       const cat = document.getElementById("cat").value;
       const s = document.getElementById("start").value;

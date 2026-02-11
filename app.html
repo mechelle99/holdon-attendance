@@ -5,7 +5,258 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>HOLDON 出勤系統</title>
   <style>
-    :root{
+    :root{<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>HOLDON 出勤系統</title>
+  <style>
+    body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f4f6f8;margin:0;padding:16px;color:#333;}
+    .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
+    .card{background:#fff;border-radius:16px;padding:20px;box-shadow:0 4px 12px rgba(0,0,0,0.05);margin-bottom:16px;}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+    .big-num{font-size:32px;font-weight:800;color:#111;}
+    .label{font-size:13px;color:#666;margin-bottom:4px;}
+    .btn{width:100%;padding:14px;border:none;border-radius:12px;font-weight:bold;font-size:16px;cursor:pointer;color:#fff;display:flex;justify-content:center;align-items:center;}
+    .btn-in{background:#007aff;}
+    .btn-out{background:#ff9500;}
+    .btn-sub{background:#111;margin-top:12px;}
+    .btn-mgr{background:#6f42c1;margin-bottom:8px;}
+    .btn-sch{background:#17a2b8;margin-bottom:12px;}
+    .btn-correct{background:#6c757d;}
+    
+    /* 歷史紀錄按鈕樣式 */
+    .btn-hist { background:#fff; color:#007aff; border:2px solid #007aff; margin-top:12px; }
+    
+    input,select{width:100%;padding:12px;margin-top:8px;border:1px solid #ddd;border-radius:10px;box-sizing:border-box;font-size:16px;}
+    .hidden{display:none;}
+    #loading{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.8);display:none;justify-content:center;align-items:center;z-index:999;}
+    .calc-hint { font-size:13px; color:#c22; margin-top:5px; font-weight:bold; text-align:right; }
+  </style>
+</head>
+<body>
+
+  <div id="loading">處理中...</div>
+
+  <div class="header">
+    <div style="font-weight:bold;font-size:18px;" id="who">...</div>
+    <a href="javascript:logout()" style="color:#c22;text-decoration:none;">登出</a>
+  </div>
+
+  <button id="btnMgr" class="btn btn-mgr hidden" onclick="location.href='manager.html'">👑 進入主管審核後台</button>
+  <button class="btn btn-sch" onclick="location.href='schedule.html'">📅 進入排班表</button>
+
+  <div class="grid">
+    <div class="card">
+      <div class="label">特休剩餘</div>
+      <div class="big-num"><span id="valAnnual">-</span><span style="font-size:14px"> 天</span></div>
+    </div>
+    <div class="card">
+      <div class="label">補休剩餘</div>
+      <div class="big-num"><span id="valComp">-</span><span style="font-size:14px"> 時</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 12px">📍 上下班打卡</h3>
+    <div class="grid">
+      <button class="btn btn-in" onclick="clock('clock_in')">上班</button>
+      <button class="btn btn-out" onclick="clock('clock_out')">下班</button>
+    </div>
+    <div id="clockMsg" style="margin-top:10px;color:#007aff;font-size:13px;text-align:center;"></div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 12px">🛠️ 忘記打卡？(補卡)</h3>
+    <div style="font-size:13px;color:#666;margin-bottom:8px;">每月限 5 次，需主管核准。</div>
+    <label class="label">補卡時間</label>
+    <input type="datetime-local" id="correctTime">
+    <label class="label" style="margin-top:10px;">類型</label>
+    <select id="correctType">
+      <option value="IN">補 上班卡</option>
+      <option value="OUT">補 下班卡</option>
+    </select>
+    <label class="label" style="margin-top:10px;">原因</label>
+    <input id="correctReason" placeholder="例：忘記打卡、系統異常">
+    <button class="btn btn-sub btn-correct" onclick="submitCorrection()">送出補卡申請</button>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 12px">📝 提出申請</h3>
+    <label class="label">類型</label>
+    <select id="cat" onchange="toggle()">
+      <option value="LEAVE">請假</option>
+      <option value="OT">加班 (轉補休)</option>
+      <option value="OUTING">外出申請 (事先)</option>
+    </select>
+    
+    <div id="areaLeave">
+      <label class="label" style="margin-top:10px">假別</label>
+      <select id="lType" onchange="calcHours()">
+        <option value="annual">特休</option>
+        <option value="comp">補休</option>
+        <option value="sick">病假</option>
+        <option value="personal">事假</option>
+        <option value="menstrual">生理假</option>
+        <option value="family">家庭照顧假</option>
+        <option value="wedding">婚假</option>
+        <option value="funeral">喪假</option>
+        <option value="maternity">產假/陪產假</option>
+        <option value="birthday">生日假 (限當月)</option>
+      </select>
+    </div>
+
+    <div id="areaOuting" class="hidden">
+      <label class="label" style="margin-top:10px">自動打卡設定 (核准後生效)</label>
+      <select id="autoClock">
+        <option value="">不自動打卡 (需手動打卡)</option>
+        <option value="IN">自動打上班卡 (依開始時間)</option>
+        <option value="OUT">自動打下班卡 (依結束時間)</option>
+        <option value="BOTH">自動打上下班卡</option>
+      </select>
+      <div style="font-size:12px;color:#666;margin-top:4px;">* 核准後系統自動生成出勤紀錄，不需再手動打卡。</div>
+    </div>
+
+    <label class="label" style="margin-top:10px">開始時間</label>
+    <input type="datetime-local" id="start" onchange="calcHours()">
+    
+    <label class="label" style="margin-top:10px">結束時間</label>
+    <input type="datetime-local" id="end" onchange="calcHours()">
+    
+    <div id="calcResult" class="calc-hint"></div>
+
+    <label class="label" style="margin-top:10px">事由</label>
+    <input id="reason" placeholder="請輸入原因">
+
+    <button class="btn btn-sub" onclick="submit()">送出申請</button>
+    
+    <button class="btn btn-hist" onclick="location.href='history.html'">📜 查詢歷史申請紀錄</button>
+  </div>
+
+  <script src="config.js"></script>
+  <script>
+    const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || "";
+    const userId = localStorage.getItem("employeeId");
+    
+    if(!userId) location.href="index.html";
+    document.getElementById("who").textContent = `${localStorage.getItem("employeeName")} (${userId})`;
+    
+    if(localStorage.getItem("isManager")==="Y") {
+        document.getElementById("btnMgr").classList.remove("hidden");
+    }
+
+    function api(act, data={}){
+      document.getElementById("loading").style.display="flex";
+      return new Promise((resolve, reject)=>{
+        const cb = "cb"+Date.now();
+        const payload = JSON.stringify({ ...data, userId, webhookKey:window.CONFIG?.WEBHOOK_KEY });
+        const s = document.createElement("script");
+        s.src = `${ENDPOINT}?action=${act}&payload=${encodeURIComponent(payload)}&callback=${cb}`;
+        window[cb] = (res) => { resolve(res); document.body.removeChild(s); document.getElementById("loading").style.display="none"; };
+        s.onerror = () => { alert("連線失敗"); document.getElementById("loading").style.display="none"; };
+        document.body.appendChild(s);
+      });
+    }
+
+    async function init(){
+      try {
+        const r = await api("get_balances");
+        if(r.ok){
+          document.getElementById("valAnnual").textContent = r.annual.left;
+          document.getElementById("valComp").textContent = r.comp.left;
+        }
+        // 移除 loadHistory()
+      } catch(e) { console.error(e); }
+    }
+    init();
+
+    function calcHours() {
+      const type = document.getElementById("lType").value;
+      const cat = document.getElementById("cat").value;
+      if (cat === 'LEAVE' && type === 'birthday') {
+         document.getElementById("calcResult").textContent = "🎂 生日假固定為 1 天 (8小時)";
+         return;
+      }
+      const s = document.getElementById("start").value;
+      const e = document.getElementById("end").value;
+      if(s && e) {
+        const diff = new Date(e) - new Date(s);
+        if(diff > 0) {
+          const hours = (diff / 3600000).toFixed(1);
+          document.getElementById("calcResult").textContent = `預估時數: ${hours} 小時`;
+        } else {
+          document.getElementById("calcResult").textContent = "時間無效";
+        }
+      } else {
+        document.getElementById("calcResult").textContent = "";
+      }
+    }
+
+    async function clock(type){
+      if(!confirm("確定要執行此操作嗎？")) return;
+      if (!navigator.geolocation) {
+        alert("不支援定位");
+        return;
+      }
+      document.getElementById("loading").style.display="flex";
+      navigator.geolocation.getCurrentPosition(async pos => {
+         try {
+           const r = await api(type, { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy });
+           alert(r.message);
+           document.getElementById("clockMsg").innerText = `${r.message} @ ${r.time}`;
+         } catch(e) { alert("打卡錯誤：" + e); }
+         document.getElementById("loading").style.display="none";
+      }, (err) => {
+         document.getElementById("loading").style.display="none";
+         alert("無法定位，請檢查瀏覽器權限或 GPS");
+      }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+    }
+
+    async function submitCorrection() {
+      const time = document.getElementById("correctTime").value;
+      const type = document.getElementById("correctType").value;
+      const reason = document.getElementById("correctReason").value;
+      if(!time || !reason) return alert("請填寫補卡時間與原因");
+      
+      const r = await api("submit_request", { category: "CORRECTION", leaveType: type, start: time, end: time, hours: 0, reason: reason });
+      if(r.ok) { alert("✅ " + r.message); location.reload(); } else { alert("❌ " + r.message); }
+    }
+
+    async function submit(){
+      const cat = document.getElementById("cat").value;
+      const s = document.getElementById("start").value;
+      const e = document.getElementById("end").value;
+      const autoClockVal = document.getElementById("autoClock").value;
+      
+      let hours = 0;
+      if(s && e) {
+         hours = (new Date(e) - new Date(s)) / 3600000;
+         hours = Math.round(hours * 10) / 10;
+      }
+
+      const r = await api("submit_request", {
+        category: cat, leaveType: cat==="LEAVE" ? document.getElementById("lType").value : "",
+        start: s, end: e, hours: hours, reason: document.getElementById("reason").value,
+        autoClock: (cat === 'OUTING') ? autoClockVal : "" 
+      });
+      if(r.ok) { alert("✅ " + r.message); location.reload(); } 
+      else { alert("❌ 失敗：" + r.message); }
+    }
+
+    function toggle(){
+      const v = document.getElementById("cat").value;
+      document.getElementById("areaLeave").style.display = v==="LEAVE"?"block":"none";
+      if(v === "OUTING") { document.getElementById("areaOuting").style.display = "block"; } 
+      else { document.getElementById("areaOuting").style.display = "none"; }
+      calcHours();
+    }
+
+    function logout(){ localStorage.clear(); location.href="index.html"; }
+  </script>
+</body>
+</html>
+app.html
       --bg:#f4f6f8; --card:#fff; --ink:#111; --muted:#6b7280;
       --blue:#0ea5e9; --green:#22c55e; --orange:#f59e0b; --red:#ef4444;
       --radius:18px;

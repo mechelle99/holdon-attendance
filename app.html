@@ -15,21 +15,18 @@
     .btn-in{background:var(--blue);} .btn-out{background:#ff9500;} .btn-gray{background:#555;}
     
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-    
     .bal-box{display:flex;gap:10px;}
     .bal-item{flex:1;background:#f0f7ff;padding:8px;border-radius:8px;text-align:center;}
     
-    /* 紀錄卡片 */
     .rec-card { background: #fff; padding: 12px; border-radius: 8px; border: 1px solid #eee; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
     .rec-date { font-weight: bold; font-size: 15px; width: 60px; }
     .rec-shift { font-size: 12px; color: #666; width: 40px; text-align: center; background: #eee; border-radius: 4px; padding: 2px 0; }
     .rec-time { font-size: 14px; text-align: right; flex: 1; margin-right: 10px; line-height: 1.4; color:#333; }
     .status-tag { font-size: 12px; padding: 3px 8px; border-radius: 4px; color: #fff; font-weight: bold; min-width: 50px; text-align: center; }
     
-    .st-ok { background: #34c759; } /* 正常 */
-    .st-late { background: #ffcc00; color: #333; } /* 遲到 */
-    .st-miss { background: #ff3b30; } /* 缺卡/曠職 */
-    .st-abn { background: #5856d6; } /* 異常(超時) */
+    .st-ok { background: #34c759; } 
+    .st-late { background: #ffcc00; color: #333; }
+    .st-miss { background: #ff3b30; }
     .st-off { background: #ccc; color: #fff; }
 
     .hidden { display: none; }
@@ -79,6 +76,7 @@
         <option value="checkup">產檢假</option><option value="paternity">陪產假</option>
         <option value="maternity">產假</option><option value="wedding">婚假</option>
         <option value="funeral">喪假</option><option value="injury">公傷病假</option>
+        <option value="epidemic">防疫照顧假</option>
       </select>
     </div>
     <div id="areaOut" class="hidden"><label>自動打卡</label><select id="autoClock"><option value="">手動</option><option value="OUT">自動外出(上班)</option><option value="BOTH">自動往返</option></select></div>
@@ -107,11 +105,8 @@
     if(!uid) location.href="index.html";
     document.getElementById("uName").textContent = localStorage.getItem("employeeName");
     
-    // 嚴格權限顯示
     if(localStorage.getItem("isManager")==='Y') document.getElementById("admBtns").classList.remove("hidden");
-    else if(localStorage.getItem("canSchedule")==='Y') {
-        document.getElementById("admBtns").classList.remove("hidden");
-    }
+    else if(localStorage.getItem("canSchedule")==='Y') document.getElementById("admBtns").classList.remove("hidden");
 
     const now=new Date();
     const yS=document.getElementById("y"), mS=document.getElementById("m");
@@ -187,10 +182,12 @@
         const days = new Date(yS.value, mS.value, 0).getDate();
         const map = {}; 
         
-        for(let i=1; i<=days; i++) map[i] = { shift: r.schedule[i] || 'EARLY', in:null, out:null }; // 預設早班
+        for(let i=1; i<=days; i++) map[i] = { shift: r.schedule[i] || 'OFF', in:null, out:null };
         
         r.clocks.forEach(c => {
-          const day = parseInt(c.date.split('/')[2]);
+          // ★關鍵修正：後端傳來的是 YYYY-MM-DD，必須用 '-' 分隔
+          const parts = c.date.split('-'); 
+          const day = parseInt(parts[2]);
           if(map[day]) {
             if(c.type.includes('上班')) map[day].in = c.time;
             if(c.type.includes('下班')) map[day].out = c.time;
@@ -210,20 +207,11 @@
              else if (!item.in) { stTag="缺上班卡"; stCls="st-miss"; }
              else if (!item.out) { stTag="缺下班卡"; stCls="st-miss"; }
              else {
-                // 規則：早班10-18, 午班12-21
-                const startTarget = item.shift==='EARLY' ? '10:00:00' : '12:00:00';
-                const endTarget = item.shift==='EARLY' ? 18 : 21; // 小時
-                
-                // 遲到判定
-                if(item.in > startTarget) { stTag="遲到"; stCls="st-late"; }
-                
-                // 異常判定 (下班超過1小時)
-                const outH = parseInt(item.out.split(':')[0]);
-                if(outH >= endTarget + 1) { stTag="異常"; stCls="st-abn"; }
+                const target = item.shift==='EARLY' ? '10:00:00' : '12:00:00';
+                if(item.in > target) { stTag="遲到"; stCls="st-late"; }
              }
           }
           
-          // 未來日期
           if(new Date(yS.value, mS.value-1, i) > new Date()) { stTag="--"; stCls="st-off"; }
 
           d.innerHTML += `

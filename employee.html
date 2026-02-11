@@ -71,29 +71,43 @@
       });
     }
 
+   
     async function loadMyData(){
       try {
         const res = await api("get_my_dashboard"); 
         document.getElementById("loading").style.display = "none";
 
         if(res.ok) {
-          // 填寫統計
           document.getElementById("statLate").textContent = res.stats?.lateCount || 0;
           document.getElementById("statLeave").textContent = res.stats?.leaveHours || 0;
 
-          // 填寫表格
           const tbody = document.getElementById("attendanceBody");
           tbody.innerHTML = "";
           
           if(res.attendance && res.attendance.length > 0){
             res.attendance.forEach(r => {
-              const statusHtml = r.isLate ? '<span class="badge bg-red">遲到</span>' : '<span class="badge bg-green">正常</span>';
+              // 狀態邏輯優化
+              let statusBadge = '<span class="badge bg-green">正常</span>';
+              if(r.isLate) {
+                statusBadge = '<span class="badge bg-red">遲到</span>';
+              }
+              // 檢查缺卡 (有上班沒下班，且不是今天)
+              const isToday = new Date().toDateString() === new Date(r.date).toDateString();
+              const hasIn = r.in && r.in !== '-';
+              const hasOut = r.out && r.out !== '-';
+
+              if(hasIn && !hasOut && !isToday) {
+                 statusBadge = '<span class="badge bg-gray">缺下班卡</span>';
+              } else if (!hasIn && hasOut) {
+                 statusBadge = '<span class="badge bg-gray">缺上班卡</span>';
+              }
+
               const tr = document.createElement("tr");
               tr.innerHTML = `
                 <td>${r.date.substring(5,10)}</td>
                 <td>${r.in || "-"}</td>
                 <td>${r.out || "-"}</td>
-                <td>${statusHtml}</td>
+                <td>${statusBadge}</td>
               `;
               tbody.appendChild(tr);
             });
@@ -107,7 +121,6 @@
         document.getElementById("loading").innerText = "系統錯誤：" + e;
       }
     }
-
     loadMyData();
   </script>
 </body>

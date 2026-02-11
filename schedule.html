@@ -7,105 +7,118 @@
   <style>
     :root {
       --primary: #1a73e8;
-      --border: #dadce0;
-      --cell-w: 65px;
+      --cell-w: 70px;
       --cell-h: 50px;
-      --name-w: 100px;
+      --name-w: 110px;
+      --border-color: #ddd;
     }
     body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; background: #fff; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
     
-    /* Header Area */
-    .header { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.05); z-index: 50; }
-    .title { font-size: 18px; font-weight: bold; display: flex; align-items: center; gap: 10px; }
+    /* 1. Header */
+    .header { padding: 10px 16px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; background: #fff; z-index: 100; flex-shrink: 0; }
+    .title { font-size: 18px; font-weight: bold; }
     .controls { display: flex; gap: 8px; }
-    select, button { padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; background: #fff; cursor: pointer; }
-    .btn-save { background: var(--primary); color: #fff; border: none; font-weight: 500; }
-    .btn-back { text-decoration: none; color: #333; font-size: 14px; padding: 6px 12px; background: #f1f3f4; border-radius: 6px; }
+    select, button { padding: 6px; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; }
+    .btn-save { background: var(--primary); color: #fff; border: none; font-weight: bold; }
+    .btn-back { text-decoration: none; color: #333; background: #f0f0f0; padding: 6px 12px; border-radius: 4px; font-size: 14px; }
 
-    /* Table Scroll Area */
-    .roster-wrap { flex: 1; overflow: auto; position: relative; width: 100%; }
+    /* 2. Scrollable Area */
+    .roster-wrap { 
+      flex: 1; 
+      overflow: auto; 
+      position: relative; 
+      width: 100%; 
+      background: #fff;
+    }
     
-    table { border-collapse: separate; border-spacing: 0; min-width: 100%; }
+    /* 3. Table Structure (關鍵: separate) */
+    table { 
+      border-collapse: separate; 
+      border-spacing: 0; 
+      min-width: 100%; 
+    }
     
-    /* Cell Basics */
     th, td { 
-      border-right: 1px solid var(--border); 
-      border-bottom: 1px solid var(--border); 
+      border-right: 1px solid var(--border-color); 
+      border-bottom: 1px solid var(--border-color); 
       text-align: center; 
       padding: 0;
       box-sizing: border-box;
-      background-clip: padding-box; /* Fix border rendering */
+      height: var(--cell-h);
     }
 
-    /* --- Freeze Panes Logic (關鍵修正) --- */
-    
-    /* 1. 日期列 (Top Header) */
+    /* --- 4. Freeze Panes Logic (凍結核心) --- */
+
+    /* A. 左上角 (Corner) - 最頂層 */
+    thead th:first-child {
+      position: sticky;
+      top: 0;
+      left: 0;
+      z-index: 30; /* 最高 */
+      background: #fff;
+      min-width: var(--name-w);
+      border-right: 2px solid #aaa; /* 明顯分隔線 */
+      border-bottom: 2px solid #aaa;
+    }
+
+    /* B. 第一列 (Top Header - 日期) */
     thead th {
       position: sticky;
       top: 0;
-      z-index: 10;
+      z-index: 20; /* 次高 */
       background: #f8f9fa;
-      height: var(--cell-h);
+      height: 40px;
       min-width: var(--cell-w);
-      font-size: 13px;
-      color: #555;
+      border-bottom: 2px solid #aaa;
     }
 
-    /* 2. 員工欄 (Left Column) */
+    /* C. 第一欄 (Left Column - 員工) */
     tbody td:first-child {
       position: sticky;
       left: 0;
-      z-index: 20;
+      z-index: 10; /* 第三 */
       background: #fff;
       font-weight: bold;
-      font-size: 14px;
       min-width: var(--name-w);
-      border-right: 2px solid var(--border); /* 加粗分割線 */
+      border-right: 2px solid #aaa; /* 明顯分隔線 */
+      box-shadow: 2px 0 5px rgba(0,0,0,0.05); /* 加陰影 */
     }
 
-    /* 3. 左上角交叉點 (Corner) */
-    thead th:first-child {
-      position: sticky;
-      left: 0;
-      top: 0;
-      z-index: 30; /* 最高層級 */
-      background: #fff;
-      border-right: 2px solid var(--border);
-      min-width: var(--name-w);
+    /* D. 普通儲存格 */
+    tbody td {
+      z-index: 1;
+      background: #fff; /* 必須有背景色，不然捲動時字會透過去 */
     }
 
-    /* Cell Content Styles */
-    .shift-select { 
-      width: 100%; height: var(--cell-h); border: none; outline: none; 
-      background: transparent; font-size: 13px; font-weight: 600;
-      text-align: center; text-align-last: center; cursor: pointer;
-      appearance: none; -webkit-appearance: none; 
-    }
+    /* 5. Cell Styles */
+    .shift-select { width: 100%; height: 100%; border: none; background: transparent; text-align: center; text-align-last: center; font-weight: 600; cursor: pointer; outline: none; appearance: none; }
     
-    .st-EARLY { background: #e8f0fe; color: #1967d2; }
-    .st-LATE  { background: #fff3e0; color: #ea8600; }
-    .st-OFF   { background: #f8f9fa; color: #999; }
-    .st-LEAVE { background: #fce8e6; color: #c5221f; font-size: 12px; display: flex; align-items: center; justify-content: center; height: var(--cell-h);}
-    .weekend { color: #d93025; background: #fff0f0; }
+    .st-EARLY { background-color: #e8f0fe !important; color: #1967d2; }
+    .st-LATE  { background-color: #fff3e0 !important; color: #ea8600; }
+    .st-OFF   { background-color: #f8f9fa !important; color: #999; }
+    .st-LEAVE { background-color: #fce8e6 !important; color: #c5221f; pointer-events: none; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+    
+    .weekend { color: #d93025; background-color: #fff0f0; }
+    .col-emp-txt { padding: 0 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-    #loading { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); display: flex; justify-content: center; align-items: center; z-index: 99; font-weight: bold; color: var(--primary); }
+    #loading { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); display: flex; justify-content: center; align-items: center; z-index: 999; }
     .hidden { display: none; }
   </style>
 </head>
 <body>
 
-<div id="loading">載入中...</div>
+<div id="loading">讀取班表...</div>
 
 <div class="header">
   <div class="title">
     <a href="app.html" class="btn-back">← 返回</a>
-    <span>排班表</span>
+    <span style="margin-left:10px">排班表</span>
   </div>
   <div class="controls">
     <select id="selYear"></select>
     <select id="selMonth"></select>
     <button class="btn-save" onclick="loadRoster()">刷新</button>
-    <button id="btnApprove" class="btn-save hidden" style="background:#6f42c1;" onclick="approveAll()">核准全月</button>
+    <button id="btnApprove" class="btn-save hidden" style="background:#6f42c1;" onclick="approveAll()">主管核准</button>
   </div>
 </div>
 
@@ -150,13 +163,14 @@
     const days = new Date(y, m, 0).getDate();
     const headRow = document.getElementById("headRow");
     
-    let headHtml = '<th>員工</th>'; // 左上角
+    // 建立表頭
+    let headHtml = '<th><div class="col-emp-txt">員工</div></th>';
     for(let d=1; d<=days; d++) {
       const date = new Date(y, m-1, d);
       const day = date.getDay();
       const weekStr = ['日','一','二','三','四','五','六'][day];
       const cls = (day===0 || day===6) ? 'weekend' : '';
-      headHtml += `<th class="${cls}">${d}<br>${weekStr}</th>`;
+      headHtml += `<th class="${cls}">${d}<br><small>${weekStr}</small></th>`;
     }
     headRow.innerHTML = headHtml;
 
@@ -172,7 +186,8 @@
 
       res.employees.forEach(emp => {
         const tr = document.createElement("tr");
-        let html = `<td>${emp.name}</td>`; // 左側固定欄
+        // 第一欄：員工姓名 (已設定 sticky)
+        let html = `<td><div class="col-emp-txt">${emp.name}</div></td>`;
         
         for(let d=1; d<=days; d++) {
           const cell = (res.roster[emp.id] && res.roster[emp.id][d]) ? res.roster[emp.id][d] : {};
@@ -185,6 +200,7 @@
             const schId = cell.scheduleId || '';
             const isApproved = cell.status === 'APPROVED';
             const disabled = (isApproved && !isManager) ? 'disabled' : '';
+            // 這裡直接把 class 加在 td 上，讓背景色跟著 sticky 跑
             const bgClass = val === 'EARLY' ? 'st-EARLY' : (val === 'LATE' ? 'st-LATE' : 'st-OFF');
             
             html += `
@@ -207,7 +223,9 @@
   async function saveShift(el, empId, empName, date, oldId, dayIdx) {
     const shift = el.value;
     const td = document.getElementById(`td_${empId}_${dayIdx}`);
+    // 即時變色
     td.className = shift === 'EARLY' ? 'st-EARLY' : (shift === 'LATE' ? 'st-LATE' : 'st-OFF');
+    
     if (!oldId && shift === 'OFF') return;
     try {
       const act = oldId ? "update_schedule" : "add_schedule";

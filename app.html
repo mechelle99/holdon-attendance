@@ -18,9 +18,8 @@
     .btn-mgr{background:#6f42c1;margin-bottom:8px;}
     .btn-sch{background:#17a2b8;margin-bottom:12px;}
     .btn-correct{background:#6c757d;}
-    
-    /* 歷史紀錄按鈕樣式 */
     .btn-hist { background:#fff; color:#007aff; border:2px solid #007aff; margin-top:12px; }
+    .btn-my { background:#4a90e2; margin-bottom:12px; } /* 新增 */
     
     input,select{width:100%;padding:12px;margin-top:8px;border:1px solid #ddd;border-radius:10px;box-sizing:border-box;font-size:16px;}
     .hidden{display:none;}
@@ -49,6 +48,10 @@
       <div class="label">補休剩餘</div>
       <div class="big-num"><span id="valComp">-</span><span style="font-size:14px"> 時</span></div>
     </div>
+  </div>
+
+  <div class="card" style="padding:15px;">
+    <button class="btn btn-my" onclick="location.href='employee.html'">📊 查看我的出勤統計</button>
   </div>
 
   <div class="card">
@@ -146,7 +149,7 @@
         const payload = JSON.stringify({ ...data, userId, webhookKey:window.CONFIG?.WEBHOOK_KEY });
         const s = document.createElement("script");
         s.src = `${ENDPOINT}?action=${act}&payload=${encodeURIComponent(payload)}&callback=${cb}`;
-        window[cb] = (res) => { resolve(res); document.body.removeChild(s); document.getElementById("loading").style.display="none"; };
+        window[cb] = (res) => { resolve(res); try{delete window[cb];document.body.removeChild(s);}catch(e){} document.getElementById("loading").style.display="none"; };
         s.onerror = () => { alert("連線失敗"); document.getElementById("loading").style.display="none"; };
         document.body.appendChild(s);
       });
@@ -159,7 +162,6 @@
           document.getElementById("valAnnual").textContent = r.annual.left;
           document.getElementById("valComp").textContent = r.comp.left;
         }
-        // 移除 loadHistory()
       } catch(e) { console.error(e); }
     }
     init();

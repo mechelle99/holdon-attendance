@@ -18,11 +18,11 @@
     .bal-box{display:flex;gap:10px;}
     .bal-item{flex:1;background:#f0f7ff;padding:8px;border-radius:8px;text-align:center;}
     
-    /* 紀錄卡片樣式 */
+    /* 紀錄卡片 */
     .rec-card { background: #fff; padding: 12px; border-radius: 8px; border: 1px solid #eee; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
     .rec-date { font-weight: bold; font-size: 15px; width: 60px; }
     .rec-shift { font-size: 12px; color: #666; width: 40px; text-align: center; background: #eee; border-radius: 4px; padding: 2px 0; }
-    .rec-time { font-size: 14px; text-align: right; flex: 1; margin-right: 10px; line-height: 1.4; }
+    .rec-time { font-size: 14px; text-align: right; flex: 1; margin-right: 10px; line-height: 1.4; color:#333; }
     .status-tag { font-size: 12px; padding: 3px 8px; border-radius: 4px; color: #fff; font-weight: bold; min-width: 50px; text-align: center; }
     
     .st-ok { background: #34c759; } 
@@ -109,7 +109,6 @@
     if(localStorage.getItem("isManager")==='Y') document.getElementById("admBtns").classList.remove("hidden");
     else if(localStorage.getItem("canSchedule")==='Y') {
         document.getElementById("admBtns").classList.remove("hidden");
-        // 如果只有排班權限，隱藏主管按鈕 (但這裡簡單處理，只要有任一權限就顯示按鈕區，按鈕本身再判斷)
     }
 
     const now=new Date();
@@ -212,7 +211,7 @@
              else if (!item.in) { stTag="缺上班"; stCls="st-miss"; }
              else if (!item.out) { stTag="缺下班"; stCls="st-miss"; }
              else {
-                // 遲到判斷 (範例：早班10:00, 午班12:00)
+                // 遲到判斷
                 const target = item.shift==='EARLY' ? '10:00:00' : '12:00:00';
                 if(item.in > target) { stTag="遲到"; stCls="st-late"; }
              }

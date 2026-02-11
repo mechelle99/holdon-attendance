@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>出勤檢視</title>
+  <style>
+    body{font-family:sans-serif;background:#f4f6f8;padding:16px;}
+    .card{background:#fff;padding:12px;border-radius:8px;margin-bottom:8px;box-shadow:0 2px 5px rgba(0,0,0,0.05);display:flex;align-items:center;justify-content:space-between;}
+    .date{font-weight:bold;font-size:15px;width:50px;}
+    .time{font-size:13px;color:#333;text-align:right;flex:1;margin-right:10px;}
+    .tag{font-size:12px;padding:3px 8px;border-radius:4px;color:#fff;min-width:50px;text-align:center;}
+    
+    .ok{background:#34c759} 
+    .late{background:#ffcc00;color:#000} 
+    .miss{background:#ff3b30} 
+    .abn{background:#5856d6}
+    .off{background:#ccc}
+    .leave{background:#007aff} /* 請假 */
+    
+    select{padding:8px;border-radius:6px;border:1px solid #ddd;margin-right:5px;}
+    button{padding:8px 15px;background:#333;color:#fff;border:none;border-radius:6px;}
+  </style>
+</head>
+<body>
+  <div style="margin-bottom:15px;">
+    <button onclick="location.href='app.html'">← 返回</button>
+    <select id="y"></select><select id="m"></select>
+    <button onclick="load()">查詢</button>
+  </div>
+  <div id="list"></div>
+
+  <script src="config.js"></script>
+  <script>
+    const uid=localStorage.getItem("employeeId");
+    const yS=document.getElementById("y"), mS=document.getElementById("m");
+    const now=new Date();
+    for(let i=now.getFullYear();i>=2024;i--) yS.add(new Option(i,i));
+    for(let i=1;i<=12;i++) mS.add(new Option(i,i,i===(now.getMonth()+1),i===(now.getMonth()+1)));
+
+    function api(a,d={}){
+      return new Promise(r=>{
+        const s=document.createElement("script");
+        s.src=`${window.CONFIG.GAS_ENDPOINT}?action=${a}&payload=${encodeURIComponent(JSON.stringify({...d,userId:uid}))}&callback=cb${Date.now()}`;
+        window[`cb${Date.now()}`]=(res)=>{r(res);s.remove()};
+        document.body.appendChild(s);
+      });
+    }
+
+    async function load(){
+      document.getElementById("list").innerHTML = "載入中...";
+      const y=yS.value, m=mS.value;
+      const r = await api("get_dashboard", {year:y, month:m});
+      
+      const d = document.getElementById("list");
+      d.innerHTML = "";
+      
+      if(r.ok && r.schedule) {
+        const days = new Date(y, m, 0).getDate();
+        const map = {};
+        
+        // 1. 預設排班 (不在班表=早班)
+        for(let i=1; i<=days; i++) map[i] = { shift: r.schedule[i] || 'EARLY', in:null, out:null, leave:null };
+        
+        // 2. 填入打卡
+        r.clocks.forEach(c => {
+          const day = parseInt(c.date.split('-')[2]);
+          if(map[day]) {
+            if(c.type.includes('上班')) map[day].in = c.time;
+            if(c.type.includes('下班')) map[day].out = c.time;
+          }
+        });
+
+        // 3. 填入請假
+        if(r.leaves) {
+          r.leaves.forEach(l => {
+            const day = parseInt(l.date.split('-')[2]);
+            if(map[day]) map[day].leave = l.type;
+          });
+        }
+
+        // 4. 渲染
+        for(let i=days; i>=1; i--) {
+          // 未來日期不顯示
+          if(new Date(y, m-1, i) > new Date()) continue;
+
+          const item = map[i];
+          let stTag="正常", stCls="ok";
+          
+          if (item.leave) {
+             stTag = item.leave; stCls = "leave";
+          } else if (item.shift === 'OFF') {
+             stTag = "排休"; stCls = "off";
+             if(item.in||item.out) { stTag="加班"; stCls="ok"; }
+          } else {
+             // 工作日邏輯
+             if(!item.in && !item.out) { stTag="曠職"; stCls="miss"; }
+             else if(!item.in) { stTag="缺上班卡"; stCls="miss"; }
+             else if(!item.out) { stTag="缺下班卡"; stCls="miss"; }
+             else {
+                // 遲到/異常判斷
+                const startTarget = item.shift==='EARLY' ? '10:00:00' : '12:00:00';
+                const endHour = item.shift==='EARLY' ? 18 : 21;
+                
+                if(item.in > startTarget) { stTag="遲到"; stCls="late"; }
+                
+                // 異常: 下班超過1小時
+                const outH = parseInt(item.out.split(':')[0]);
+                if(outH >= endHour + 1) { stTag="異常"; stCls="abn"; }
+             }
+          }
+
+          d.innerHTML += `
+            <div class="card">
+              <div class="date">${m}/${i}</div>
+              <div class="time">
+                上: ${item.in||'--:--'}<br>
+                下: ${item.out||'--:--'}
+              </div>
+              <div class="tag ${stCls}">${stTag}</div>
+            </div>`;
+        }
+      } else { d.innerHTML = "<div style='text-align:center'>無資料</div>"; }
+    }
+    load();
+  </script>
+</body>
+</html>

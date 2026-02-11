@@ -45,81 +45,100 @@
   <script src="config.js"></script>
   <script>
     const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || "";
-    
+
     function showLogin(){ document.getElementById("loginCard").style.display="block"; document.getElementById("forgotCard").style.display="none"; document.getElementById("resetCard").style.display="none"; }
-    function showForgot(){ document.getElementById("loginCard").style.display="none"; document.getElementById("forgotCard").style.display="block"; }
+    function showForgot(){ document.getElementById("loginCard").style.display="none"; document.getElementById("forgotCard").style.display="block"; document.getElementById("resetCard").style.display="none"; }
     function showReset(){ document.getElementById("forgotCard").style.display="none"; document.getElementById("resetCard").style.display="block"; }
 
     function jsonpCall(action, data){
-      const timeoutMs = 60000; 
+      const timeoutMs = 60000;
       return new Promise((resolve, reject)=>{
         const cbName = "cb" + Date.now();
         const script = document.createElement("script");
         const payload = JSON.stringify({ ...data, webhookKey: window.CONFIG?.WEBHOOK_KEY });
         const url = `${ENDPOINT}?action=${action}&payload=${encodeURIComponent(payload)}&callback=${cbName}`;
-        
+
         let isSettled = false;
         const timer = setTimeout(() => {
-            if(!isSettled) { isSettled = true; reject("連線逾時，請再試一次"); try{delete window[cbName];script.remove();}catch(e){} }
+          if(!isSettled){
+            isSettled = true;
+            reject("連線逾時，請再試一次");
+            try{ delete window[cbName]; script.remove(); }catch(e){}
+          }
         }, timeoutMs);
 
         window[cbName] = (res) => {
-           if(isSettled) return; isSettled = true; clearTimeout(timer); resolve(res); delete window[cbName]; script.remove();
+          if(isSettled) return;
+          isSettled = true;
+          clearTimeout(timer);
+          resolve(res);
+          delete window[cbName];
+          script.remove();
         };
-        script.onerror = () => { if(isSettled)return; isSettled=true; clearTimeout(timer); reject("網路錯誤"); };
+        script.onerror = () => {
+          if(isSettled) return;
+          isSettled = true;
+          clearTimeout(timer);
+          reject("網路錯誤");
+        };
         script.src = url;
         document.body.appendChild(script);
       });
     }
 
     async function login(){
-       const empId = document.getElementById("empId").value.trim();
-       const pass = document.getElementById("pass").value.trim();
-       if(!empId || !pass) return alert("請輸入");
-       document.getElementById("loading").style.display = "block";
-       try {
-         const res = await jsonpCall("login", { empId, pass });
-         document.getElementById("loading").style.display = "none";
-         if(res.ok){
-             localStorage.setItem("employeeId", res.empId);
-             localStorage.setItem("employeeName", res.name);
-             localStorage.setItem("isManager", res.isManager ? "Y":"N");
-             localStorage.setItem("canSchedule", res.canSchedule ? "Y":"N");
-             location.href = "employee.html";
-         } else { alert(res.message); }
-       } catch(e){ 
-           document.getElementById("loading").style.display = "none";
-           alert("登入失敗: " + e); 
-       }
+      const empId = document.getElementById("empId").value.trim();
+      const pass = document.getElementById("pass").value.trim();
+      if(!empId || !pass) return alert("請輸入");
+
+      document.getElementById("loading").style.display = "block";
+      try{
+        const res = await jsonpCall("login", { empId, pass });
+        document.getElementById("loading").style.display = "none";
+
+        if(res.ok){
+          localStorage.setItem("employeeId", res.empId);
+          localStorage.setItem("employeeName", res.name);
+          localStorage.setItem("isManager", res.isManager ? "Y":"N");
+          localStorage.setItem("canSchedule", res.canSchedule ? "Y":"N");
+          location.href = "app.html";
+        }else{
+          alert(res.message || "登入失敗");
+        }
+      }catch(e){
+        document.getElementById("loading").style.display = "none";
+        alert("登入失敗: " + e);
+      }
     }
 
     async function sendForgot(){
-        const empId = document.getElementById("f_empId").value;
-        const btn = document.getElementById("btnSendForgot");
-        if(!empId) return alert("請輸入");
-        
-        btn.disabled = true; btn.textContent = "發送中...";
-        try {
-            const res = await jsonpCall("forgot_password", { empId });
-            if(res.ok) { alert(res.message); showReset(); } else { alert(res.message); }
-        } catch(e) { alert(e); }
-        finally { btn.disabled = false; btn.textContent = "寄送驗證碼"; }
+      const empId = document.getElementById("f_empId").value.trim();
+      const btn = document.getElementById("btnSendForgot");
+      if(!empId) return alert("請輸入");
+
+      btn.disabled = true; btn.textContent = "發送中...";
+      try{
+        const res = await jsonpCall("forgot_password", { empId });
+        if(res.ok){ alert(res.message || "已寄送"); showReset(); }
+        else { alert(res.message || "失敗"); }
+      }catch(e){ alert(e); }
+      finally{ btn.disabled = false; btn.textContent = "寄送驗證碼"; }
     }
 
     async function doReset(){
-        const empId = document.getElementById("f_empId").value;
-        const token = document.getElementById("r_token").value;
-        const newPass = document.getElementById("r_p1").value;
-        const btn = document.getElementById("btnReset");
-        
-        if(!token || !newPass) return alert("請填寫");
-        
-        btn.disabled = true; btn.textContent = "處理中...";
-        try {
-            const res = await jsonpCall("reset_password", { empId, token, newPass });
-            if(res.ok){ alert("修改成功，請登入"); showLogin(); } else { alert(res.message); }
-        } catch(e) { alert(e); }
-        finally { btn.disabled = false; btn.textContent = "確認重設"; }
+      const empId = document.getElementById("f_empId").value.trim();
+      const token = document.getElementById("r_token").value.trim();
+      const newPass = document.getElementById("r_p1").value.trim();
+      const btn = document.getElementById("btnReset");
+      if(!empId || !token || !newPass) return alert("請填寫完整");
+
+      btn.disabled = true; btn.textContent = "處理中...";
+      try{
+        const res = await jsonpCall("reset_password", { empId, token, newPass });
+        if(res.ok){ alert("修改成功，請登入"); showLogin(); }
+        else { alert(res.message || "失敗"); }
+      }catch(e){ alert(e); }
+      finally{ btn.disabled = false; btn.textContent = "確認重設"; }
     }
   </script>
 </body>

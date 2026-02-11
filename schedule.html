@@ -57,12 +57,12 @@
             const cell = (r.roster[e.id] && r.roster[e.id][i]) ? r.roster[e.id][i] : {};
             const v = cell.val || 'OFF';
             const cls = v==='EARLY'?'bg-early':(v==='LATE'?'bg-late':'');
-            const txt = v==='EARLY'?'早':(v==='LATE'?'午':'');
+            const txt = v==='EARLY'?'早':(v==='LATE'?'午':'休');
             
-            // 權限判斷：使用後端回傳的 canEdit
+            // ★權限修復：使用 canEdit 判斷是否顯示下拉選單
             if(r.canEdit) {
                b+=`<td class="${cls}"><select class="shift-sel" onchange="save('${e.id}','${e.name}',${i},this.value)">
-               <option value="OFF" ${v==='OFF'?'selected':''}></option>
+               <option value="OFF" ${v==='OFF'?'selected':''}>休</option>
                <option value="EARLY" ${v==='EARLY'?'selected':''}>早</option>
                <option value="LATE" ${v==='LATE'?'selected':''}>午</option></select></td>`;
             } else { b+=`<td class="${cls}">${txt}</td>`; }
@@ -74,7 +74,7 @@
     }
     async function save(eid,nm,d,v){
       await api("update_schedule",{empId:eid,empName:nm,date:`${yS.value}-${mS.value}-${d}`,shift:v});
-      load(); // 重新整理變色
+      load(); 
     }
     load();
   </script>

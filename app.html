@@ -18,7 +18,9 @@
     .btn-mgr{background:#6f42c1;margin-bottom:8px;}
     .btn-sch{background:#17a2b8;margin-bottom:12px;}
     .btn-correct{background:#6c757d;}
-    .btn-hist{background:#20c997;margin-top:12px;} /* 新按鈕樣式 */
+    
+    /* 歷史紀錄按鈕樣式 */
+    .btn-hist { background:#fff; color:#007aff; border:2px solid #007aff; margin-top:12px; }
     
     input,select{width:100%;padding:12px;margin-top:8px;border:1px solid #ddd;border-radius:10px;box-sizing:border-box;font-size:16px;}
     .hidden{display:none;}
@@ -157,6 +159,7 @@
           document.getElementById("valAnnual").textContent = r.annual.left;
           document.getElementById("valComp").textContent = r.comp.left;
         }
+        // 移除 loadHistory()
       } catch(e) { console.error(e); }
     }
     init();
@@ -208,6 +211,7 @@
       const type = document.getElementById("correctType").value;
       const reason = document.getElementById("correctReason").value;
       if(!time || !reason) return alert("請填寫補卡時間與原因");
+      
       const r = await api("submit_request", { category: "CORRECTION", leaveType: type, start: time, end: time, hours: 0, reason: reason });
       if(r.ok) { alert("✅ " + r.message); location.reload(); } else { alert("❌ " + r.message); }
     }
@@ -217,11 +221,13 @@
       const s = document.getElementById("start").value;
       const e = document.getElementById("end").value;
       const autoClockVal = document.getElementById("autoClock").value;
+      
       let hours = 0;
       if(s && e) {
          hours = (new Date(e) - new Date(s)) / 3600000;
          hours = Math.round(hours * 10) / 10;
       }
+
       const r = await api("submit_request", {
         category: cat, leaveType: cat==="LEAVE" ? document.getElementById("lType").value : "",
         start: s, end: e, hours: hours, reason: document.getElementById("reason").value,

@@ -2,22 +2,38 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
   <title>HOLDON 系統</title>
   <style>
-    :root{ --blue:#007aff; --bg:#f4f6f8; }
-    body{font-family:-apple-system,sans-serif;background:var(--bg);margin:0;padding:16px;color:#333;padding-bottom:80px;}
-    .card{background:#fff;border-radius:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,0.05);margin-bottom:16px;}
-    .btn{width:100%;padding:14px;border:none;border-radius:12px;font-size:16px;font-weight:bold;color:#fff;cursor:pointer;margin-top:8px;}
+    :root{ --blue:#007aff; --bg:#f4f6f8; --card:#fff; }
+    body{font-family:-apple-system,system-ui,sans-serif;background:var(--bg);margin:0;padding:16px;color:#333;padding-bottom:100px;}
+    
+    /* Reset iOS Input Styles */
+    input, select, textarea {
+      -webkit-appearance: none; appearance: none;
+      background: #fff; border: 1px solid #ddd; border-radius: 8px;
+      width: 100%; padding: 12px; box-sizing: border-box; font-size: 16px; margin-top: 5px;
+    }
+    
+    .card{background:var(--card);border-radius:16px;padding:20px;box-shadow:0 2px 10px rgba(0,0,0,0.04);margin-bottom:16px;}
+    .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+    
+    .btn{width:100%;padding:14px;border:none;border-radius:12px;font-size:16px;font-weight:bold;color:#fff;cursor:pointer;margin-top:10px;}
     .btn-in{background:var(--blue);}
     .btn-out{background:#ff9500;}
     .btn-gray{background:#555;}
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-    input, select, textarea{width:100%;padding:12px;margin-top:6px;border:1px solid #ddd;border-radius:8px;box-sizing:border-box;font-size:16px;}
-    label{font-size:13px;color:#666;font-weight:bold;margin-top:10px;display:block;}
-    .recent-item{display:flex;justify-content:space-between;border-bottom:1px solid #eee;padding:10px 0;}
+    
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+    label{font-size:13px;color:#666;font-weight:600;margin-top:12px;display:block;}
+    
     .hidden{display:none;}
-    #loading{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.8);display:none;justify-content:center;align-items:center;z-index:99;}
+    #loading{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.85);display:none;justify-content:center;align-items:center;z-index:999;}
+    
+    /* 搜尋區樣式 */
+    .search-bar { display: flex; gap: 8px; margin-bottom: 10px; }
+    .search-bar select { flex: 1; margin-top:0; }
+    .search-btn { background: var(--blue); color: #fff; border:0; border-radius:8px; padding:0 15px; font-weight:bold; cursor:pointer;}
+    .rec-item { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee; font-size: 15px; }
   </style>
 </head>
 <body>
@@ -25,11 +41,10 @@
   <div id="loading">處理中...</div>
 
   <div class="card">
-    <div style="display:flex;justify-content:space-between;">
-      <h3 style="margin:0" id="userName">...</h3>
-      <a href="index.html" style="color:#c00;text-decoration:none;">登出</a>
+    <div class="header">
+      <h2 style="margin:0;font-size:20px;" id="userName">載入中...</h2>
+      <a href="javascript:logout()" style="color:#c00;font-size:14px;">登出</a>
     </div>
-    
     <div id="mgrBtn" class="hidden">
       <button class="btn" style="background:#6f42c1;" onclick="location.href='manager.html'">👑 主管後台</button>
     </div>
@@ -44,7 +59,7 @@
       <button class="btn btn-in" onclick="clock('clock_in')">上班</button>
       <button class="btn btn-out" onclick="clock('clock_out')">下班</button>
     </div>
-    <div id="clockMsg" style="text-align:center;margin-top:8px;font-size:13px;color:var(--blue);"></div>
+    <div id="clockMsg" style="text-align:center;margin-top:10px;font-size:13px;color:var(--blue);"></div>
   </div>
 
   <div class="card">
@@ -72,34 +87,49 @@
         <option value="comp">補休</option>
       </select>
     </div>
+    
+    <div id="areaCorrect" class="hidden">
+      <label>補卡類別</label>
+      <select id="cType">
+        <option value="IN">上班卡</option>
+        <option value="OUT">下班卡</option>
+      </select>
+    </div>
 
     <div id="areaAuto" class="hidden">
-      <label>自動打卡設定 (核准後生效)</label>
+      <label>自動打卡 (核准後生效)</label>
       <select id="autoClock">
         <option value="">手動打卡</option>
-        <option value="OUT">自動打外出(上班)卡</option>
+        <option value="OUT">自動打外出出發(上班)</option>
         <option value="BOTH">自動打往返卡</option>
       </select>
     </div>
 
     <div class="grid">
-      <div><label>開始</label><input type="datetime-local" id="start" onchange="calc()"></div>
-      <div><label>結束</label><input type="datetime-local" id="end" onchange="calc()"></div>
+      <div><label>開始時間</label><input type="datetime-local" id="start" onchange="calc()"></div>
+      <div><label>結束時間</label><input type="datetime-local" id="end" onchange="calc()"></div>
     </div>
     
     <label>時數 (系統自動計算)</label>
-    <input id="hours" readonly style="background:#f5f5f5;">
+    <input id="hours" readonly style="background:#f9f9f9;color:#555;">
 
     <label>事由</label>
     <textarea id="reason" rows="2"></textarea>
 
     <button class="btn btn-gray" onclick="submit()">送出申請</button>
-    <button class="btn" style="background:#fff;color:#333;border:1px solid #ccc;margin-top:10px;" onclick="location.href='history.html'">📜 查詢歷史紀錄</button>
+    <button class="btn" style="background:#fff;color:#007aff;border:1px solid #007aff;margin-top:12px;" onclick="location.href='history.html'">📜 查詢歷史紀錄</button>
   </div>
 
   <div class="card">
-    <h3 style="margin:0 0 10px">📊 最近打卡 (5筆)</h3>
-    <div id="recentList">載入中...</div>
+    <h3 style="margin:0 0 10px">📊 打卡紀錄查詢</h3>
+    <div class="search-bar">
+      <select id="sYear"></select>
+      <select id="sMonth"></select>
+      <button class="search-btn" onclick="searchClock()">搜尋</button>
+    </div>
+    <div id="clockList" style="min-height:50px;">
+      <div style="color:#999;font-size:14px;text-align:center;padding:10px;">請點擊搜尋</div>
+    </div>
   </div>
 
   <script src="config.js"></script>
@@ -108,40 +138,39 @@
     if(!userId) location.href="index.html";
     document.getElementById("userName").textContent = localStorage.getItem("employeeName");
 
+    // 權限按鈕
     if(localStorage.getItem("isManager")==="Y") document.getElementById("mgrBtn").classList.remove("hidden");
     if(localStorage.getItem("canSchedule")==="Y" || localStorage.getItem("isManager")==="Y") document.getElementById("schBtn").classList.remove("hidden");
 
+    // 初始化日期選單
+    const now = new Date();
+    const sY = document.getElementById("sYear");
+    const sM = document.getElementById("sMonth");
+    for(let i=now.getFullYear(); i>=2024; i--) sY.add(new Option(i+"年", i));
+    for(let i=1; i<=12; i++) sM.add(new Option(i+"月", i, i===(now.getMonth()+1), i===(now.getMonth()+1)));
+
     function api(act, data={}) {
       document.getElementById("loading").style.display="flex";
-      return new Promise((resolve, reject)=>{
+      return new Promise((r,rj)=>{
         const cb = "cb"+Date.now();
         const payload = JSON.stringify({...data, userId, webhookKey:window.CONFIG.WEBHOOK_KEY});
         const s = document.createElement("script");
         s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${act}&payload=${encodeURIComponent(payload)}&callback=${cb}`;
-        window[cb] = (res)=>{ resolve(res); document.body.removeChild(s); document.getElementById("loading").style.display="none"; };
+        window[cb]=(res)=>{ r(res); s.remove(); document.getElementById("loading").style.display="none"; };
+        s.onerror=()=>{ rj(); document.getElementById("loading").style.display="none"; }
         document.body.appendChild(s);
       });
     }
 
-    async function init() {
-      const res = await api("get_dashboard");
-      if(res.ok && res.recent) {
-        document.getElementById("recentList").innerHTML = res.recent.map(r => `
-          <div class="recent-item">
-            <span>${r.date} ${r.type}</span>
-            <span>${r.time}</span>
-          </div>
-        `).join("");
-      }
-    }
-    init();
-
+    // UI 切換
     function uiChange() {
       const v = document.getElementById("cat").value;
       document.getElementById("areaLeave").style.display = (v==='LEAVE')?'block':'none';
       document.getElementById("areaAuto").style.display = (v==='OUTING')?'block':'none';
+      document.getElementById("areaCorrect").style.display = (v==='CORRECTION')?'block':'none';
     }
 
+    // 自動算時數
     function calc() {
       const s = document.getElementById("start").value;
       const e = document.getElementById("end").value;
@@ -158,16 +187,20 @@
         alert(res.message);
         if(res.ok) {
           document.getElementById("clockMsg").textContent = `最後: ${res.time}`;
-          init();
+          searchClock(); // 重新搜尋
         }
       });
     }
 
     async function submit() {
       const cat = document.getElementById("cat").value;
+      let lType = "";
+      if (cat === 'LEAVE') lType = document.getElementById("lType").value;
+      if (cat === 'CORRECTION') lType = document.getElementById("cType").value;
+
       const data = {
         category: cat,
-        leaveType: (cat==='LEAVE') ? document.getElementById("lType").value : '',
+        leaveType: lType,
         autoClock: (cat==='OUTING') ? document.getElementById("autoClock").value : '',
         start_ts: document.getElementById("start").value,
         end_ts: document.getElementById("end").value,
@@ -175,12 +208,34 @@
         reason: document.getElementById("reason").value
       };
       
-      if(!data.start_ts || !data.end_ts) return alert("請填寫時間");
+      if(!data.start_ts || !data.end_ts) return alert("請填寫完整時間");
       
       const res = await api("submit_request", data);
       alert(res.message);
-      if(res.ok) { document.getElementById("reason").value=""; init(); }
+      if(res.ok) { document.getElementById("reason").value=""; }
     }
+
+    async function searchClock() {
+      const list = document.getElementById("clockList");
+      list.innerHTML = '<div style="text-align:center;padding:10px;color:#999;">載入中...</div>';
+      
+      const res = await api("get_dashboard", { year: sY.value, month: sM.value });
+      if(res.ok && res.searchResult && res.searchResult.length > 0) {
+        list.innerHTML = res.searchResult.map(r => `
+          <div class="rec-item">
+            <span>${r.date} <span style="font-weight:bold;color:${r.type==='上班'?'#007aff':'#ff9500'}">${r.type}</span></span>
+            <span>${r.time}</span>
+          </div>
+        `).join("");
+      } else {
+        list.innerHTML = '<div style="text-align:center;padding:10px;color:#999;">該月無紀錄</div>';
+      }
+    }
+    
+    // 預設載入一次
+    searchClock();
+    
+    function logout(){ localStorage.clear(); location.href="index.html"; }
   </script>
 </body>
 </html>

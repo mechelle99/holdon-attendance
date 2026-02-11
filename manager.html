@@ -5,82 +5,61 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>主管審核後台</title>
   <style>
-    body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f4f6f8;margin:0;padding:20px;color:#333;}
+    :root{ --blue:#007aff; --green:#34c759; --red:#ff3b30; --bg:#f4f6f8; }
+    body{font-family:-apple-system,sans-serif;background:var(--bg);margin:0;padding:20px;color:#333;padding-bottom:60px;}
     .container{max-width:800px;margin:0 auto;}
-    .btn-back{display:inline-block;padding:8px 16px;background:#333;color:#fff;text-decoration:none;border-radius:6px;margin-bottom:20px;}
-    .card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 4px 12px rgba(0,0,0,0.05);margin-bottom:20px;}
-    h3{margin-top:0;border-bottom:1px solid #eee;padding-bottom:10px;}
+    .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
+    .btn-back{padding:8px 16px;background:#e5e5ea;color:#333;text-decoration:none;border-radius:8px;font-size:14px;font-weight:bold;}
+    .card{background:#fff;border-radius:16px;padding:20px;box-shadow:0 2px 10px rgba(0,0,0,0.05);margin-bottom:20px;}
+    h3{margin-top:0;border-bottom:1px solid #eee;padding-bottom:12px;font-size:18px;}
     
-    .req-item{border-bottom:1px solid #eee;padding:12px 0;display:flex;justify-content:space-between;align-items:center;}
-    .req-info{font-size:14px; line-height: 1.5;}
-    .req-actions button{margin-left:8px;padding:6px 12px;border:none;border-radius:4px;cursor:pointer;}
-    .btn-approve{background:#28a745;color:#fff;}
-    .btn-reject{background:#dc3545;color:#fff;}
-    
-    .tag { font-size:12px; padding:2px 6px; border-radius:4px; margin-left:5px; }
-    .tag-blue { background:#e3f2fd; color:#007aff; }
-    .tag-orange { background:#fff3e0; color:#ff9800; }
+    .req-item{border-bottom:1px solid #f0f0f0;padding:16px 0;display:flex;justify-content:space-between;align-items:flex-start;}
+    .req-item:last-child{border-bottom:none;}
+    .req-info{font-size:15px;line-height:1.5;}
+    .req-meta{font-size:13px;color:#666;margin-top:4px;}
+    .tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:bold;margin-left:6px;}
+    .tag-blue{background:#e3f2fd;color:var(--blue);}
+    .tag-orange{background:#fff3e0;color:#ff9500;}
 
-    table{width:100%;border-collapse:collapse;font-size:14px;}
-    th,td{padding:10px;text-align:left;border-bottom:1px solid #eee;}
-    th{background:#fafafa;}
-    
-    #loading{text-align:center;padding:20px;color:#666;}
+    .btn-group{display:flex;gap:8px;}
+    .btn-act{border:none;border-radius:8px;padding:8px 16px;font-weight:bold;cursor:pointer;color:#fff;font-size:14px;}
+    .btn-approve{background:var(--green);}
+    .btn-reject{background:var(--red);}
+    .loading{text-align:center;padding:20px;color:#999;}
   </style>
 </head>
 <body>
 
 <div class="container">
-  <a href="app.html" class="btn-back">← 回到打卡首頁</a>
-
-  <div class="card">
-    <h3>⚡ 待審核申請 (Pending)</h3>
-    <div id="pendingList">
-      <div id="loading">載入中...</div>
-    </div>
+  <div class="header">
+    <a href="app.html" class="btn-back">← 回首頁</a>
+    <div style="font-weight:bold">主管後台</div>
   </div>
 
   <div class="card">
-    <h3>📊 員工假勤餘額總覽</h3>
-    <div style="overflow-x:auto;">
-      <table id="statsTable">
-        <thead>
-          <tr>
-            <th>員工</th>
-            <th>特休剩餘</th>
-            <th>補休剩餘</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
+    <h3>⚡ 待審核申請</h3>
+    <div id="pendingList" class="loading">載入中...</div>
   </div>
 </div>
 
 <script src="config.js"></script>
 <script>
-  const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || "";
   const userId = localStorage.getItem("employeeId");
-
   if(!userId) location.href="index.html";
 
   function api(act, data={}){
     return new Promise((resolve, reject)=>{
-      const cb = "cb"+Date.now();
-      const payload = JSON.stringify({
-        ...data,
-        userId,
-        webhookKey: window.CONFIG?.WEBHOOK_KEY  // 新增這行
-        });
+      const cb = "cb"+Date.now()+Math.floor(Math.random()*100);
+      const payload = JSON.stringify({ ...data, userId, webhookKey: window.CONFIG?.WEBHOOK_KEY });
       const s = document.createElement("script");
-      s.src = `${ENDPOINT}?action=${act}&payload=${encodeURIComponent(payload)}&callback=${cb}`;
-      window[cb] = (res) => { resolve(res); document.body.removeChild(s); };
+      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${act}&payload=${encodeURIComponent(payload)}&callback=${cb}`;
+      window[cb] = (res) => { resolve(res); try{delete window[cb]; s.remove();}catch(e){} };
       s.onerror = () => reject("連線失敗");
       document.body.appendChild(s);
     });
   }
 
-  async function loadData(){
+  async function init(){
     try {
       const pRes = await api("get_pending");
       const pDiv = document.getElementById("pendingList");
@@ -91,60 +70,48 @@
           const div = document.createElement("div");
           div.className = "req-item";
           
-          // ★ 已修復：後端會回傳正確的 CamelCase
-          const name = r.empName || "未知";
-          const reqId = r.reqId;
-          const typeMap = { 'annual':'特休', 'comp':'補休', 'sick':'病假', 'personal':'事假', 'menstrual':'生理假', 'family':'家庭照顧假', 'wedding':'婚假', 'funeral':'喪假', 'maternity':'產假', 'birthday':'生日假' };
-          const typeStr = typeMap[r.leaveType] || r.leaveType;
-          const catStr = (r.category==='OT')?'加班':(r.category==='OUTING'?'外出':'請假');
-          const start = r.start ? r.start.substring(0,16).replace('T',' ') : '';
-          const end = r.end ? r.end.substring(0,16).replace('T',' ') : '';
+          const typeName = r.leaveType || "";
+          const catName = r.category;
+          const tStart = r.start.replace('T', ' ').substring(0, 16);
+          const tEnd = r.end.replace('T', ' ').substring(0, 16);
 
           div.innerHTML = `
             <div class="req-info">
-              <strong>${name}</strong> <span class="tag tag-blue">${catStr}</span> ${typeStr ? '<span class="tag tag-orange">'+typeStr+'</span>' : ''}<br>
-              <span style="color:#666;font-size:12px">
-                ${start} ~ ${end}<br>
-                時數: ${r.hours}h / 事由: ${r.reason || '無'}
-              </span>
+              <div>
+                <strong>${r.empName}</strong> 
+                <span class="tag tag-blue">${catName}</span>
+                ${typeName ? `<span class="tag tag-orange">${typeName}</span>` : ''}
+              </div>
+              <div class="req-meta">
+                時間: ${tStart} ~ ${tEnd}<br>
+                時數: ${r.hours}小時 / 事由: ${r.reason || '無'}
+              </div>
             </div>
-            <div class="req-actions">
-              <button class="btn-approve" onclick="decide('${reqId}', 'APPROVED')">准</button>
-              <button class="btn-reject" onclick="decide('${reqId}', 'REJECTED')">駁</button>
+            <div class="btn-group">
+              <button class="btn-act btn-approve" onclick="doReview('${r.reqId}', 'APPROVED')">准</button>
+              <button class="btn-act btn-reject" onclick="doReview('${r.reqId}', 'REJECTED')">駁</button>
             </div>
           `;
           pDiv.appendChild(div);
         });
       } else {
-        pDiv.innerHTML = '<div style="padding:10px;color:#999">目前沒有待審核項目</div>';
+        pDiv.innerHTML = '<div style="padding:10px;color:#999;text-align:center">目前沒有待審核項目</div>';
       }
-
-      const sRes = await api("get_team_stats");
-      const tbody = document.querySelector("#statsTable tbody");
-      tbody.innerHTML = "";
-      
-      if(sRes.ok && sRes.list) {
-        sRes.list.forEach(e => {
-          const tr = document.createElement("tr");
-          const ann = e.annual ? e.annual.left : 0;
-          const comp = e.comp ? e.comp.left : 0;
-          tr.innerHTML = `<td>${e.name} (${e.id})</td><td>${ann} 天</td><td>${comp} 時</td>`;
-          tbody.appendChild(tr);
-        });
-      }
-    } catch(e) { alert("載入失敗: " + e); }
+    } catch(e) { 
+      alert("載入失敗: " + e); 
+    }
   }
 
-  async function decide(reqId, decision) {
-    if(!reqId || reqId === 'undefined') { alert("錯誤：申請單編號無效"); return; }
-    if(!confirm(decision==='APPROVED'?"確定核准？":"確定駁回？")) return;
-    const res = await api("review_request", { data: { reqId, decision } });
-    alert(res.message);
-    loadData();
+  async function doReview(reqId, decision) {
+    if(!confirm(decision==='APPROVED' ? "確定核准？" : "確定駁回？")) return;
+    try {
+      const res = await api("review_request", { reqId, decision });
+      alert(res.message);
+      init();
+    } catch(e) { alert("操作失敗"); }
   }
 
-  loadData();
+  init();
 </script>
 </body>
 </html>
-manager.html

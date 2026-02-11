@@ -135,8 +135,14 @@
     const res = await fetch(API_URL,{
       method:"POST",
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ action, payload })
-    });
+      body: JSON.stringify({
+  action,
+  payload: Object.assign({},data||{}, {
+    idToken,
+    webhookKey: window.CONFIG.WEBHOOK_KEY
+  })
+})
+
 
     const json = await res.json();
     return json;

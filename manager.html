@@ -13,13 +13,14 @@
     
     .req-item{border-bottom:1px solid #eee;padding:12px 0;display:flex;justify-content:space-between;align-items:center;}
     .req-info{font-size:14px; line-height: 1.5;}
-    .req-actions button{margin-left:8px;padding:6px 12px;border:none;border-radius:4px;cursor:pointer;}
+    .req-actions button{margin-left:8px;padding:6px 12px;border:none;border-radius:4px;cursor:pointer;font-weight:bold;}
     .btn-approve{background:#28a745;color:#fff;}
     .btn-reject{background:#dc3545;color:#fff;}
     
     .tag { font-size:12px; padding:2px 6px; border-radius:4px; margin-left:5px; }
     .tag-blue { background:#e3f2fd; color:#007aff; }
     .tag-orange { background:#fff3e0; color:#ff9800; }
+    .tag-purple { background:#f3e5f5; color:#7b1fa2; }
 
     table{width:100%;border-collapse:collapse;font-size:14px;}
     th,td{padding:10px;text-align:left;border-bottom:1px solid #eee;}
@@ -67,10 +68,11 @@
   function api(act, data={}){
     return new Promise((resolve, reject)=>{
       const cb = "cb"+Date.now();
+      // FIX: 加上 webhookKey，否則會被後端擋下
       const payload = JSON.stringify({ ...data, userId, webhookKey:window.CONFIG?.WEBHOOK_KEY });
       const s = document.createElement("script");
       s.src = `${ENDPOINT}?action=${act}&payload=${encodeURIComponent(payload)}&callback=${cb}`;
-      window[cb] = (res) => { resolve(res); document.body.removeChild(s); };
+      window[cb] = (res) => { resolve(res); try{delete window[cb];document.body.removeChild(s);}catch(e){} };
       s.onerror = () => reject("連線失敗");
       document.body.appendChild(s);
     });
@@ -78,6 +80,7 @@
 
   async function loadData(){
     try {
+      // 1. 載入待審核
       const pRes = await api("get_pending");
       const pDiv = document.getElementById("pendingList");
       pDiv.innerHTML = "";
@@ -87,18 +90,34 @@
           const div = document.createElement("div");
           div.className = "req-item";
           
-          // ★ 已修復：後端會回傳正確的 CamelCase
           const name = r.empName || "未知";
           const reqId = r.reqId;
           const typeMap = { 'annual':'特休', 'comp':'補休', 'sick':'病假', 'personal':'事假', 'menstrual':'生理假', 'family':'家庭照顧假', 'wedding':'婚假', 'funeral':'喪假', 'maternity':'產假', 'birthday':'生日假' };
-          const typeStr = typeMap[r.leaveType] || r.leaveType;
-          const catStr = (r.category==='OT')?'加班':(r.category==='OUTING'?'外出':'請假');
-          const start = r.start ? r.start.substring(0,16).replace('T',' ') : '';
-          const end = r.end ? r.end.substring(0,16).replace('T',' ') : '';
+          
+          let typeStr = typeMap[r.leaveType] || r.leaveType || "";
+          let catStr = "";
+          let tagClass = "tag-blue";
+
+          if(r.category === 'OT') {
+             catStr = "加班/補休申請";
+             tagClass = "tag-purple";
+             typeStr = ""; // 加班通常不顯示假別，或顯示為補休累計
+          } else if(r.category === 'OUTING') {
+             catStr = "外出";
+          } else if(r.category === 'CORRECTION') {
+             catStr = "補卡";
+             tagClass = "tag-orange";
+             typeStr = (r.leaveType === 'IN' ? '上班卡' : '下班卡');
+          } else {
+             catStr = "請假";
+          }
+
+          const start = r.start ? r.start.substring(5,16).replace('T',' ') : '';
+          const end = r.end ? r.end.substring(5,16).replace('T',' ') : '';
 
           div.innerHTML = `
             <div class="req-info">
-              <strong>${name}</strong> <span class="tag tag-blue">${catStr}</span> ${typeStr ? '<span class="tag tag-orange">'+typeStr+'</span>' : ''}<br>
+              <strong>${name}</strong> <span class="tag ${tagClass}">${catStr}</span> ${typeStr ? '<span class="tag tag-orange">'+typeStr+'</span>' : ''}<br>
               <span style="color:#666;font-size:12px">
                 ${start} ~ ${end}<br>
                 時數: ${r.hours}h / 事由: ${r.reason || '無'}
@@ -115,6 +134,7 @@
         pDiv.innerHTML = '<div style="padding:10px;color:#999">目前沒有待審核項目</div>';
       }
 
+      // 2. 載入員工餘額
       const sRes = await api("get_team_stats");
       const tbody = document.querySelector("#statsTable tbody");
       tbody.innerHTML = "";
@@ -122,21 +142,32 @@
       if(sRes.ok && sRes.list) {
         sRes.list.forEach(e => {
           const tr = document.createElement("tr");
-          const ann = e.annual ? e.annual.left : 0;
-          const comp = e.comp ? e.comp.left : 0;
+          // 確保數值存在，若無則顯示 0
+          const ann = (e.annual && e.annual.left) ? e.annual.left : "0";
+          const comp = (e.comp && e.comp.left) ? e.comp.left : "0";
+          
           tr.innerHTML = `<td>${e.name} (${e.id})</td><td>${ann} 天</td><td>${comp} 時</td>`;
           tbody.appendChild(tr);
         });
       }
-    } catch(e) { alert("載入失敗: " + e); }
+    } catch(e) { 
+        alert("載入失敗: " + e); 
+        document.getElementById("pendingList").innerHTML = "載入失敗，請確認網路或重新登入";
+    }
   }
 
   async function decide(reqId, decision) {
     if(!reqId || reqId === 'undefined') { alert("錯誤：申請單編號無效"); return; }
     if(!confirm(decision==='APPROVED'?"確定核准？":"確定駁回？")) return;
-    const res = await api("review_request", { data: { reqId, decision } });
-    alert(res.message);
-    loadData();
+    try {
+        const res = await api("review_request", { data: { reqId, decision } });
+        if(res.ok) {
+            alert("✅ 操作成功");
+            loadData();
+        } else {
+            alert("❌ 失敗: " + res.message);
+        }
+    } catch(e) { alert("連線錯誤: " + e); }
   }
 
   loadData();

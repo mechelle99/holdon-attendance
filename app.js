@@ -297,3 +297,6 @@ function init() {
   loadDashboard();
 }
 init();
+function isManager_(){
+  return localStorage.getItem("isManager") === "Y";
+}

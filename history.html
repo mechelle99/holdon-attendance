@@ -5,31 +5,198 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>申請紀錄</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f7fa; padding: 20px; }
-    .header { display: flex; justify-content: space-between; margin-bottom: 20px; }
-    button { padding: 8px 15px; background: #333; color: #fff; border: none; border-radius: 6px; }
-    
-    .list { display: flex; flex-direction: column; gap: 10px; }
-    .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; }
-    
-    .status { padding: 4px 8px; border-radius: 6px; font-size: 12px; color: white; font-weight: bold; }
-    .PENDING { background: #ff9500; }
-    .APPROVED { background: #34c759; }
-    .REJECTED { background: #ff3b30; }
+    :root {
+      --primary: #007aff;
+      --bg: #f2f4f8;
+      --card-bg: #ffffff;
+      --text: #333;
+      --gray: #8e8e93;
+      --success: #34c759;
+      --warning: #ff9500;
+      --danger: #ff3b30;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      margin: 0;
+      padding: 20px;
+      color: var(--text);
+      padding-bottom: 80px; /* 預留底部空間 */
+    }
+
+    /* 頂部導航 */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .header h2 { margin: 0; font-size: 24px; }
+    .btn-back {
+      background: #e4e6eb;
+      color: #333;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    /* 篩選工具列 */
+    .filter-bar {
+      background: var(--card-bg);
+      padding: 15px;
+      border-radius: 16px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      margin-bottom: 20px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .filter-group label {
+      display: block;
+      font-size: 12px;
+      color: var(--gray);
+      margin-bottom: 4px;
+      font-weight: 600;
+    }
+    .filter-select {
+      width: 100%;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid #ddd;
+      font-size: 15px;
+      background: #f9f9f9;
+      box-sizing: border-box;
+      outline: none;
+    }
+    .filter-select:focus { border-color: var(--primary); background: #fff; }
+
+    /* 列表區域 */
+    .list-container {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    /* 卡片樣式 */
+    .card {
+      background: var(--card-bg);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+      position: relative;
+      overflow: hidden;
+      border-left: 5px solid transparent;
+      transition: transform 0.2s;
+    }
+    .card:active { transform: scale(0.98); }
+
+    /* 狀態顏色邊框 */
+    .card[data-status="APPROVED"] { border-left-color: var(--success); }
+    .card[data-status="PENDING"] { border-left-color: var(--warning); }
+    .card[data-status="REJECTED"] { border-left-color: var(--danger); }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 8px;
+    }
+    .card-type {
+      font-size: 16px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .card-date {
+      font-size: 13px;
+      color: var(--gray);
+      margin-top: 2px;
+    }
+
+    /* 狀態標籤 */
+    .status-badge {
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .status-APPROVED { background: #e8f8ed; color: var(--success); }
+    .status-PENDING { background: #fff8e6; color: var(--warning); }
+    .status-REJECTED { background: #feecec; color: var(--danger); }
+
+    .card-body {
+      font-size: 14px;
+      color: #555;
+      background: #f8f9fa;
+      padding: 10px;
+      border-radius: 8px;
+      margin-top: 8px;
+    }
+    .card-footer {
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--gray);
+      text-align: right;
+    }
+
+    /* 空狀態 */
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: var(--gray);
+    }
+    .empty-icon { font-size: 48px; margin-bottom: 10px; display: block; opacity: 0.5; }
+
   </style>
 </head>
 <body>
 
-<div class="header">
-  <h2>📋 申請紀錄</h2>
-  <button onclick="location.href='app.html'">返回</button>
-</div>
+  <div class="header">
+    <h2>📋 申請紀錄</h2>
+    <button class="btn-back" onclick="location.href='app.html'">← 返回</button>
+  </div>
 
-<div id="list" class="list">載入中...</div>
+  <div class="filter-bar">
+    <div class="filter-group">
+      <label>📅 選擇月份</label>
+      <input type="month" id="filterMonth" class="filter-select" onchange="renderList()">
+    </div>
+    <div class="filter-group">
+      <label>⚡ 申請狀態</label>
+      <select id="filterStatus" class="filter-select" onchange="renderList()">
+        <option value="ALL">全部顯示</option>
+        <option value="PENDING">⏳ 審核中</option>
+        <option value="APPROVED">✅ 已通過</option>
+        <option value="REJECTED">❌ 已駁回</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="list" class="list-container">
+    <div class="empty-state">
+      <span class="empty-icon">🔄</span>
+      <span>資料載入中...</span>
+    </div>
+  </div>
 
 <script src="config.js"></script>
 <script>
   const uid = localStorage.getItem("employeeId");
+  let allData = []; // 暫存所有資料
+
+  // 初始化月份選擇器為當月
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  document.getElementById("filterMonth").value = `${yyyy}-${mm}`;
 
   function api(act) {
     return new Promise(r => {
@@ -40,32 +207,109 @@
     });
   }
 
+  // 載入資料
   async function load() {
       const res = await api("list_requests");
-      const div = document.getElementById("list");
+      const listDiv = document.getElementById("list");
       
       if(res.ok && res.list.length > 0) {
-          let html = "";
-          res.list.forEach(r => {
-              let type = r.leaveType;
-              if(r.category === 'CORRECTION') type = "補卡";
-              if(r.category === 'OUTING') type = "外出";
-              
-              html += `
-              <div class="card">
-                <div>
-                  <div style="font-weight:bold">${type}</div>
-                  <div style="font-size:12px;color:#666">${r.start.split('T')[0]}</div>
-                  <div style="font-size:12px;color:#999">${r.reason||''}</div>
-                </div>
-                <div class="status ${r.status}">${r.status}</div>
-              </div>`;
-          });
-          div.innerHTML = html;
+          allData = res.list; // 存入全域變數
+          renderList();       // 執行渲染
       } else {
-          div.innerHTML = "<div style='text-align:center;color:#999'>尚無申請紀錄</div>";
+          listDiv.innerHTML = `
+            <div class="empty-state">
+              <span class="empty-icon">📭</span>
+              <span>目前沒有任何申請紀錄</span>
+            </div>`;
       }
   }
+
+  // 渲染列表 (含篩選邏輯)
+  function renderList() {
+      const filterM = document.getElementById("filterMonth").value; // yyyy-MM
+      const filterS = document.getElementById("filterStatus").value; // ALL/PENDING...
+      const div = document.getElementById("list");
+
+      // 篩選資料
+      const filtered = allData.filter(item => {
+          // 1. 時間篩選 (比對 yyyy-MM)
+          const itemDate = item.start.substring(0, 7); // 取 "2026-02"
+          const matchDate = (itemDate === filterM);
+
+          // 2. 狀態篩選
+          const matchStatus = (filterS === 'ALL') || (item.status === filterS);
+
+          return matchDate && matchStatus;
+      });
+
+      // 產生 HTML
+      if (filtered.length === 0) {
+          div.innerHTML = `
+            <div class="empty-state">
+              <span class="empty-icon">🔍</span>
+              <span>這個月沒有符合的資料</span>
+            </div>`;
+          return;
+      }
+
+      let html = "";
+      filtered.forEach(r => {
+          // 中文對照與圖示
+          let typeLabel = r.leaveType;
+          let icon = "📄";
+          
+          if(r.category === 'CORRECTION') { typeLabel = "補卡申請"; icon = "⏰"; }
+          else if(r.category === 'OT') { typeLabel = "加班申請"; icon = "💪"; }
+          else if(r.category === 'OUTING') { typeLabel = "外出單"; icon = "🛵"; }
+          else {
+              // 假別翻譯
+              const map = {
+                  'annual': '特休', 'comp': '補休', 'sick': '病假', 
+                  'personal': '事假', 'official': '公假', 
+                  'maternity': '產假', 'bereavement': '喪假'
+              };
+              if(map[typeLabel]) typeLabel = map[typeLabel];
+              icon = "🏖️";
+          }
+
+          // 狀態中文
+          let statusText = r.status;
+          if(statusText === 'PENDING') statusText = '審核中';
+          if(statusText === 'APPROVED') statusText = '已通過';
+          if(statusText === 'REJECTED') statusText = '已駁回';
+
+          // 時間顯示優化
+          const dateStr = r.start.replace('T', ' ').substring(0, 16); // 去掉秒
+          const hoursStr = (r.hours > 0) ? ` • ${r.hours} 小時` : '';
+
+          html += `
+          <div class="card" data-status="${r.status}">
+            <div class="card-header">
+              <div class="card-type">
+                <span>${icon}</span>
+                <span>${typeLabel}</span>
+              </div>
+              <div class="status-badge status-${r.status}">${statusText}</div>
+            </div>
+            
+            <div class="card-date">
+              📅 ${dateStr} ${hoursStr}
+            </div>
+
+            <div class="card-body">
+              ${r.reason || '無填寫事由'}
+            </div>
+            
+            <div class="card-footer">
+              單號: ${r.reqId}
+            </div>
+          </div>`;
+      });
+
+      div.innerHTML = html;
+  }
+
+  // 啟動
   load();
 </script>
 </body>

@@ -7,39 +7,17 @@
   <style>
     :root { --primary: #4F46E5; --bg: #F3F4F6; --card: #FFFFFF; --text: #1F2937; }
     body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 20px 20px 100px 20px; color: var(--text); }
-    
-    .header { margin-bottom: 20px; }
-    h2 { margin: 0; font-size: 22px; }
-
+    .header { margin-bottom: 20px; } h2 { margin: 0; font-size: 22px; }
     .form-card { background: var(--card); border-radius: 20px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-    
     .input-group { margin-bottom: 20px; }
     label { display: block; font-size: 13px; font-weight: 600; color: #4B5563; margin-bottom: 6px; }
-    
-    select, input, textarea {
-      width: 100%; padding: 12px; border: 1px solid #E5E7EB; border-radius: 12px;
-      font-size: 16px; background: #F9FAFB; outline: none; -webkit-appearance: none;
-    }
-    
-    /* 針對 iOS Safari 下拉選單優化 */
-    select { background-color: #F9FAFB; }
-
-    /* Checkbox */
-    .checkbox-wrapper { display: flex; align-items: center; gap: 10px; padding: 10px; background: #EEF2FF; border-radius: 12px; display: none; /* 預設隱藏 */ }
-    .checkbox-wrapper input { width: 20px; height: 20px; margin: 0; }
-    .checkbox-wrapper label { margin: 0; color: var(--primary); font-size: 14px; }
-
-    .btn-submit {
-      width: 100%; background: var(--primary); color: white; padding: 16px;
-      border: none; border-radius: 16px; font-size: 16px; font-weight: 700;
-      cursor: pointer; box-shadow: 0 4px 10px rgba(79, 70, 229, 0.3); margin-top: 10px;
-    }
-    .btn-submit:active { transform: scale(0.98); }
-
+    select, input, textarea { width: 100%; padding: 12px; border: 1px solid #E5E7EB; border-radius: 12px; font-size: 16px; background: #F9FAFB; outline: none; -webkit-appearance: none; }
+    .checkbox-wrapper { display: flex; align-items: center; gap: 10px; padding: 10px; background: #EEF2FF; border-radius: 12px; display: none; }
+    .checkbox-wrapper input { width: 20px; height: 20px; }
+    .btn-submit { width: 100%; background: var(--primary); color: white; padding: 16px; border: none; border-radius: 16px; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 10px; }
     .nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); padding: 12px 20px; padding-bottom: max(12px, env(safe-area-inset-bottom)); display: flex; justify-content: space-around; box-shadow: 0 -4px 20px rgba(0,0,0,0.05); border-top-left-radius: 24px; border-top-right-radius: 24px; z-index: 100; }
     .nav-item { text-decoration: none; color: #9CA3AF; display: flex; flex-direction: column; align-items: center; font-size: 10px; gap: 4px; }
-    .nav-item.active { color: var(--primary); }
-    .nav-icon { font-size: 22px; }
+    .nav-item.active { color: var(--primary); } .nav-icon { font-size: 22px; }
   </style>
 </head>
 <body>
@@ -62,31 +40,26 @@
       <select id="type">
         <option value="annual">特休</option>
         <option value="comp">補休</option>
-        <option value="personal">事假</option>
         <option value="sick">病假</option>
-        <option value="menstrual">生理假</option>
+        <option value="personal">事假</option>
         <option value="official">公假</option>
         <option value="marriage">婚假</option>
         <option value="bereavement">喪假</option>
-        <option value="family">家庭照顧假</option>
+        <option value="menstrual">生理假</option>
         <option value="maternity">產假</option>
-        <option value="prenatal">產檢假</option>
-        <option value="paternity">陪產檢及陪產假</option>
-        <option value="miscarriage">流產假</option>
-        <option value="injury">公傷病假</option>
-        <option value="epidemic">防疫照顧假</option>
-        <option value="birthday">生日假</option>
+        <option value="paternity">陪產假</option>
+        <option value="family">家庭照顧假</option>
       </select>
     </div>
 
     <div class="input-group">
       <label id="startLbl">開始時間</label>
-      <input type="datetime-local" id="start" onchange="calc()">
+      <input type="datetime-local" id="start" onchange="calc()" oninput="calc()">
     </div>
 
     <div class="input-group" id="endGrp">
       <label>結束時間</label>
-      <input type="datetime-local" id="end" onchange="calc()">
+      <input type="datetime-local" id="end" onchange="calc()" oninput="calc()">
     </div>
     
     <div class="input-group" id="hrsGrp">
@@ -131,7 +104,6 @@
       const lbl = document.getElementById("startLbl");
       const clockDiv = document.getElementById("autoClockGrp");
 
-      // 重置顯示狀態
       typeDiv.style.display = 'block';
       endDiv.style.display = 'block';
       hrsDiv.style.display = 'block';
@@ -139,79 +111,57 @@
       lbl.innerText = '開始時間';
 
       if (c === 'CORRECTION') { 
-          // 補卡：只有一個時間點，無假別，無時數
           endDiv.style.display = 'none';
           hrsDiv.style.display = 'none';
           typeDiv.style.display = 'none';
           lbl.innerText = '補卡時間';
       } else if (c === 'OUTING') { 
-          // 外出：有起訖，但無假別，可自動打卡
           typeDiv.style.display = 'none'; 
           lbl.innerText = '預計外出時間';
           clockDiv.style.display = 'flex';
-          // 外出也需要算時數嗎？通常需要，若不需要可隱藏 hrsDiv
       } else if (c === 'OT') { 
-          // 加班：有起訖，無假別
-          typeDiv.style.display = 'none';
-          lbl.innerText = '加班開始時間';
+          typeDiv.style.display = 'none'; // 加班不需選假別
+          // 加班需要結束時間與時數，保持顯示
       } else {
-          // 請假：全顯示
+          // 請假
           document.getElementById("type").innerHTML = fullLeaveOptions;
       }
-      
-      // 切換類別時重算一次 (避免殘留舊數值)
-      calc();
+      calc(); // 切換時重算
   }
 
+  // ★ V84 修復：精確計算時數
   function calc() {
       const cat = document.getElementById("cat").value;
       const sVal = document.getElementById("start").value;
       const eVal = document.getElementById("end").value;
       const hInput = document.getElementById("hours");
 
-      // 補卡不需要算時數
-      if (cat === 'CORRECTION') {
-          hInput.value = 0;
-          return;
-      }
+      if (cat === 'CORRECTION') { hInput.value = 0; return; }
+      if (!sVal || !eVal) return;
 
-      if (sVal && eVal) {
-          const s = new Date(sVal);
-          const e = new Date(eVal);
+      const s = new Date(sVal);
+      const e = new Date(eVal);
 
-          if (e <= s) {
-              // 結束時間錯誤
-              hInput.value = 0;
-              return;
-          }
+      if (e <= s) { hInput.value = 0; return; }
 
-          // 判斷是否同天 (比對 年/月/日)
-          const isSameDay = (s.getFullYear() === e.getFullYear() && 
-                             s.getMonth() === e.getMonth() && 
-                             s.getDate() === e.getDate());
+      // 比對日期字串 (YYYY-MM-DD) 來判斷是否同一天
+      // 例如：2/12 17:00 到 2/12 20:00 -> 同一天
+      const isSameDate = s.toDateString() === e.toDateString();
 
-          if (isSameDay) {
-              // 同一天：直接算時間差 (小時)
-              const diffMs = e - s;
-              const hours = (diffMs / (1000 * 60 * 60)).toFixed(1);
-              hInput.value = hours;
-          } else {
-              // 跨天：依需求「一天8小時」計算
-              // 算法：(結束日期 - 開始日期) 的天數差
-              // 若 2/12 10:00 到 2/13 10:00，算 2 天 = 16 小時
-              
-              // 取得純日期物件 (時間設為 00:00:00 以計算天數)
-              const sDate = new Date(s.getFullYear(), s.getMonth(), s.getDate());
-              const eDate = new Date(e.getFullYear(), e.getMonth(), e.getDate());
-              
-              // 毫秒差轉天數
-              const dayDiff = Math.round((eDate - sDate) / (1000 * 60 * 60 * 24));
-              
-              // 總天數 = 間隔天數 + 1 (例如 12號到13號，間隔1天，其實是涵蓋2個工作日)
-              const totalDays = dayDiff + 1;
-              
-              hInput.value = totalDays * 8;
-          }
+      if (isSameDate) {
+          // 同一天：直接算時數 (毫秒差 / 3600000)
+          const diffHours = (e - s) / 3600000;
+          hInput.value = diffHours.toFixed(1);
+      } else {
+          // 跨天：算法為 (天數差 + 1) * 8
+          // 計算日曆天數差
+          const sDate = new Date(s.getFullYear(), s.getMonth(), s.getDate());
+          const eDate = new Date(e.getFullYear(), e.getMonth(), e.getDate());
+          const dayDiff = Math.round((eDate - sDate) / (1000 * 60 * 60 * 24));
+          
+          const totalDays = dayDiff + 1; 
+          // 範例：12號到13號，dayDiff=1，實際是請2天假，所以 1+1=2
+          hInput.value = totalDays * 8;
       }
   }
 
@@ -240,7 +190,7 @@
           category: cat,
           leaveType: document.getElementById("type").value,
           start: start,
-          end: cat === 'CORRECTION' ? start : end, // 補卡結束時間同開始
+          end: cat === 'CORRECTION' ? start : end,
           hours: document.getElementById("hours").value || 0,
           reason: document.getElementById("reason").value,
           autoClock: auto
@@ -251,7 +201,6 @@
       location.href = 'history.html';
   }
   
-  // 初始化
   uiChange();
 </script>
 </body>

@@ -26,6 +26,21 @@
     .btn-menu { background: white; border: 1px solid #ddd; padding: 15px; border-radius: 8px; text-align: center; text-decoration: none; color: #333; font-weight: 500; font-size: 15px; }
     
     #gpsStatus { text-align: center; font-size: 12px; color: #999; margin-bottom: 10px; }
+
+    /* 新增 CSS */
+    .rec-time { font-size: 14px; text-align: right; flex: 1; margin-right: 10px; line-height: 1.4; color:#333; }
+    .status-tag { font-size: 12px; padding: 3px 8px; border-radius: 4px; color: #fff; font-weight: bold; min-width: 50px; text-align: center; }
+    .st-ok { background: #34c759; } /* 正常 */
+    .st-late { background: #ffcc00; color: #333; } /* 遲到/早退 */
+    .st-miss { background: #ff3b30; } /* 缺卡/曠職 */
+    .st-abn { background: #5856d6; } /* 異常(超時) */
+    .st-off { background: #ccc; color: #fff; } /* 休假 */
+    .st-leave { background: #007aff; } /* 請假 */
+    .hidden { display: none; }
+    #loading{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.8);display:none;justify-content:center;align-items:center;z-index:999;}
+    .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 20px; }
+    .btn { background: #007aff; color: white; padding: 10px; border: none; border-radius: 8px; cursor: pointer; }
+    .search-bar select { padding: 8px; border: 1px solid #ddd; border-radius: 6px; }
   </style>
 </head>
 <body>
@@ -34,17 +49,17 @@
   <div class="user-name">Hi, <span id="uName">載入中...</span></div>
   <div class="balance-grid">
     <div class="bal-box">
-      <div class="bal-label">特休餘額</div>
-      <div class="bal-num" id="annBal">--</div>
+      <div class="bal-label">特休剩餘</div>
+      <div class="bal-num" id="annBal">0</div>
     </div>
     <div class="bal-box">
-      <div class="bal-label">補休餘額</div>
-      <div class="bal-num" id="compBal">--</div>
+      <div class="bal-label">補休剩餘</div>
+      <div class="bal-num" id="compBal">0</div>
     </div>
   </div>
 </div>
 
-<div id="gpsStatus">📍 GPS 定位中...</div>
+<div id="gpsStatus">⚠️ 定位中...</div>
 
 <div class="clock-grid">
   <button class="btn-clock btn-in" onclick="clock('clock_in')">上班打卡</button>
@@ -58,6 +73,32 @@
   <a href="manager.html" class="btn-menu" id="mgrBtn" style="display:none; color:#007aff;">👨‍💼 主管專區</a>
 </div>
 
+<div class="card hidden" id="admBtns">
+  <!-- 管理按鈕，如果有權限顯示 -->
+</div>
+
+<div class="card">
+  <h3 style="margin:0">📝 申請</h3>
+  <!-- 申請按鈕 -->
+</div>
+
+<div class="card">
+  <button class="btn" style="width:100%;background:#333;color:#fff;" onclick="location.href='attendance.html'">
+    📅 查看詳細出勤紀錄
+  </button>
+</div>
+
+<div class="card">
+  <h3 style="margin:0 0 10px">📊 出勤檢視</h3>
+  <div class="search-bar" style="display:flex;gap:5px;">
+    <select id="y"></select><select id="m"></select>
+    <button class="btn" style="width:auto;margin:0;padding:0 15px;" onclick="search()">搜</button>
+  </div>
+  <div id="resList" style="margin-top:10px;"></div>
+</div>
+
+<div id="loading">載入中...</div>
+
 <script src="config.js"></script>
 <script>
   const uid = localStorage.getItem("employeeId");
@@ -70,28 +111,135 @@
   );
 
   function api(act, data={}) {
-    return new Promise(r => {
+    return new Promise(resolve => {
+      const endpoint = window.CONFIG ? window.CONFIG.GAS_ENDPOINT : null;
+      if (!endpoint) { alert("找不到 CONFIG.GAS_ENDPOINT"); return; }
+
+      const cbName = `cb_${Date.now()}_${Math.floor(Math.random()*100000)}`;
       const s = document.createElement("script");
-      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${act}&payload=${encodeURIComponent(JSON.stringify({...data, userId:uid}))}&callback=cb${Date.now()}`;
-      window[`cb${Date.now()}`] = (res) => { r(res); s.remove(); };
+
+      const payloadStr = JSON.stringify({ ...data, userId: uid });
+
+      window[cbName] = (res) => {
+        resolve(res);
+        try { delete window[cbName]; } catch(e){}
+        s.remove();
+      };
+
+      s.onerror = () => {
+        resolve({ ok: false, message: "JSONP 載入失敗" });
+        try { delete window[cbName]; } catch(e){}
+        s.remove();
+      };
+
+      s.src = `${endpoint}?action=${encodeURIComponent(act)}&payload=${encodeURIComponent(payloadStr)}&callback=${encodeURIComponent(cbName)}`;
       document.body.appendChild(s);
     });
   }
 
   async function init() {
-      const res = await api("get_me");
-      if(res.ok) {
-          document.getElementById("uName").innerText = res.name;
-          document.getElementById("annBal").innerText = res.balances.annual.left;
-          document.getElementById("compBal").innerText = res.balances.comp.left;
-          if(res.isManager) document.getElementById("mgrBtn").style.display = 'block';
-      }
+    const res = await api("get_me");
+    if(res.ok) {
+      document.getElementById("uName").innerText = res.emp.name || localStorage.getItem("employeeName");
+      document.getElementById("annBal").innerText = res.balances ? res.balances.annual.left : '0';
+      document.getElementById("compBal").innerText = res.balances ? res.balances.comp.left : '0';
+      // 嚴格權限顯示
+      if(res.isManager) document.getElementById("mgrBtn").style.display = 'block';
+      if(localStorage.getItem("isManager")==='Y') document.getElementById("admBtns").classList.remove("hidden");
+      else if(localStorage.getItem("canSchedule")==='Y') document.getElementById("admBtns").classList.remove("hidden");
+    } else {
+      alert("身份驗證失敗: " + res.message);
+    }
+    // 初始化年月
+    const yS = document.getElementById("y");
+    const mS = document.getElementById("m");
+    const now = new Date();
+    for(let i=2024; i<=2026; i++) yS.options.add(new Option(i, i));
+    for(let i=1; i<=12; i++) mS.options.add(new Option(i, i));
+    yS.value = now.getFullYear();
+    mS.value = now.getMonth() + 1;
+    search();  // 自動載入
   }
 
   async function clock(type) {
-      if(!lat) { alert("請等待定位"); return; }
-      const res = await api(type, {lat, lng});
-      alert(res.message);
+    if(!lat) { alert("請等待定位"); return; }
+    const res = await api(type, {lat, lng});
+    alert(res.message);
+  }
+
+  async function search() {
+    const yS = document.getElementById("y");
+    const mS = document.getElementById("m");
+    const d = document.getElementById("resList");
+    d.innerHTML = "載入中...";
+    const r = await api("get_dashboard", {year: yS.value, month: mS.value});
+    if(r && r.ok) {
+      const days = new Date(yS.value, mS.value, 0).getDate();
+      const map = {};
+      for(let i=1; i<=days; i++) map[i] = { shift: r.schedule[i] || 'EARLY', in:null, out:null, leave:null };
+      // 2. 填入打卡
+      r.clocks.forEach(c => {
+        const parts = c.date.split('-');
+        const day = parseInt(parts[2]);
+        if(map[day]) {
+          if(c.type.includes('上班')) map[day].in = c.time;
+          if(c.type.includes('下班')) map[day].out = c.time;
+        }
+      });
+      // 3. 填入請假
+      if(r.leaves) {
+        r.leaves.forEach(l => {
+          const parts = l.date.split('-');
+          const day = parseInt(parts[2]);
+          if(map[day]) map[day].leave = l.type; // 優先顯示假別
+        });
+      }
+      // 4. 渲染 (倒序)
+      d.innerHTML = '';
+      for(let i=days; i>=1; i--) {
+        const item = map[i];
+        let stTag = "正常", stCls = "st-ok";
+        if (item.leave) {
+          stTag = item.leave; stCls = "st-leave";
+        } else if (item.shift === 'OFF') {
+          stTag = "休假"; stCls = "st-off";
+          if(item.in || item.out) { stTag="加班"; stCls="st-ok"; }
+        } else {
+          // 工作日判斷
+          if (!item.in && !item.out) { stTag="曠職"; stCls="st-miss"; }
+          else if (!item.in) { stTag="缺上班卡"; stCls="st-miss"; }
+          else if (!item.out) { stTag="缺下班卡"; stCls="st-miss"; }
+          else {
+            // 時間標準
+            const startTarget = item.shift==='EARLY' ? '10:00:00' : '12:00:00';
+            const endTarget = item.shift==='EARLY' ? '18:00:00' : '21:00:00';
+           
+            // 1. 遲到
+            if(item.in > startTarget) { stTag="遲到"; stCls="st-late"; }
+           
+            // 2. 早退 (下班時間早於表定)
+            if(item.out < endTarget) {
+                stTag = (stTag==="遲到") ? "遲到/早退" : "早退";
+                stCls="st-late";
+            }
+            // 3. 異常 (超過1小時下班)
+            const outH = parseInt(item.out.split(':')[0]);
+            const stdH = item.shift==='EARLY' ? 18 : 21;
+            if(outH >= stdH + 1) { stTag="異常"; stCls="st-abn"; }
+          }
+        }
+        // 未來日期不顯示
+        if(new Date(yS.value, mS.value-1, i) > new Date()) { stTag="--"; stCls="st-off"; }
+        d.innerHTML += `
+          <div style="display:flex;align-items:center;margin-bottom:10px;">
+            <div style="width:50px;text-align:center;">${i}日</div>
+            <div class="rec-time">上: ${item.in || '--:--'}<br>下: ${item.out || '--:--'}</div>
+            <span class="status-tag ${stCls}">${stTag}</span>
+          </div>`;
+      }
+    } else {
+      d.innerHTML = "讀取失敗: " + (r ? r.message : '系統錯誤');
+    }
   }
 
   init();

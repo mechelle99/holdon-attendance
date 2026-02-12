@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>出勤檢視 (修復版)</title>
+  <title>出勤檢視</title>
   <style>
     body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f4f6f8;padding:16px;margin:0;}
     .header{margin-bottom:15px;display:flex;gap:10px;align-items:center;}
@@ -14,22 +14,15 @@
     .info{flex:1;}
     .time-row{font-size:14px;color:#444;line-height:1.6;}
     .tag{font-size:13px;padding:4px 10px;border-radius:6px;color:#fff;font-weight:bold;min-width:60px;text-align:center;}
-    /* 狀態顏色 */
+    
     .ok{background:#34c759} .late{background:#ff9500} .miss{background:#ff3b30}
     .abn{background:#8e8e93} .off{background:#e5e5ea;color:#999} .leave{background:#007aff}
-    
-    /* 確保下拉選單看得到 */
+
     select{padding:8px;border-radius:8px;border:1px solid #ddd;font-size:16px; background:white;}
     button{padding:8px 15px;background:#111;color:#fff;border:none;border-radius:8px;font-size:14px;}
-    
-    /* 錯誤訊息區塊 */
-    #sys-log { background: #fee; color: #c00; padding: 10px; border: 1px solid #fcc; display: none; margin-bottom: 10px; font-size: 12px; white-space: pre-wrap; }
   </style>
 </head>
 <body>
-
-  <div id="sys-log"></div>
-
   <div class="header">
     <button onclick="location.href='app.html'">←</button>
     <select id="y"></select>
@@ -42,62 +35,25 @@
   <script src="config.js"></script>
 
   <script>
-    // --- 錯誤攔截器 (把錯誤印在畫面上) ---
-    function logErr(msg) {
-      const el = document.getElementById("sys-log");
-      el.style.display = 'block';
-      el.innerText += "❌ " + msg + "\n";
-      console.error(msg);
-    }
-    window.onerror = function(msg, url, line) {
-      logErr(`系統錯誤: ${msg} (Line: ${line})`);
-    };
-
-    // --- 檢查 Config ---
-    if (typeof window.CONFIG === 'undefined' || !window.CONFIG.GAS_ENDPOINT) {
-      logErr("找不到 config.js 或 GAS_ENDPOINT 未設定！請確認 config.js 檔案存在且內容正確。");
-    }
-
     const uid = localStorage.getItem("employeeId");
-    if (!uid) logErr("警告：找不到員工 ID (localStorage 為空)，請重新登入 app.html");
-
-    // --- 初始化下拉選單 (加入防呆) ---
+    
+    // 初始化選單
     const yS = document.getElementById("y");
     const mS = document.getElementById("m");
     const now = new Date();
 
     if (yS && mS) {
-      try {
         for(let i=2024; i<=2026; i++) yS.add(new Option(i, i, i===now.getFullYear(), i===now.getFullYear()));
         for(let i=1; i<=12; i++) mS.add(new Option(i, i, i===(now.getMonth()+1), i===(now.getMonth()+1)));
-      } catch(e) {
-        logErr("選單初始化失敗: " + e.message);
-      }
-    } else {
-      logErr("嚴重錯誤：網頁上找不到 id='y' 或 id='m' 的下拉選單元件！");
     }
 
-    // --- API 呼叫 ---
     function api(a, d={}) {
       return new Promise(r => {
-        if (!window.CONFIG || !window.CONFIG.GAS_ENDPOINT) {
-             r({ok:false, message:"Config 遺失"}); return;
-        }
+        const endpoint = window.CONFIG ? window.CONFIG.GAS_ENDPOINT : null;
+        if (!endpoint) { alert("找不到 CONFIG.GAS_ENDPOINT"); return; }
         const s = document.createElement("script");
-        s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${a}&payload=${encodeURIComponent(JSON.stringify({...d, userId:uid}))}&callback=cb${Date.now()}`;
-        
-        // 設定超時機制 (10秒沒回應就報錯)
-        const timeout = setTimeout(() => {
-          logErr("連線逾時 (GAS 沒有回應)，請檢查 GAS 部署是否正確");
-          r({ok:false, message:"Timeout"});
-        }, 10000);
-
-        window[`cb${Date.now()}`] = (res) => {
-          clearTimeout(timeout);
-          r(res);
-          s.remove();
-        };
-        s.onerror = () => { clearTimeout(timeout); logErr("無法連接 GAS (Script Error)"); r({ok:false}); };
+        s.src = `${endpoint}?action=${a}&payload=${encodeURIComponent(JSON.stringify({...d, userId:uid}))}&callback=cb${Date.now()}`;
+        window[`cb${Date.now()}`] = (res) => { r(res); s.remove(); };
         document.body.appendChild(s);
       });
     }
@@ -109,119 +65,105 @@
     }
 
     async function load() {
-      const listEl = document.getElementById("list");
-      listEl.innerHTML = "<div style='text-align:center;margin-top:20px;color:#999'>載入中...</div>";
-      document.getElementById("sys-log").style.display = 'none'; // 清除舊錯誤
-      document.getElementById("sys-log").innerText = "";
-
-      if (!yS || !mS) return; // 元件不存在就別跑了
-
+      const listDiv = document.getElementById("list");
+      listDiv.innerHTML = "<div style='text-align:center;margin-top:20px;color:#999'>載入中...</div>";
+      
       const y = parseInt(yS.value);
       const m = parseInt(mS.value);
       
       const r = await api("get_dashboard", {year:y, month:m});
       
-      if (!r || !r.ok) {
-        listEl.innerHTML = `<div style="text-align:center;color:red;padding:20px">${r?.message || "讀取失敗"}</div>`;
-        return;
-      }
-      
-      listEl.innerHTML = "";
-      
-      // 處理系統啟用日
-      let systemStartDate = new Date("1900/01/01"); 
-      if (r.systemStartDate) {
-         systemStartDate = new Date(r.systemStartDate);
-      }
+      listDiv.innerHTML = "";
 
-      if(r.schedule) {
-          const daysInMonth = new Date(y, m, 0).getDate();
-          const map = {};
-          
-          for(let i=1; i<=daysInMonth; i++) map[i] = { shift: r.schedule[i] || 'EARLY', in:null, out:null, leave:null };
-          
-          if (r.clocks) {
+      if(r && r.ok) {
+        // ★ 讀取後端傳來的啟用日期
+        let systemStartDate = new Date("1900/01/01"); 
+        if (r.systemStartDate) {
+           systemStartDate = new Date(r.systemStartDate);
+        }
+
+        const daysInMonth = new Date(y, m, 0).getDate();
+        const map = {};
+        
+        for(let i=1; i<=daysInMonth; i++) map[i] = { shift: r.schedule[i] || 'EARLY', in:null, out:null, leave:null };
+        
+        if (r.clocks) {
             r.clocks.forEach(c => {
               const day = parseInt(c.date.split('-')[2]); 
               if(map[day]) {
-                if(c.type && (c.type.includes('上班') || c.type === 'IN')) map[day].in = c.time;
-                if(c.type && (c.type.includes('下班') || c.type === 'OUT')) map[day].out = c.time;
+                if(c.type && (c.type.includes('上班') || c.type==='IN')) map[day].in = c.time;
+                if(c.type && (c.type.includes('下班') || c.type==='OUT')) map[day].out = c.time;
               }
             });
-          }
+        }
 
-          if(r.leaves) {
+        if(r.leaves) {
             r.leaves.forEach(l => {
-              const day = parseInt(l.date.split('-')[2]);
-              if(map[day]) map[day].leave = l.type;
+                const day = parseInt(l.date.split('-')[2]);
+                if(map[day]) map[day].leave = l.type;
             });
+        }
+
+        const today = new Date();
+        today.setHours(23,59,59,999); 
+
+        for(let i=daysInMonth; i>=1; i--) {
+          const currentLoopDate = new Date(y, m-1, i);
+          if (currentLoopDate > today) continue; 
+
+          const item = map[i];
+          const weekDay = ['日','一','二','三','四','五','六'][currentLoopDate.getDay()];
+          
+          let stTag="正常", stCls="ok";
+          
+          // ★ 如果早於系統啟用日，顯示灰色 (這是顯示邏輯，所以在前端)
+          if (currentLoopDate < systemStartDate) {
+             stTag = "未啟用"; stCls = "off"; 
+          }
+          else if (item.leave) {
+             stTag = item.leave; stCls = "leave";
+          } 
+          else if (item.shift === 'OFF') {
+             stTag = "休假"; stCls = "off";
+             if(item.in || item.out) { stTag="加班"; stCls="ok"; }
+          } 
+          else {
+             if(!item.in && !item.out) { stTag="曠職"; stCls="miss"; }
+             else if(!item.in) { stTag="缺上班卡"; stCls="miss"; }
+             else if(!item.out) { stTag="缺下班卡"; stCls="miss"; }
+             else {
+                const minsIn = toMins(item.in);
+                const minsOut = toMins(item.out);
+                let stdIn = 600, stdOut = 1080;
+                if(item.shift === 'LATE') { stdIn = 720; stdOut = 1260; }
+                let isLate = minsIn > stdIn;
+                let isEarly = minsOut < stdOut; 
+                if (minsOut >= (stdOut + 60)) { stTag = "異常"; stCls = "abn"; }
+                else if (isLate && isEarly) { stTag = "遲到/早退"; stCls = "late"; }
+                else if (isLate) { stTag = "遲到"; stCls = "late"; }
+                else if (isEarly) { stTag = "早退"; stCls = "late"; }
+                else { stTag = "正常"; stCls = "ok"; }
+             }
           }
 
-          const today = new Date();
-          today.setHours(23,59,59,999); 
-
-          for(let i=daysInMonth; i>=1; i--) {
-            const currentLoopDate = new Date(y, m-1, i);
-            if (currentLoopDate > today) continue; 
-
-            const item = map[i];
-            const weekDay = ['日','一','二','三','四','五','六'][currentLoopDate.getDay()];
-            
-            let stTag="正常", stCls="ok";
-            
-            // --- 邏輯判斷 ---
-            if (currentLoopDate < systemStartDate) {
-               stTag = "未啟用"; stCls = "off"; 
-            }
-            else if (item.leave) {
-               stTag = item.leave; stCls = "leave";
-            } 
-            else if (item.shift === 'OFF') {
-               stTag = "休假"; stCls = "off";
-               if(item.in || item.out) { stTag="加班"; stCls="ok"; }
-            } 
-            else {
-               if(!item.in && !item.out) { stTag="曠職"; stCls="miss"; }
-               else if(!item.in) { stTag="缺上班卡"; stCls="miss"; }
-               else if(!item.out) { stTag="缺下班卡"; stCls="miss"; }
-               else {
-                  const minsIn = toMins(item.in);
-                  const minsOut = toMins(item.out);
-                  let stdIn = 600, stdOut = 1080;
-                  if(item.shift === 'LATE') { stdIn = 720; stdOut = 1260; }
-
-                  let isLate = minsIn > stdIn;
-                  let isEarly = minsOut < stdOut; 
-                  let isAbn = minsOut >= (stdOut + 60);
-
-                  if (isAbn) { stTag = "異常"; stCls = "abn"; }
-                  else if (isLate && isEarly) { stTag = "遲到/早退"; stCls = "late"; }
-                  else if (isLate) { stTag = "遲到"; stCls = "late"; }
-                  else if (isEarly) { stTag = "早退"; stCls = "late"; }
-                  else { stTag = "正常"; stCls = "ok"; }
-               }
-            }
-
-            listEl.innerHTML += `
-              <div class="card">
-                <div class="date-box">
-                  <div class="date-day">${i}</div>
-                  <div class="date-w">${weekDay}</div>
-                </div>
-                <div class="info">
-                  <div class="time-row"><span>上班</span> ${item.in||'--:--'}</div>
-                  <div class="time-row"><span>下班</span> ${item.out||'--:--'}</div>
-                </div>
-                <div class="tag ${stCls}">${stTag}</div>
-              </div>`;
-          }
-          if(listEl.innerHTML === "") listEl.innerHTML = "<div style='text-align:center;padding:20px;color:#999'>本月尚無已到期的紀錄</div>";
+          listDiv.innerHTML += `
+            <div class="card">
+              <div class="date-box">
+                <div class="date-day">${i}</div>
+                <div class="date-w">${weekDay}</div>
+              </div>
+              <div class="info">
+                <div class="time-row"><span>上班</span> ${item.in||'--:--'}</div>
+                <div class="time-row"><span>下班</span> ${item.out||'--:--'}</div>
+              </div>
+              <div class="tag ${stCls}">${stTag}</div>
+            </div>`;
+        }
       } else {
-        listEl.innerHTML = "<div style='text-align:center'>無資料</div>";
+         listDiv.innerHTML = `<div style='text-align:center;padding:20px;color:red'>讀取失敗: ${r ? r.message : 'Unknown'}</div>`;
       }
     }
     
-    // 啟動
     load();
   </script>
 </body>

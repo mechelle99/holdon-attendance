@@ -19,18 +19,19 @@
     th, td { padding: 12px; text-align: center; border-bottom: 1px solid #F3F4F6; font-size: 13px; white-space: nowrap; }
     th { background: #F9FAFB; font-weight: 700; color: #4B5563; height: 40px; }
     
-    /* 凍結首欄 */
     th:first-child, td:first-child { position: sticky; left: 0; background: var(--card); z-index: 10; border-right: 2px solid #F3F4F6; font-weight: 700; color: var(--primary); }
     th:first-child { background: #F9FAFB; z-index: 20; }
 
-    .shift-sel { width: 100%; padding: 6px; border-radius: 6px; border: 1px solid #E5E7EB; font-size: 12px; -webkit-appearance: none; background: white; }
-    .EARLY { border-left: 3px solid #10B981; }
-    .LATE { border-left: 3px solid #F59E0B; }
-    .OFF { border-left: 3px solid #9CA3AF; color: #9CA3AF; }
+    /* 下拉選單樣式 */
+    .shift-sel { width: 100%; padding: 6px; border-radius: 6px; border: 1px solid #E5E7EB; font-size: 12px; -webkit-appearance: none; background: white; text-align: center; font-weight: 700; color: #555; }
     
-    .tag { padding: 2px 6px; background: #DBEAFE; color: #1E40AF; border-radius: 4px; font-size: 11px; }
+    /* 顏色定義 */
+    .bg-EARLY { background-color: #D1FAE5 !important; color: #065F46 !important; border: 1px solid #10B981 !important; } /* 早班綠 */
+    .bg-LATE { background-color: #FEF3C7 !important; color: #92400E !important; border: 1px solid #F59E0B !important; } /* 午班橘 */
+    .bg-OFF { background-color: #F3F4F6 !important; color: #9CA3AF !important; border: 1px solid #E5E7EB !important; } /* 休假灰 */
 
-    /* 導航 (同上) */
+    .tag { padding: 4px 8px; background: #DBEAFE; color: #1E40AF; border-radius: 4px; font-size: 11px; font-weight: 700; }
+
     .nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); padding: 12px 20px; padding-bottom: max(12px, env(safe-area-inset-bottom)); display: flex; justify-content: space-around; box-shadow: 0 -4px 20px rgba(0,0,0,0.05); border-top-left-radius: 24px; border-top-right-radius: 24px; z-index: 100; }
     .nav-item { text-decoration: none; color: #9CA3AF; display: flex; flex-direction: column; align-items: center; font-size: 10px; gap: 4px; }
     .nav-item.active { color: var(--primary); }
@@ -108,12 +109,18 @@
             if(cell.type === 'LEAVE') {
                 tds += `<td><span class="tag">${cell.value}</span></td>`;
             } else {
-                const v = cell.value || '';
-                tds += `<td><select class="shift-sel ${v}" onchange="upd('${e.id}','${dateStr}',this)">
+                let v = cell.value || '';
+                // 轉換 DB 值為 CSS class
+                let cls = '';
+                if(v === '早班' || v === 'EARLY') { v = '早班'; cls = 'bg-EARLY'; }
+                else if(v === '午班' || v === 'LATE') { v = '午班'; cls = 'bg-LATE'; }
+                else if(v === '休假' || v === 'OFF') { v = '休假'; cls = 'bg-OFF'; }
+                
+                tds += `<td><select class="shift-sel ${cls}" onchange="upd('${e.id}','${dateStr}',this)">
                   <option value="">-</option>
-                  <option value="早班" ${v==='早班'||v==='EARLY'?'selected':''}>早</option>
-                  <option value="午班" ${v==='午班'||v==='LATE'?'selected':''}>午</option>
-                  <option value="休假" ${v==='休假'||v==='OFF'?'selected':''}>休</option>
+                  <option value="早班" ${v==='早班'?'selected':''}>早</option>
+                  <option value="午班" ${v==='午班'?'selected':''}>午</option>
+                  <option value="休假" ${v==='休假'?'selected':''}>休</option>
                 </select></td>`;
             }
         }
@@ -123,7 +130,12 @@
   }
 
   function upd(eid, d, el) {
-      el.className = `shift-sel ${el.value}`;
+      // 立即變色
+      el.className = 'shift-sel'; // reset
+      if(el.value === '早班') el.classList.add('bg-EARLY');
+      if(el.value === '午班') el.classList.add('bg-LATE');
+      if(el.value === '休假') el.classList.add('bg-OFF');
+      
       api("update_schedule", {empId:eid, date:d, shift:el.value});
   }
   load();

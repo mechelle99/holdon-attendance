@@ -47,7 +47,7 @@
         <option value="bereavement">喪假</option>
         <option value="menstrual">生理假</option>
         <option value="maternity">產假</option>
-        <option value="paternity">陪產檢及陪產假</option>
+        <option value="paternity">陪產假</option>
         <option value="family">家庭照顧假</option>
       </select>
     </div>
@@ -143,15 +143,20 @@
 
       if (e <= s) { hInput.value = 0; return; }
 
-      // 1. 如果是 OT (加班) 或 OUTING (外出)，實報實銷
+      // 1. OT 或 OUTING：實報實銷 (不管跨不跨日)
       if (cat === 'OT' || cat === 'OUTING') {
           const diffHours = (e - s) / 3600000;
           hInput.value = diffHours.toFixed(1);
           return;
       }
 
-      // 2. 如果是 LEAVE (請假)，維持天數 x 8 邏輯
-      const isSameDate = (s.toDateString() === e.toDateString());
+      // 2. LEAVE (請假)：天數 x 8 (跨日才算)
+      const isSameDate = (
+          s.getFullYear() === e.getFullYear() &&
+          s.getMonth() === e.getMonth() &&
+          s.getDate() === e.getDate()
+      );
+
       if (isSameDate) {
           const diffHours = (e - s) / 3600000;
           hInput.value = diffHours.toFixed(1);

@@ -5,68 +5,64 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
   <title>排班表</title>
   <style>
-    /* 引用 root 變數 */
-    :root { --primary: #2563eb; --bg: #f3f4f6; --surface: #ffffff; --text: #1f2937; }
-    body { font-family: -apple-system, sans-serif; background: var(--bg); padding: 20px 20px 100px 20px; color: var(--text); }
+    :root { --primary: #4F46E5; --bg: #F3F4F6; --card: #FFFFFF; --text: #1F2937; }
+    body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 20px 20px 100px 20px; color: var(--text); }
     
-    .header { margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
-    .controls { display: flex; gap: 8px; }
-    select, button { padding: 8px 12px; border-radius: 8px; border: 1px solid #ddd; background: white; font-size: 14px; }
-    button { background: var(--text); color: white; border: none; }
+    .header { display: flex; justify-content: space-between; margin-bottom: 20px; align-items: center; }
+    .controls select, .controls button { padding: 8px 12px; border-radius: 8px; border: 1px solid #E5E7EB; background: #FFF; font-size: 14px; margin-left: 5px; }
+    .controls button { background: var(--text); color: white; border: none; }
 
-    .table-card { background: var(--surface); border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-    .table-container { overflow-x: auto; }
+    .table-wrapper { background: var(--card); border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+    .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     
     table { width: 100%; border-collapse: collapse; min-width: 800px; }
-    th, td { padding: 12px; text-align: center; border-bottom: 1px solid #eee; white-space: nowrap; font-size: 14px; }
-    th { background: #f9fafb; font-weight: 600; color: #4b5563; }
+    th, td { padding: 12px; text-align: center; border-bottom: 1px solid #F3F4F6; font-size: 13px; white-space: nowrap; }
+    th { background: #F9FAFB; font-weight: 700; color: #4B5563; height: 40px; }
     
-    /* 凍結窗格 */
-    th:first-child, td:first-child { position: sticky; left: 0; background: var(--surface); border-right: 2px solid #f3f4f6; z-index: 10; font-weight: 600; }
-    th:first-child { z-index: 20; background: #f9fafb; }
+    /* 凍結首欄 */
+    th:first-child, td:first-child { position: sticky; left: 0; background: var(--card); z-index: 10; border-right: 2px solid #F3F4F6; font-weight: 700; color: var(--primary); }
+    th:first-child { background: #F9FAFB; z-index: 20; }
 
-    /* 下拉選單樣式 */
-    .shift-sel { padding: 6px; border-radius: 6px; border: 1px solid #e5e7eb; font-size: 13px; width: 100%; -webkit-appearance: none; background-color: #fff; }
-    .shift-sel.EARLY { border-left: 4px solid #34c759; }
-    .shift-sel.LATE { border-left: 4px solid #ff9500; }
-    .shift-sel.OFF { border-left: 4px solid #9ca3af; color: #9ca3af; }
+    .shift-sel { width: 100%; padding: 6px; border-radius: 6px; border: 1px solid #E5E7EB; font-size: 12px; -webkit-appearance: none; background: white; }
+    .EARLY { border-left: 3px solid #10B981; }
+    .LATE { border-left: 3px solid #F59E0B; }
+    .OFF { border-left: 3px solid #9CA3AF; color: #9CA3AF; }
     
-    .leave-tag { background: #dbeafe; color: #2563eb; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; display: inline-block; }
+    .tag { padding: 2px 6px; background: #DBEAFE; color: #1E40AF; border-radius: 4px; font-size: 11px; }
 
-    /* 底部導航 (同上) */
-    .bottom-nav { position: fixed; bottom: 20px; left: 20px; right: 20px; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border-radius: 24px; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); z-index: 100; border: 1px solid rgba(255,255,255,0.5); }
-    .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: #9ca3af; text-decoration: none; font-size: 10px; font-weight: 600; }
+    /* 導航 (同上) */
+    .nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); padding: 12px 20px; padding-bottom: max(12px, env(safe-area-inset-bottom)); display: flex; justify-content: space-around; box-shadow: 0 -4px 20px rgba(0,0,0,0.05); border-top-left-radius: 24px; border-top-right-radius: 24px; z-index: 100; }
+    .nav-item { text-decoration: none; color: #9CA3AF; display: flex; flex-direction: column; align-items: center; font-size: 10px; gap: 4px; }
     .nav-item.active { color: var(--primary); }
-    .nav-icon { font-size: 20px; }
+    .nav-icon { font-size: 22px; }
   </style>
 </head>
 <body>
 
-<div class="header">
-  <h2>📊 排班表</h2>
-  <div class="controls">
-    <select id="year"></select>
-    <select id="month"></select>
-    <button onclick="load()">查詢</button>
+  <div class="header">
+    <h2 style="margin:0;font-size:20px;">📅 排班表</h2>
+    <div class="controls">
+      <select id="y"></select><select id="m"></select>
+      <button onclick="load()">查詢</button>
+    </div>
   </div>
-</div>
 
-<div class="table-card">
-  <div class="table-container">
-    <table id="table">
-      <thead><tr id="headRow"><th>員工</th></tr></thead>
-      <tbody id="bodyRow"><tr><td colspan="5" style="padding:20px;color:#999;">載入中...</td></tr></tbody>
-    </table>
+  <div class="table-wrapper">
+    <div class="table-scroll">
+      <table id="tbl">
+        <thead><tr id="thRow"><th>員工</th></tr></thead>
+        <tbody id="tbRow"><tr><td colspan="5" style="padding:30px;color:#999">載入中...</td></tr></tbody>
+      </table>
+    </div>
   </div>
-</div>
 
-<nav class="bottom-nav">
-  <a href="app.html" class="nav-item"><span class="nav-icon">🏠</span><span>首頁</span></a>
-  <a href="request.html" class="nav-item"><span class="nav-icon">📝</span><span>申請</span></a>
-  <a href="history.html" class="nav-item"><span class="nav-icon">📋</span><span>紀錄</span></a>
-  <a href="schedule.html" class="nav-item active"><span class="nav-icon">📅</span><span>排班</span></a>
-  <a href="manager.html" class="nav-item" id="mgrBtn" style="display:none"><span class="nav-icon">👑</span><span>主管</span></a>
-</nav>
+  <nav class="nav">
+    <a href="app.html" class="nav-item"><span class="nav-icon">🏠</span>首頁</a>
+    <a href="request.html" class="nav-item"><span class="nav-icon">📝</span>申請</a>
+    <a href="history.html" class="nav-item"><span class="nav-icon">📋</span>紀錄</a>
+    <a href="schedule.html" class="nav-item active"><span class="nav-icon">📅</span>排班</a>
+    <a href="manager.html" class="nav-item" id="mgrBtn" style="display:none"><span class="nav-icon">👑</span>主管</a>
+  </nav>
 
 <script src="config.js"></script>
 <script>
@@ -74,11 +70,11 @@
   const isMgr = localStorage.getItem("isManager") === "true";
   if(isMgr) document.getElementById("mgrBtn").style.display = 'flex';
 
-  const ySel = document.getElementById("year");
-  const mSel = document.getElementById("month");
+  const yS = document.getElementById("y");
+  const mS = document.getElementById("m");
   const now = new Date();
-  for(let i=2024; i<=2026; i++) ySel.add(new Option(i, i, i===now.getFullYear(), i===now.getFullYear()));
-  for(let i=1; i<=12; i++) mSel.add(new Option(i, i, i===(now.getMonth()+1), i===(now.getMonth()+1)));
+  for(let i=2024; i<=2026; i++) yS.add(new Option(i,i,i===now.getFullYear(),i===now.getFullYear()));
+  for(let i=1; i<=12; i++) mS.add(new Option(i,i,i===now.getMonth()+1,i===now.getMonth()+1));
 
   function api(act, d={}) {
     return new Promise(r => {
@@ -90,43 +86,40 @@
   }
 
   async function load() {
-    const y = ySel.value; const m = mSel.value;
-    const res = await api("get_roster_data", {year:y, month:m});
-    if(!res.ok) { document.getElementById("bodyRow").innerHTML = `<tr><td>${res.message}</td></tr>`; return; }
+    const res = await api("get_roster_data", {year:yS.value, month:mS.value});
+    if(!res.ok) { document.getElementById("tbRow").innerHTML = `<tr><td>${res.message}</td></tr>`; return; }
 
-    const days = new Date(y, m, 0).getDate();
+    const days = new Date(yS.value, mS.value, 0).getDate();
     let head = `<th>員工</th>`;
     for(let d=1; d<=days; d++) {
-        const wk = ['日','一','二','三','四','五','六'][new Date(y, m-1, d).getDay()];
-        const color = (wk==='日'||wk==='六') ? 'color:#ef4444' : '';
+        const wk = ['日','一','二','三','四','五','六'][new Date(yS.value, mS.value-1, d).getDay()];
+        const color = (wk==='日'||wk==='六') ? 'color:#EF4444' : '';
         head += `<th style="${color}">${d}<br><small>${wk}</small></th>`;
     }
-    document.getElementById("headRow").innerHTML = head;
+    document.getElementById("thRow").innerHTML = head;
 
     let rows = "";
     res.employees.forEach(e => {
         let tds = `<td>${e.name}</td>`;
         for(let d=1; d<=days; d++) {
             const cell = (res.roster[e.id] && res.roster[e.id][d]) ? res.roster[e.id][d] : {};
-            const dateStr = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            const dateStr = `${yS.value}-${String(mS.value).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
             
             if(cell.type === 'LEAVE') {
-                tds += `<td><span class="leave-tag">${cell.value}</span></td>`;
+                tds += `<td><span class="tag">${cell.value}</span></td>`;
             } else {
                 const v = cell.value || '';
-                tds += `<td>
-                  <select class="shift-sel ${v}" onchange="upd('${e.id}','${dateStr}',this)">
-                    <option value="">-</option>
-                    <option value="早班" ${v==='早班'||v==='EARLY'?'selected':''}>早班</option>
-                    <option value="午班" ${v==='午班'||v==='LATE'?'selected':''}>午班</option>
-                    <option value="休假" ${v==='休假'||v==='OFF'?'selected':''}>休假</option>
-                  </select>
-                </td>`;
+                tds += `<td><select class="shift-sel ${v}" onchange="upd('${e.id}','${dateStr}',this)">
+                  <option value="">-</option>
+                  <option value="早班" ${v==='早班'||v==='EARLY'?'selected':''}>早</option>
+                  <option value="午班" ${v==='午班'||v==='LATE'?'selected':''}>午</option>
+                  <option value="休假" ${v==='休假'||v==='OFF'?'selected':''}>休</option>
+                </select></td>`;
             }
         }
         rows += `<tr>${tds}</tr>`;
     });
-    document.getElementById("bodyRow").innerHTML = rows;
+    document.getElementById("tbRow").innerHTML = rows;
   }
 
   function upd(eid, d, el) {

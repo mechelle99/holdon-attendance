@@ -7,7 +7,7 @@
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f7fa; padding: 20px; }
     
-    /* 資訊卡 */
+    /* 上方資訊卡 */
     .info-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 20px; }
     .user-name { font-size: 18px; font-weight: bold; margin-bottom: 15px; color: #333; }
     .balance-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
@@ -15,13 +15,13 @@
     .bal-label { font-size: 13px; color: #666; }
     .bal-num { font-size: 20px; font-weight: bold; color: #007aff; }
 
-    /* 打卡 */
+    /* 打卡按鈕 */
     .clock-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 25px; }
     .btn-clock { padding: 30px 10px; font-size: 20px; border: none; border-radius: 12px; color: white; cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
     .btn-in { background: linear-gradient(135deg, #34c759, #30b753); }
     .btn-out { background: linear-gradient(135deg, #ff9500, #e68600); }
     
-    /* 選單 */
+    /* 下方選單 */
     .menu-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
     .btn-menu { background: white; border: 1px solid #ddd; padding: 15px; border-radius: 8px; text-align: center; text-decoration: none; color: #333; font-weight: 500; font-size: 15px; }
     
@@ -53,9 +53,9 @@
 
 <div class="menu-grid">
   <a href="request.html" class="btn-menu">📝 申請作業</a>
-  <a href="history.html" class="btn-menu">📋 申請紀錄</a> <a href="attendance.html" class="btn-menu">📅 出勤紀錄</a>
-  <a href="roster.html" class="btn-menu">📊 團隊排班</a>
-  <a href="manager.html" class="btn-menu" id="mgrBtn" style="display:none; color:#007aff;">👨‍💼 主管專區</a>
+  <a href="history.html" class="btn-menu">📋 申請紀錄</a>
+  <a href="attendance.html" class="btn-menu">📅 出勤紀錄</a>
+  <a href="schedule.html" class="btn-menu">📊 團隊排班</a> <a href="manager.html" class="btn-menu" id="mgrBtn" style="display:none; color:#007aff;">👨‍💼 主管專區</a>
 </div>
 
 <script src="config.js"></script>
@@ -81,7 +81,7 @@
   async function init() {
       const res = await api("get_me");
       if(res.ok) {
-          document.getElementById("uName").innerText = res.name; // 會顯示名字
+          document.getElementById("uName").innerText = res.name;
           document.getElementById("annBal").innerText = res.balances.annual.left;
           document.getElementById("compBal").innerText = res.balances.comp.left;
           if(res.isManager) document.getElementById("mgrBtn").style.display = 'block';

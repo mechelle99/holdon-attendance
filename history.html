@@ -7,26 +7,54 @@
   <style>
     :root { --primary: #4F46E5; --bg: #F3F4F6; --card: #FFFFFF; --text: #1F2937; }
     body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 20px 20px 100px 20px; color: var(--text); }
-    .header { margin-bottom: 20px; } h2 { margin: 0; font-size: 22px; }
     
-    /* ★ UI 修正：強制下拉選單整齊 */
+    .header { margin-bottom: 20px; } 
+    h2 { margin: 0; font-size: 22px; font-weight: 700; }
+    
+    /* ★ V97 修復：過濾器排版優化 */
     .filter-card { 
-        background: var(--card); padding: 15px; border-radius: 16px; margin-bottom: 20px; 
-        display: flex; gap: 10px; width: 100%; box-sizing: border-box; /* 關鍵 */
+        background: var(--card); 
+        padding: 16px; 
+        border-radius: 16px; 
+        margin-bottom: 20px; 
+        
+        /* 讓左右兩邊並排，並拉開距離 */
+        display: flex; 
+        align-items: center;
+        gap: 15px; /* 這個間距把它們分開 */
+        width: 100%; 
+        box-sizing: border-box;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.02);
     }
     
-    .filter-group { flex: 1; }
-    .filter-group label { display: block; font-size: 11px; margin-bottom: 4px; color: #6B7280; }
+    .filter-group { 
+        flex: 1; /* 左右各佔 50% */
+        min-width: 0; /* 防止跑版 */
+        display: flex;
+        flex-direction: column;
+    }
     
-    .filter-group select { 
+    .filter-group label { 
+        font-size: 12px; 
+        margin-bottom: 6px; 
+        color: #6B7280; 
+        font-weight: 600;
+    }
+    
+    /* 統一 Select 和 Input 的樣式 */
+    .filter-group select, .filter-group input { 
         width: 100%; 
-        box-sizing: border-box; /* 關鍵 */
-        padding: 10px; 
+        box-sizing: border-box; /* 邊框算在內，才不會凸出去 */
+        height: 42px; /* 固定高度，讓兩邊一樣高 */
+        padding: 0 12px; 
         border: 1px solid #E5E7EB; 
-        border-radius: 8px; 
+        border-radius: 10px; 
         background: #F9FAFB;
         font-size: 14px;
-        -webkit-appearance: none;
+        color: #374151;
+        outline: none;
+        -webkit-appearance: none; /* 移除 iPhone 預設圓角 */
+        appearance: none;
     }
 
     .req-card { background: var(--card); padding: 16px; border-radius: 16px; margin-bottom: 12px; border-left: 4px solid var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
@@ -37,7 +65,7 @@
     .status-APPROVED { background: #D1FAE5; color: #065F46; }
     .status-REJECTED { background: #FEE2E2; color: #991B1B; }
     .req-time { font-size: 13px; color: #6B7280; display: flex; align-items: center; gap: 4px; }
-    .req-reason { margin-top: 8px; background: #F3F4F6; padding: 10px; border-radius: 8px; font-size: 14px; color: #4B5563; word-break: break-all; } /* 修正跑版 */
+    .req-reason { margin-top: 8px; background: #F3F4F6; padding: 10px; border-radius: 8px; font-size: 14px; color: #4B5563; word-break: break-all; }
 
     .nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); padding: 12px 20px; padding-bottom: max(12px, env(safe-area-inset-bottom)); display: flex; justify-content: space-around; box-shadow: 0 -4px 20px rgba(0,0,0,0.05); border-top-left-radius: 24px; border-top-right-radius: 24px; z-index: 100; }
     .nav-item { text-decoration: none; color: #9CA3AF; display: flex; flex-direction: column; align-items: center; font-size: 10px; gap: 4px; }
@@ -82,11 +110,14 @@
   const isMgr = localStorage.getItem("isManager") === "true";
   if(isMgr) document.getElementById("mgrBtn").style.display = 'flex';
 
+  // 產生最近 6 個月的選項
   const mSel = document.getElementById("mSelect");
   const now = new Date();
   for(let i=0; i<6; i++) {
       const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+      // 格式：YYYY/M
       const v = `${d.getFullYear()}/${d.getMonth()+1}`;
+      // 顯示：YYYY年MM月
       const t = `${d.getFullYear()}年${String(d.getMonth()+1).padStart(2,'0')}月`;
       mSel.add(new Option(t, v));
   }
@@ -103,6 +134,8 @@
   async function load() {
       document.getElementById("list").innerHTML = '<div style="text-align:center;color:#999;padding:40px;">載入中...</div>';
       const status = document.getElementById("sSelect").value;
+      
+      // 這裡呼叫後端，後端 V96 會根據身分自動過濾 (主管看自己，除非是在 manager 頁面)
       const res = await api("list_requests", { filterStatus: status });
       
       if(!res.ok || res.list.length === 0) {
@@ -125,13 +158,11 @@
           if(r.category==='OT') icon="加";
           if(r.category==='OUTING') icon="外";
           
-          // 轉換假別顯示
           let typeTxt = r.leaveType;
           if(typeTxt==='annual') typeTxt='特休';
           if(typeTxt==='comp') typeTxt='補休';
           if(typeTxt==='sick') typeTxt='病假';
           if(typeTxt==='personal') typeTxt='事假';
-          // (可自行補完其他假別對照)
 
           h += `
           <div class="req-card" style="border-left-color:${r.status==='PENDING'?'#F59E0B':(r.status==='APPROVED'?'#10B981':'#EF4444')}">

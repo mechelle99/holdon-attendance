@@ -1,75 +1,135 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-TW">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>HOLDON 登入</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <title>登入</title>
   <style>
-    body{font-family:-apple-system,sans-serif;background:#f4f6f8;display:flex;justify-content:center;align-items:center;height:100vh;margin:0}
-    .card{width:100%;max-width:360px;background:#fff;padding:24px;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,0.1)}
-    input{width:100%;padding:12px;margin:8px 0;border:1px solid #ddd;border-radius:8px;box-sizing:border-box;font-size:16px;}
-    button{width:100%;padding:12px;background:#111;color:#fff;border:none;border-radius:8px;font-weight:bold;cursor:pointer;margin-top:10px;font-size:16px;}
-    button:disabled{background:#ccc;}
-    .link{text-align:center;margin-top:15px;font-size:14px;}
-    .link a{color:#007aff;text-decoration:none;}
-    .msg{color:red;font-size:13px;text-align:center;margin-top:10px;min-height:20px;}
+    body { font-family: -apple-system, sans-serif; background: #F3F4F6; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; color: #1F2937; }
+    .card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); width: 100%; max-width: 320px; }
+    h1 { font-size: 24px; text-align: center; margin-bottom: 24px; color: #4F46E5; }
+    
+    .input-group { margin-bottom: 16px; }
+    label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: #4B5563; }
+    input { width: 100%; padding: 12px; border: 1px solid #E5E7EB; border-radius: 10px; font-size: 16px; box-sizing: border-box; outline: none; transition: border 0.2s; }
+    input:focus { border-color: #4F46E5; }
+    
+    button { width: 100%; background: #4F46E5; color: white; padding: 14px; border: none; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer; transition: background 0.2s; margin-top: 10px; }
+    button:active { background: #4338CA; transform: scale(0.98); }
+    
+    .link { text-align: center; margin-top: 16px; font-size: 13px; color: #6B7280; cursor: pointer; text-decoration: underline; }
+    .hidden { display: none; }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h2 style="text-align:center;">HOLDON 登入</h2>
-    <input id="empId" placeholder="員工編號 (例如 M001)" />
-    <input id="pass" type="password" placeholder="密碼" />
-    <button id="btnLogin" onclick="doLogin()">登入</button>
-    <div id="msg" class="msg"></div>
-    <div class="link">
-      <a href="reset.html">忘記密碼？</a>
+
+  <div id="loginForm" class="card">
+    <h1>HR Portal</h1>
+    <div class="input-group">
+      <label>員工編號</label>
+      <input type="text" id="uid" placeholder="例如：A001">
     </div>
+    <div class="input-group">
+      <label>密碼</label>
+      <input type="password" id="pwd" placeholder="輸入密碼">
+    </div>
+    <button onclick="login()">登入</button>
+    <div class="link" onclick="showForgot()">忘記密碼？</div>
   </div>
 
-  <script src="config.js"></script>
-  <script>
-    function doLogin() {
-      const empId = document.getElementById("empId").value.trim();
-      const pass = document.getElementById("pass").value.trim();
-      const msg = document.getElementById("msg");
-      const btn = document.getElementById("btnLogin");
-      
-      if(!empId || !pass) { msg.textContent = "請輸入帳號密碼"; return; }
-      
-      msg.textContent = "登入中...";
-      btn.disabled = true;
+  <div id="forgotForm" class="card hidden">
+    <h1>重設密碼</h1>
+    <div class="input-group">
+      <label>員工編號</label>
+      <input type="text" id="f_uid" placeholder="輸入帳號">
+    </div>
+    <div class="input-group">
+      <label>註冊信箱</label>
+      <input type="email" id="f_email" placeholder="輸入 Email">
+    </div>
+    <button onclick="sendToken()">寄送驗證碼</button>
+    <div class="link" onclick="showLogin()">返回登入</div>
+  </div>
 
-      // JSONP Request
-      const endpoint = window.CONFIG.GAS_ENDPOINT;
-      const callbackName = "cb" + Date.now();
-      const script = document.createElement("script");
-      
-      const payload = JSON.stringify({
-        empId: empId,
-        pass: pass,
-        webhookKey: window.CONFIG.WEBHOOK_KEY
-      });
+  <div id="resetForm" class="card hidden">
+    <h1>設定新密碼</h1>
+    <div class="input-group">
+      <label>驗證碼</label>
+      <input type="text" id="r_token" placeholder="查看信箱輸入 6 位數">
+    </div>
+    <div class="input-group">
+      <label>新密碼</label>
+      <input type="password" id="r_newPwd" placeholder="輸入新密碼">
+    </div>
+    <button onclick="doReset()">確認修改</button>
+    <div class="link" onclick="showLogin()">取消</div>
+  </div>
 
-      window[callbackName] = function(res) {
-        btn.disabled = false;
-        if(res.ok) {
+<script src="config.js"></script>
+<script>
+  // 切換畫面
+  function showLogin() { hideAll(); document.getElementById('loginForm').classList.remove('hidden'); }
+  function showForgot() { hideAll(); document.getElementById('forgotForm').classList.remove('hidden'); }
+  function showReset() { hideAll(); document.getElementById('resetForm').classList.remove('hidden'); }
+  function hideAll() { document.querySelectorAll('.card').forEach(c => c.classList.add('hidden')); }
+
+  function api(act, data={}) {
+    return new Promise(r => {
+      const s = document.createElement("script");
+      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${act}&payload=${encodeURIComponent(JSON.stringify(data))}&callback=cb${Date.now()}`;
+      window[`cb${Date.now()}`] = (res) => { r(res); s.remove(); };
+      document.body.appendChild(s);
+    });
+  }
+
+  // 登入
+  async function login() {
+      const id = document.getElementById("uid").value;
+      const pwd = document.getElementById("pwd").value;
+      if(!id || !pwd) { alert("請輸入帳號密碼"); return; }
+      
+      const btn = event.target; btn.innerText = "登入中...";
+      const res = await api("login", {id, pass:pwd});
+      
+      if(res.ok) {
           localStorage.setItem("employeeId", res.empId);
           localStorage.setItem("employeeName", res.name);
-          localStorage.setItem("isManager", res.isManager ? "Y" : "N");
-          localStorage.setItem("canSchedule", res.canSchedule ? "Y" : "N");
+          localStorage.setItem("isManager", res.isManager);
           location.href = "app.html";
-        } else {
-          msg.textContent = res.message || "登入失敗";
-        }
-        delete window[callbackName];
-        script.remove();
-      };
+      } else {
+          alert(res.message);
+          btn.innerText = "登入";
+      }
+  }
 
-      script.src = `${endpoint}?action=login&payload=${encodeURIComponent(payload)}&callback=${callbackName}`;
-      script.onerror = () => { msg.textContent = "連線失敗"; btn.disabled = false; };
-      document.body.appendChild(script);
-    }
-  </script>
+  // 寄送 Token
+  async function sendToken() {
+      const id = document.getElementById("f_uid").value;
+      const email = document.getElementById("f_email").value;
+      if(!id || !email) { alert("請填寫欄位"); return; }
+      
+      const btn = event.target; btn.innerText = "處理中...";
+      const res = await api("forgot_password", {empId:id, email:email});
+      
+      alert(res.message);
+      btn.innerText = "寄送驗證碼";
+      if(res.ok) showReset();
+  }
+
+  // 修改密碼
+  async function doReset() {
+      const id = document.getElementById("f_uid").value; // 沿用上一頁的 ID
+      const token = document.getElementById("r_token").value;
+      const np = document.getElementById("r_newPwd").value;
+      if(!token || !np) { alert("請填寫欄位"); return; }
+      
+      const btn = event.target; btn.innerText = "更新中...";
+      const res = await api("reset_password_confirm", {empId:id, token:token, newPass:np});
+      
+      alert(res.message);
+      if(res.ok) showLogin();
+      else btn.innerText = "確認修改";
+  }
+</script>
 </body>
 </html>

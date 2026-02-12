@@ -7,7 +7,7 @@
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f7fa; padding: 20px; }
     
-    /* 上方資訊卡 (餘額) */
+    /* 上方資訊卡 */
     .info-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 20px; }
     .user-name { font-size: 18px; font-weight: bold; margin-bottom: 15px; color: #333; }
     .balance-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
@@ -17,7 +17,7 @@
 
     /* 打卡按鈕 (只留上下班) */
     .clock-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 25px; }
-    .btn-clock { padding: 25px; font-size: 18px; border: none; border-radius: 12px; color: white; cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .btn-clock { padding: 30px 10px; font-size: 20px; border: none; border-radius: 12px; color: white; cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
     .btn-in { background: linear-gradient(135deg, #34c759, #30b753); }
     .btn-out { background: linear-gradient(135deg, #ff9500, #e68600); }
     
@@ -31,7 +31,7 @@
 <body>
 
 <div class="info-card">
-  <div class="user-name">Hi, <span id="uName">載入中...</span></div>
+  <div class="user-name">Hi, <span id="uName">...</span></div>
   <div class="balance-grid">
     <div class="bal-box">
       <div class="bal-label">特休餘額</div>
@@ -54,7 +54,7 @@
 <div class="menu-grid">
   <a href="request.html" class="btn-menu">📝 申請作業</a>
   <a href="attendance.html" class="btn-menu">📅 出勤紀錄</a>
-  <a href="roster.html" class="btn-menu">📊 排班表</a>
+  <a href="roster.html" class="btn-menu">📊 團隊排班</a>
   <a href="manager.html" class="btn-menu" id="mgrBtn" style="display:none; color:#007aff;">👨‍💼 主管專區</a>
 </div>
 
@@ -89,12 +89,12 @@
   }
 
   async function clock(type) {
-      if(!lat) { alert("請等待定位"); return; }
+      if(!lat) { alert("請等待 GPS 定位"); return; }
       const res = await api(type, {lat, lng});
       alert(res.message);
   }
 
   init();
 </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9cca914229cf844e',t:'MTc3MDg4MzM4NC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</body>
 </html>

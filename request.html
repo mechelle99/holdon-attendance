@@ -81,7 +81,7 @@
 
     <div class="input-group">
       <label id="startLbl">開始時間</label>
-      <input type="datetime-local" id="start">
+      <input type="datetime-local" id="start" onchange="calc()">
     </div>
 
     <div class="input-group" id="endGrp">
@@ -121,102 +121,96 @@
   const isMgr = localStorage.getItem("isManager") === "true";
   if(isMgr) document.getElementById("mgrBtn").style.display = 'flex';
 
-  // 定義完整假別 HTML，避免切換時遺失
-  const fullLeaveOptions = `
-    <option value="annual">特休</option>
-    <option value="comp">補休</option>
-    <option value="personal">事假</option>
-    <option value="sick">病假</option>
-    <option value="menstrual">生理假</option>
-    <option value="official">公假</option>
-    <option value="marriage">婚假</option>
-    <option value="bereavement">喪假</option>
-    <option value="family">家庭照顧假</option>
-    <option value="maternity">產假</option>
-    <option value="prenatal">產檢假</option>
-    <option value="paternity">陪產檢及陪產假</option>
-    <option value="miscarriage">流產假</option>
-    <option value="injury">公傷病假</option>
-    <option value="epidemic">防疫照顧假</option>
-    <option value="birthday">生日假</option>
-  `;
+  const fullLeaveOptions = document.getElementById("type").innerHTML;
 
   function uiChange() {
       const c = document.getElementById("cat").value;
       const typeDiv = document.getElementById("typeGrp");
-      const typeSel = document.getElementById("type");
       const endDiv = document.getElementById("endGrp");
       const hrsDiv = document.getElementById("hrsGrp");
       const lbl = document.getElementById("startLbl");
       const clockDiv = document.getElementById("autoClockGrp");
 
-      // 1. 重置預設狀態 (全部顯示)
+      // 重置顯示狀態
       typeDiv.style.display = 'block';
       endDiv.style.display = 'block';
       hrsDiv.style.display = 'block';
       clockDiv.style.display = 'none';
       lbl.innerText = '開始時間';
 
-      // 2. 依類別調整
       if (c === 'CORRECTION') { 
-          // 補卡
+          // 補卡：只有一個時間點，無假別，無時數
           endDiv.style.display = 'none';
           hrsDiv.style.display = 'none';
+          typeDiv.style.display = 'none';
           lbl.innerText = '補卡時間';
-          // 補卡不需要假別，但為了不報錯，隱藏它
-          typeDiv.style.display = 'none'; 
       } else if (c === 'OUTING') { 
-          // 外出
+          // 外出：有起訖，但無假別，可自動打卡
           typeDiv.style.display = 'none'; 
           lbl.innerText = '預計外出時間';
-          clockDiv.style.display = 'flex'; // 顯示打卡勾選
+          clockDiv.style.display = 'flex';
+          // 外出也需要算時數嗎？通常需要，若不需要可隱藏 hrsDiv
       } else if (c === 'OT') { 
-          // 加班
+          // 加班：有起訖，無假別
           typeDiv.style.display = 'none';
+          lbl.innerText = '加班開始時間';
       } else {
-          // 請假 (LEAVE) -> 恢復完整假別選單
-          typeSel.innerHTML = fullLeaveOptions;
+          // 請假：全顯示
+          document.getElementById("type").innerHTML = fullLeaveOptions;
       }
+      
+      // 切換類別時重算一次 (避免殘留舊數值)
+      calc();
   }
 
   function calc() {
+      const cat = document.getElementById("cat").value;
       const sVal = document.getElementById("start").value;
       const eVal = document.getElementById("end").value;
-      if (!sVal || !eVal) return;
+      const hInput = document.getElementById("hours");
 
-      const s = new Date(sVal);
-      const e = new Date(eVal);
+      // 補卡不需要算時數
+      if (cat === 'CORRECTION') {
+          hInput.value = 0;
+          return;
+      }
 
-      if (e >= s) {
-          // 計算毫秒差
-          const diffMs = e - s;
-          // 轉換為天數 (無條件進位，只要跨到隔天就算一天)
-          // 這裡假設一天 8 小時。如果只是請 2 小時，員工應該自己手動改。
-          // 但您的需求是「請 2 天變成 16 小時而不是 24 小時」
-          
-          // 簡單邏輯：總小時數
-          const totalHours = diffMs / (1000 * 60 * 60);
-          
-          // 如果超過 24 小時，則視為跨日，改用天數 * 8
-          if (totalHours >= 24) {
-              const days = Math.ceil(totalHours / 24);
-              // 如果是 2/12 ~ 2/13，其實是 2 天
-              // 這裡做一個簡單判定：如果天數 > 0
-              document.getElementById("hours").value = (days + 1) * 8; 
-              // 註：日期相減如果同天是 0，所以跨一天是 1，實際請假是 2 天，所以 +1
-          } else {
-              // 當天請假，直接顯示小時
-              document.getElementById("hours").value = totalHours.toFixed(1);
+      if (sVal && eVal) {
+          const s = new Date(sVal);
+          const e = new Date(eVal);
+
+          if (e <= s) {
+              // 結束時間錯誤
+              hInput.value = 0;
+              return;
           }
-          
-          // ★ V80 修正：針對您的需求「2天=16小時」
-          // 比較精準的算法：
-          const dayDiff = Math.ceil((e - s) / (1000 * 60 * 60 * 24));
-          // 如果是同一天 (dayDiff=0 或 1)，看小時
-          // 如果跨天，直接 days * 8
-          if (dayDiff >= 1) {
-             document.getElementById("hours").value = (dayDiff + 1) * 8; 
-             // 假設 12號~13號 是兩天 => 16小時
+
+          // 判斷是否同天 (比對 年/月/日)
+          const isSameDay = (s.getFullYear() === e.getFullYear() && 
+                             s.getMonth() === e.getMonth() && 
+                             s.getDate() === e.getDate());
+
+          if (isSameDay) {
+              // 同一天：直接算時間差 (小時)
+              const diffMs = e - s;
+              const hours = (diffMs / (1000 * 60 * 60)).toFixed(1);
+              hInput.value = hours;
+          } else {
+              // 跨天：依需求「一天8小時」計算
+              // 算法：(結束日期 - 開始日期) 的天數差
+              // 若 2/12 10:00 到 2/13 10:00，算 2 天 = 16 小時
+              
+              // 取得純日期物件 (時間設為 00:00:00 以計算天數)
+              const sDate = new Date(s.getFullYear(), s.getMonth(), s.getDate());
+              const eDate = new Date(e.getFullYear(), e.getMonth(), e.getDate());
+              
+              // 毫秒差轉天數
+              const dayDiff = Math.round((eDate - sDate) / (1000 * 60 * 60 * 24));
+              
+              // 總天數 = 間隔天數 + 1 (例如 12號到13號，間隔1天，其實是涵蓋2個工作日)
+              const totalDays = dayDiff + 1;
+              
+              hInput.value = totalDays * 8;
           }
       }
   }
@@ -233,9 +227,11 @@
   async function submit() {
       const cat = document.getElementById("cat").value;
       const start = document.getElementById("start").value;
+      const end = document.getElementById("end").value;
       const auto = document.getElementById("autoClock").checked;
       
       if(!start) { alert("請填寫時間"); return; }
+      if(cat !== 'CORRECTION' && !end) { alert("請填寫結束時間"); return; }
 
       const btn = document.querySelector(".btn-submit");
       btn.innerText = "處理中..."; btn.disabled = true;
@@ -244,10 +240,10 @@
           category: cat,
           leaveType: document.getElementById("type").value,
           start: start,
-          end: document.getElementById("end").value || start,
+          end: cat === 'CORRECTION' ? start : end, // 補卡結束時間同開始
           hours: document.getElementById("hours").value || 0,
           reason: document.getElementById("reason").value,
-          autoClock: auto // 外出自動打卡
+          autoClock: auto
       };
 
       const res = await api("submit_request", payload);

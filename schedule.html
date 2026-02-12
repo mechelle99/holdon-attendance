@@ -23,6 +23,9 @@
     th:first-child { background: #F9FAFB; z-index: 20; }
 
     .shift-sel { width: 100%; padding: 6px; border-radius: 6px; border: 1px solid #E5E7EB; font-size: 12px; -webkit-appearance: none; background: white; text-align: center; font-weight: 700; }
+    /* 鎖定時樣式 */
+    .shift-sel:disabled { background: #F3F4F6; color: #9CA3AF; border-color: #E5E7EB; opacity: 0.7; }
+    
     .bg-EARLY { background-color: #D1FAE5 !important; color: #065F46 !important; border: 1px solid #10B981 !important; }
     .bg-LATE { background-color: #FEF3C7 !important; color: #92400E !important; border: 1px solid #F59E0B !important; }
     .bg-OFF { background-color: #F3F4F6 !important; color: #9CA3AF !important; border: 1px solid #E5E7EB !important; }
@@ -87,18 +90,34 @@
     const res = await api("get_roster_data", {year:yS.value, month:mS.value});
     if(!res.ok) { document.getElementById("tbRow").innerHTML = `<tr><td>${res.message}</td></tr>`; return; }
 
-    // 狀態判定
+    // ★ 狀態判定 (鎖定邏輯)
     const today = new Date();
     const lockDay = res.lockDay || 25;
-    // 是否為下個月
-    const isNextMonth = (Number(yS.value) > today.getFullYear()) || (Number(yS.value)===today.getFullYear() && Number(mS.value)>today.getMonth()+1);
+    const targetY = Number(yS.value);
+    const targetM = Number(mS.value);
+    
+    // 是否為下個月 (Target Month > Current Month)
+    // 簡單判斷：如果選的年份大於今年，或者是今年且月份大於下個月(因為getMonth是0-11，所以下個月是getMonth()+2)
+    // 這裡用絕對數值比較最穩：TargetValue > CurrentValue + 1
+    const currentVal = today.getFullYear() * 12 + (today.getMonth() + 1);
+    const targetVal = targetY * 12 + targetM;
+    
+    // 員工只能排下個月 (Current + 1)
+    const isNextMonth = (targetVal === currentVal + 1);
+    
+    // 鎖定條件：
+    // 1. 不是主管
+    // 2. 並且 (不是下個月 或者 (是下個月但今天已經超過25號))
     const isLocked = !res.isManager && (!isNextMonth || (isNextMonth && today.getDate() > lockDay));
 
     let info = "";
     if (res.isManager) info = "👑 主管模式 (可任意編輯)";
     else if (!isLocked) info = `🟢 開放排班中 (每月${lockDay}號截止)`;
-    else info = "🔒 排班已鎖定 (僅供檢視)";
+    else if (!isNextMonth) info = "🔒 本月/過期/未來班表已鎖定";
+    else info = `🔴 排班已截止 (截止日: ${lockDay}號)`;
+    
     document.getElementById("statusInfo").innerText = info;
+    if(isLocked) document.getElementById("statusInfo").style.color = "#EF4444";
 
     // 表格繪製
     const days = new Date(yS.value, mS.value, 0).getDate();
@@ -126,7 +145,7 @@
                 else if(v==='午班'||v==='LATE') { v='午班'; cls='bg-LATE'; }
                 else if(v==='休假'||v==='OFF') { v='休假'; cls='bg-OFF'; }
                 
-                // ★ 關鍵：若鎖定 (isLocked) 則加上 disabled
+                // ★ 關鍵：加上 disabled 屬性
                 const dis = isLocked ? 'disabled' : '';
                 
                 tds += `<td><select class="shift-sel ${cls}" ${dis} onchange="upd('${e.id}','${dateStr}',this)">

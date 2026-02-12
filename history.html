@@ -11,9 +11,9 @@
     .header { margin-bottom: 15px; } 
     h2 { margin: 0; font-size: 22px; font-weight: 700; }
 
-    /* ★ 分頁切換器 (Tabs) */
+    /* ★ V99 分頁切換器 (Tabs) - 清楚分開兩種視圖 */
     .tabs { display: flex; background: #E5E7EB; border-radius: 12px; padding: 4px; margin-bottom: 20px; }
-    .tab { flex: 1; text-align: center; padding: 10px; font-size: 14px; font-weight: 600; color: #6B7280; border-radius: 10px; cursor: pointer; transition: all 0.2s; }
+    .tab { flex: 1; text-align: center; padding: 12px; font-size: 15px; font-weight: 700; color: #6B7280; border-radius: 10px; cursor: pointer; transition: all 0.2s; }
     .tab.active { background: white; color: var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
 
     /* 過濾器 */
@@ -30,31 +30,42 @@
         font-size: 14px; outline: none; -webkit-appearance: none;
     }
 
-    /* 內容容器 */
+    /* 內容容器 (預設隱藏) */
     .content-area { display: none; }
     .content-area.active { display: block; }
 
-    /* --- 出勤卡片樣式 (Attendance) --- */
-    .att-card { background: white; padding: 15px; border-radius: 16px; display: flex; align-items: center; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.03); border-left: 5px solid transparent; }
-    .att-date { width: 50px; text-align: center; border-right: 1px solid #eee; margin-right: 15px; padding-right: 15px; }
-    .d-num { font-size: 18px; font-weight: 800; color: #333; }
-    .d-week { font-size: 12px; color: #999; }
-    .weekend .d-num, .weekend .d-week { color: #EF4444; }
+    /* --- [樣式A] 每日出勤卡片 (顯示 遲到/曠職) --- */
+    .att-card { 
+        background: white; padding: 15px; border-radius: 16px; 
+        display: flex; align-items: center; margin-bottom: 12px; 
+        box-shadow: 0 2px 4px rgba(0,0,0,0.03); 
+        border-left: 5px solid transparent; 
+    }
+    .att-date { 
+        width: 60px; text-align: center; border-right: 1px solid #eee; margin-right: 15px; padding-right: 15px; 
+    }
+    .d-num { font-size: 20px; font-weight: 800; color: #333; }
+    .d-week { font-size: 12px; color: #999; margin-top: 2px; }
+    .weekend .d-num, .weekend .d-week { color: #EF4444; } /* 週末紅字 */
     
-    .att-times { flex: 1; font-size: 13px; color: #555; line-height: 1.6; }
-    .t-row span { display: inline-block; width: 32px; color: #999; font-size: 11px; }
+    .att-info { flex: 1; font-size: 14px; color: #374151; line-height: 1.5; }
+    .time-row { display: flex; align-items: center; margin-bottom: 2px; }
+    .time-label { color: #9CA3AF; font-size: 12px; width: 40px; }
     
-    .att-tag { padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 700; color: white; min-width: 60px; text-align: center; }
+    .att-tag { 
+        padding: 6px 12px; border-radius: 8px; font-size: 13px; font-weight: 700; 
+        color: white; min-width: 60px; text-align: center; 
+    }
     
-    /* 狀態顏色 */
-    .cls-ok { border-left-color: #10B981; } .tag-ok { background: #10B981; }
-    .cls-late { border-left-color: #F59E0B; } .tag-late { background: #F59E0B; }
-    .cls-miss { border-left-color: #EF4444; } .tag-miss { background: #EF4444; }
-    .cls-leave { border-left-color: #3B82F6; } .tag-leave { background: #3B82F6; }
-    .cls-off { border-left-color: #E5E7EB; } .tag-off { background: #E5E7EB; color: #9CA3AF; }
+    /* 狀態顏色對應 (必須跟後端 getDashboard 回傳的 cls 對應) */
+    .cls-ok { border-left-color: #10B981; } .tag-ok { background: #10B981; } /* 正常/加班 */
+    .cls-late { border-left-color: #F59E0B; } .tag-late { background: #F59E0B; } /* 遲到/早退 */
+    .cls-miss { border-left-color: #EF4444; } .tag-miss { background: #EF4444; } /* 曠職/缺卡 */
+    .cls-leave { border-left-color: #3B82F6; } .tag-leave { background: #3B82F6; } /* 請假 */
+    .cls-off { border-left-color: #E5E7EB; } .tag-off { background: #E5E7EB; color: #9CA3AF; } /* 休假 */
 
-    /* --- 申請單樣式 (Requests) --- */
-    .req-card { background: var(--card); padding: 16px; border-radius: 16px; margin-bottom: 12px; border-left: 4px solid var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
+    /* --- [樣式B] 申請單卡片 --- */
+    .req-card { background: var(--card); padding: 16px; border-radius: 16px; margin-bottom: 12px; border-left: 4px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
     .req-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
     .req-title { font-weight: 700; font-size: 16px; display: flex; align-items: center; gap: 6px; }
     .status-badge { padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; }
@@ -74,8 +85,8 @@
   <div class="header"><h2>📋 紀錄查詢</h2></div>
 
   <div class="tabs">
-    <div class="tab active" onclick="switchTab('att')">每日出勤</div>
-    <div class="tab" onclick="switchTab('req')">申請單據</div>
+    <div class="tab active" onclick="switchTab('att')">每日出勤 (看遲到)</div>
+    <div class="tab" onclick="switchTab('req')">申請單據 (看簽核)</div>
   </div>
 
   <div class="filter-card">
@@ -96,11 +107,11 @@
   </div>
 
   <div id="view-att" class="content-area active">
-    <div id="list-att" style="text-align:center;color:#999;padding:40px;">請選擇月份查詢</div>
+    <div id="list-att" style="text-align:center;color:#999;padding:40px;">載入中...</div>
   </div>
 
   <div id="view-req" class="content-area">
-    <div id="list-req" style="text-align:center;color:#999;padding:40px;">請選擇月份查詢</div>
+    <div id="list-req" style="text-align:center;color:#999;padding:40px;">載入中...</div>
   </div>
 
   <nav class="nav">
@@ -117,32 +128,34 @@
   const isMgr = localStorage.getItem("isManager") === "true";
   if(isMgr) document.getElementById("mgrBtn").style.display = 'flex';
 
-  // 初始化月份選單
+  // 1. 初始化月份 (最近 6 個月)
   const mSel = document.getElementById("mSelect");
   const now = new Date();
   for(let i=0; i<6; i++) {
       const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
-      const v = `${d.getFullYear()}/${d.getMonth()+1}`; // 2026/2
+      const v = `${d.getFullYear()}/${d.getMonth()+1}`;
       const t = `${d.getFullYear()}年${String(d.getMonth()+1).padStart(2,'0')}月`;
       mSel.add(new Option(t, v));
   }
 
-  let currentTab = 'att'; // 預設顯示出勤
+  let currentTab = 'att'; // 預設 Tab
 
+  // 切換邏輯
   function switchTab(tab) {
       currentTab = tab;
       
-      // UI 切換
+      // UI 變色
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
       event.currentTarget.classList.add('active');
       
+      // 內容切換
       document.querySelectorAll('.content-area').forEach(c => c.classList.remove('active'));
       document.getElementById(`view-${tab}`).classList.add('active');
 
-      // 狀態過濾器只在「申請單」顯示
+      // 只有申請單才需要選狀態
       document.getElementById('statusFilter').style.display = (tab === 'req') ? 'flex' : 'none';
 
-      refresh();
+      refresh(); // 重新載入資料
   }
 
   function refresh() {
@@ -159,24 +172,25 @@
     });
   }
 
-  // ★ 載入每日出勤 (舊 attendance.html 邏輯)
+  // ★ 功能 1: 載入每日出勤 (看遲到/曠職)
   async function loadAttendance() {
       const listDiv = document.getElementById("list-att");
-      listDiv.innerHTML = '<div style="text-align:center;color:#999;padding:40px;">載入中...</div>';
+      listDiv.innerHTML = '<div style="text-align:center;color:#999;padding:40px;">載入出勤資料...</div>';
       
       const [y, m] = mSel.value.split('/');
+      
+      // 呼叫後端的 get_dashboard (這個才是算遲到的邏輯)
       const res = await api("get_dashboard", {year: y, month: m});
 
       if(!res.ok || !res.dailyData || res.dailyData.length === 0) {
-          listDiv.innerHTML = `<div style="text-align:center;padding:40px;color:#9CA3AF;">無打卡資料</div>`;
+          listDiv.innerHTML = `<div style="text-align:center;padding:40px;color:#9CA3AF;">本月無資料</div>`;
           return;
       }
 
       let h = "";
       res.dailyData.forEach(d => {
           const isWk = (d.week==='日'||d.week==='六') ? 'weekend' : '';
-          // 樣式對應: cls-ok, cls-late, cls-miss...
-          const cls = `cls-${d.cls}`; 
+          const cls = `cls-${d.cls}`; // 對應 CSS: cls-ok, cls-late, cls-miss
           const tagCls = `tag-${d.cls}`;
 
           h += `
@@ -185,9 +199,9 @@
               <div class="d-num">${d.date}</div>
               <div class="d-week">${d.week}</div>
             </div>
-            <div class="att-times">
-              <div class="t-row"><span>上班</span> ${d.in}</div>
-              <div class="t-row"><span>下班</span> ${d.out}</div>
+            <div class="att-info">
+              <div class="time-row"><span class="time-label">上班</span> <b>${d.in}</b></div>
+              <div class="time-row"><span class="time-label">下班</span> <b>${d.out}</b></div>
             </div>
             <div class="att-tag ${tagCls}">${d.tag}</div>
           </div>`;
@@ -195,30 +209,27 @@
       listDiv.innerHTML = h;
   }
 
-  // ★ 載入申請單據 (舊 history.html 邏輯)
+  // ★ 功能 2: 載入申請單 (看簽核)
   async function loadRequests() {
       const listDiv = document.getElementById("list-req");
-      listDiv.innerHTML = '<div style="text-align:center;color:#999;padding:40px;">載入中...</div>';
+      listDiv.innerHTML = '<div style="text-align:center;color:#999;padding:40px;">載入申請資料...</div>';
       
-      // 注意：目前的後端 listRequests API 尚未支援 "月份過濾"，它只給全部
-      // 為了不要改動後端太多，我們前端過濾即可
-      const [y, m] = mSel.value.split('/');
       const status = document.getElementById("sSelect").value;
+      const [y, m] = mSel.value.split('/');
       
+      // 呼叫 list_requests
       const res = await api("list_requests", { filterStatus: status });
 
       if(!res.ok || res.list.length === 0) {
-          listDiv.innerHTML = `<div style="text-align:center;padding:40px;color:#9CA3AF;">無申請資料</div>`;
-          return;
+          renderEmpty(listDiv); return;
       }
 
-      // 前端過濾月份
-      const targetPrefix = `${y}-${m.padStart(2,'0')}`; // e.g. 2026-02
-      const filtered = res.list.filter(r => r.start.startsWith(targetPrefix));
+      // 前端過濾月份 (因為後端 API 預設給全部)
+      const target = `${y}-${m.padStart(2,'0')}`;
+      const filtered = res.list.filter(r => r.start.startsWith(target));
 
       if(filtered.length === 0) {
-          listDiv.innerHTML = `<div style="text-align:center;padding:40px;color:#9CA3AF;">本月無申請資料</div>`;
-          return;
+          renderEmpty(listDiv); return;
       }
 
       let h = "";
@@ -228,11 +239,12 @@
           if(r.status==='REJECTED') badge="已駁回";
           
           let icon = "📄";
-          if(r.category==='LEAVE') icon="请";
-          if(r.category==='OT') icon="加";
-          if(r.category==='OUTING') icon="外";
-          
-          let typeTxt = r.leaveType;
+          if(r.category==='LEAVE') icon="請假";
+          if(r.category==='OT') icon="加班";
+          if(r.category==='OUTING') icon="外出";
+          if(r.category==='CORRECTION') icon="補卡"; // 修正補卡顯示
+
+          let typeTxt = r.leaveType || r.category;
           if(typeTxt==='annual') typeTxt='特休';
           if(typeTxt==='comp') typeTxt='補休';
           if(typeTxt==='sick') typeTxt='病假';
@@ -242,7 +254,7 @@
           <div class="req-card" style="border-left-color:${r.status==='PENDING'?'#F59E0B':(r.status==='APPROVED'?'#10B981':'#EF4444')}">
             <div class="req-header">
               <div class="req-title">
-                 <span>${icon}</span> ${typeTxt || r.category}
+                 <span>${icon}</span> ${typeTxt}
               </div>
               <div class="status-badge status-${r.status}">${badge}</div>
             </div>
@@ -252,8 +264,12 @@
       });
       listDiv.innerHTML = h;
   }
+
+  function renderEmpty(el) {
+      el.innerHTML = `<div style="text-align:center;padding:40px;color:#9CA3AF;">無相關資料</div>`;
+  }
   
-  // 啟動
+  // 啟動 (載入預設 tab)
   refresh();
 </script>
 </body>

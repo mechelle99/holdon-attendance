@@ -2,61 +2,251 @@
 <html lang="zh-TW">
 <head>
   <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
   <title>員工系統</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f7fa; padding: 20px; }
-    
-    /* 上方資訊卡 */
-    .info-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 20px; }
-    .user-name { font-size: 18px; font-weight: bold; margin-bottom: 15px; color: #333; }
-    .balance-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-    .bal-box { background: #f8f9fa; padding: 10px; border-radius: 8px; text-align: center; }
-    .bal-label { font-size: 13px; color: #666; }
-    .bal-num { font-size: 20px; font-weight: bold; color: #007aff; }
+    :root {
+      --primary: #007aff;
+      --bg: #f2f4f8;
+      --card: #ffffff;
+      --text-main: #1c1c1e;
+      --text-sub: #8e8e93;
+      --green-grad: linear-gradient(135deg, #34c759, #30d158);
+      --orange-grad: linear-gradient(135deg, #ff9500, #ff9f0a);
+      --blue-grad: linear-gradient(135deg, #007aff, #0a84ff);
+    }
 
-    /* 打卡按鈕 */
-    .clock-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 25px; }
-    .btn-clock { padding: 30px 10px; font-size: 20px; border: none; border-radius: 12px; color: white; cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-    .btn-in { background: linear-gradient(135deg, #34c759, #30b753); }
-    .btn-out { background: linear-gradient(135deg, #ff9500, #e68600); }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      margin: 0;
+      padding: 20px;
+      color: var(--text-main);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* 頂部 Header */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding: 0 5px;
+    }
+    .user-info { font-size: 22px; font-weight: 800; color: var(--text-main); }
+    .user-info span { color: var(--primary); }
     
-    /* 下方選單 */
-    .menu-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-    .btn-menu { background: white; border: 1px solid #ddd; padding: 15px; border-radius: 8px; text-align: center; text-decoration: none; color: #333; font-weight: 500; font-size: 15px; }
+    .btn-logout {
+      font-size: 13px;
+      color: var(--text-sub);
+      background: rgba(0,0,0,0.05);
+      padding: 6px 12px;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-logout:active { background: rgba(0,0,0,0.1); }
+
+    /* 餘額儀表板卡片 */
+    .dashboard-card {
+      background: var(--card);
+      border-radius: 20px;
+      padding: 20px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+      margin-bottom: 25px;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+    }
     
-    #gpsStatus { text-align: center; font-size: 12px; color: #999; margin-bottom: 10px; }
+    .balance-item {
+      text-align: center;
+      flex: 1;
+      position: relative;
+    }
+    .balance-item:first-child::after {
+      content: '';
+      position: absolute;
+      right: 0;
+      top: 10%;
+      height: 80%;
+      width: 1px;
+      background: #eee;
+    }
+    
+    .bal-value {
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--text-main);
+      line-height: 1.2;
+    }
+    .bal-label {
+      font-size: 13px;
+      color: var(--text-sub);
+      margin-top: 4px;
+      font-weight: 500;
+    }
+
+    /* GPS 狀態條 */
+    .gps-bar {
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-sub);
+      margin-bottom: 15px;
+      background: rgba(255,255,255,0.6);
+      padding: 6px;
+      border-radius: 12px;
+      display: inline-block;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    /* 打卡按鈕區 */
+    .clock-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+      margin-bottom: 30px;
+    }
+    
+    .clock-btn {
+      border: none;
+      border-radius: 24px;
+      padding: 25px 15px;
+      color: white;
+      font-size: 18px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+      transition: transform 0.1s, filter 0.2s;
+      outline: none;
+    }
+    .clock-btn:active { transform: scale(0.96); filter: brightness(0.9); }
+    
+    .clock-in { background: var(--green-grad); box-shadow: 0 8px 20px rgba(52, 199, 89, 0.3); }
+    .clock-out { background: var(--orange-grad); box-shadow: 0 8px 20px rgba(255, 149, 0, 0.3); }
+    
+    .clock-icon { font-size: 32px; }
+
+    /* 功能選單標題 */
+    .section-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-sub);
+      margin-bottom: 12px;
+      padding-left: 5px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* 功能選單 Grid */
+    .menu-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr); /* 一行三個 */
+      gap: 12px;
+    }
+
+    .menu-item {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 15px 10px;
+      text-align: center;
+      text-decoration: none;
+      color: var(--text-main);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+      transition: transform 0.1s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .menu-item:active { transform: scale(0.96); background: #fafafa; }
+
+    .menu-icon {
+      font-size: 24px;
+      background: #f2f4f8;
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .menu-text { font-size: 13px; font-weight: 600; }
+
+    /* 主管按鈕特別樣式 */
+    .menu-item.manager {
+      background: #eef7ff;
+      color: var(--primary);
+    }
+    .menu-item.manager .menu-icon {
+      background: #fff;
+      color: var(--primary);
+    }
+
   </style>
 </head>
 <body>
 
-<div class="info-card">
-  <div class="user-name">Hi, <span id="uName">...</span></div>
-  <div class="balance-grid">
-    <div class="bal-box">
+  <div class="header">
+    <div class="user-info">Hi, <span id="uName">...</span></div>
+    <div class="btn-logout" onclick="logout()">登出</div>
+  </div>
+
+  <div class="dashboard-card">
+    <div class="balance-item">
+      <div class="bal-value" id="annBal">--</div>
       <div class="bal-label">特休餘額</div>
-      <div class="bal-num" id="annBal">--</div>
     </div>
-    <div class="bal-box">
+    <div class="balance-item">
+      <div class="bal-value" id="compBal">--</div>
       <div class="bal-label">補休餘額</div>
-      <div class="bal-num" id="compBal">--</div>
     </div>
   </div>
-</div>
 
-<div id="gpsStatus">📍 GPS 定位中...</div>
+  <div class="gps-bar" id="gpsStatus">
+    <span style="animation: blink 1.5s infinite;">📡</span> GPS 定位中...
+  </div>
 
-<div class="clock-grid">
-  <button class="btn-clock btn-in" onclick="clock('clock_in')">上班打卡</button>
-  <button class="btn-clock btn-out" onclick="clock('clock_out')">下班打卡</button>
-</div>
+  <div class="clock-section">
+    <button class="clock-btn clock-in" onclick="clock('clock_in')">
+      <span class="clock-icon">☀️</span>
+      <span>上班打卡</span>
+    </button>
+    <button class="clock-btn clock-out" onclick="clock('clock_out')">
+      <span class="clock-icon">🌙</span>
+      <span>下班打卡</span>
+    </button>
+  </div>
 
-<div class="menu-grid">
-  <a href="request.html" class="btn-menu">📝 申請作業</a>
-  <a href="history.html" class="btn-menu">📋 申請紀錄</a>
-  <a href="attendance.html" class="btn-menu">📅 出勤紀錄</a>
-  <a href="schedule.html" class="btn-menu">📊 團隊排班</a> <a href="manager.html" class="btn-menu" id="mgrBtn" style="display:none; color:#007aff;">👨‍💼 主管專區</a>
-</div>
+  <div class="section-title">功能與服務</div>
+  <div class="menu-grid">
+    <a href="request.html" class="menu-item">
+      <div class="menu-icon">📝</div>
+      <div class="menu-text">提出申請</div>
+    </a>
+    <a href="history.html" class="menu-item">
+      <div class="menu-icon">📋</div>
+      <div class="menu-text">申請紀錄</div>
+    </a>
+    <a href="attendance.html" class="menu-item">
+      <div class="menu-icon">📅</div>
+      <div class="menu-text">出勤紀錄</div>
+    </a>
+    <a href="schedule.html" class="menu-item">
+      <div class="menu-icon">📊</div>
+      <div class="menu-text">排班表</div>
+    </a>
+    <a href="manager.html" class="menu-item manager" id="mgrBtn" style="display:none;">
+      <div class="menu-icon">👨‍💼</div>
+      <div class="menu-text">主管專區</div>
+    </a>
+  </div>
 
 <script src="config.js"></script>
 <script>
@@ -64,9 +254,21 @@
   if(!uid) location.href='index.html';
 
   let lat='', lng='';
+  
+  // GPS 定位
   navigator.geolocation.getCurrentPosition(
-    p => { lat=p.coords.latitude; lng=p.coords.longitude; document.getElementById('gpsStatus').innerText='✅ GPS 已定位'; },
-    e => { document.getElementById('gpsStatus').innerText='⚠️ 定位失敗'; }
+    p => { 
+      lat=p.coords.latitude; 
+      lng=p.coords.longitude; 
+      document.getElementById('gpsStatus').innerHTML = '✅ GPS 已鎖定'; 
+      document.getElementById('gpsStatus').style.color = '#34c759';
+      document.getElementById('gpsStatus').style.fontWeight = 'bold';
+    },
+    e => { 
+      document.getElementById('gpsStatus').innerText = '⚠️ 無法取得 GPS (請允許權限)'; 
+      document.getElementById('gpsStatus').style.color = '#ff3b30';
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
   );
 
   function api(act, data={}) {
@@ -79,21 +281,49 @@
   }
 
   async function init() {
+      // 呼叫後端 get_me
       const res = await api("get_me");
       if(res.ok) {
           document.getElementById("uName").innerText = res.name;
           document.getElementById("annBal").innerText = res.balances.annual.left;
           document.getElementById("compBal").innerText = res.balances.comp.left;
-          if(res.isManager) document.getElementById("mgrBtn").style.display = 'block';
+          
+          if(res.isManager) {
+              const btn = document.getElementById("mgrBtn");
+              btn.style.display = 'flex';
+          }
+      } else {
+          document.getElementById("uName").innerText = "載入失敗";
       }
   }
 
   async function clock(type) {
-      if(!lat) { alert("請等待 GPS 定位"); return; }
+      if(!lat) { alert("請先等待 GPS 定位完成"); return; }
+      
+      const btn = event.currentTarget; // 抓取按鈕元素
+      const originalHTML = btn.innerHTML;
+      btn.innerHTML = '<span style="font-size:20px">⏳</span><span>處理中...</span>';
+      btn.style.opacity = '0.7';
+      btn.disabled = true;
+
       const res = await api(type, {lat, lng});
+      
       alert(res.message);
+      
+      // 還原按鈕
+      btn.innerHTML = originalHTML;
+      btn.style.opacity = '1';
+      btn.disabled = false;
   }
 
+  function logout() {
+      if(confirm("確定要登出嗎？")) {
+          localStorage.clear();
+          location.href = "index.html";
+      }
+  }
+
+  // 啟動
   init();
 </script>
 </body>

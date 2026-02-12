@@ -14,12 +14,11 @@
     .info{flex:1;}
     .time-row{font-size:14px;color:#444;line-height:1.6;}
     .tag{font-size:13px;padding:4px 10px;border-radius:6px;color:#fff;font-weight:bold;min-width:60px;text-align:center;}
-    
+    /* 狀態顏色 */
     .ok{background:#34c759} .late{background:#ff9500} .miss{background:#ff3b30}
-    .abn{background:#8e8e93} .off{background:#e5e5ea;color:#999} .leave{background:#007aff}
-
-    select{padding:8px;border-radius:8px;border:1px solid #ddd;font-size:16px; background:white;}
-    button{padding:8px 15px;background:#111;color:#fff;border:none;border-radius:8px;font-size:14px;}
+    .off{background:#e5e5ea;color:#999} .leave{background:#007aff}
+    select{padding:8px;border-radius:8px;background:white;}
+    button{padding:8px 15px;background:#111;color:#fff;border-radius:8px;border:none;}
   </style>
 </head>
 <body>
@@ -29,15 +28,10 @@
     <select id="m"></select>
     <button onclick="load()">查詢</button>
   </div>
-  
   <div id="list"></div>
-
   <script src="config.js"></script>
-
   <script>
     const uid = localStorage.getItem("employeeId");
-    
-    // 初始化選單
     const yS = document.getElementById("y");
     const mS = document.getElementById("m");
     const now = new Date();
@@ -50,7 +44,7 @@
     function api(a, d={}) {
       return new Promise(r => {
         const endpoint = window.CONFIG ? window.CONFIG.GAS_ENDPOINT : null;
-        if (!endpoint) { alert("找不到 CONFIG.GAS_ENDPOINT"); return; }
+        if (!endpoint) { alert("Config Error"); return; }
         const s = document.createElement("script");
         s.src = `${endpoint}?action=${a}&payload=${encodeURIComponent(JSON.stringify({...d, userId:uid}))}&callback=cb${Date.now()}`;
         window[`cb${Date.now()}`] = (res) => { r(res); s.remove(); };
@@ -58,112 +52,40 @@
       });
     }
 
-    function toMins(tStr) {
-      if(!tStr) return -1;
-      const p = tStr.split(':');
-      return parseInt(p[0])*60 + parseInt(p[1]);
-    }
-
     async function load() {
       const listDiv = document.getElementById("list");
-      listDiv.innerHTML = "<div style='text-align:center;margin-top:20px;color:#999'>載入中...</div>";
+      listDiv.innerHTML = "載入中...";
       
       const y = parseInt(yS.value);
       const m = parseInt(mS.value);
       
+      // 直接拿後端算好的 dailyData
       const r = await api("get_dashboard", {year:y, month:m});
-      
       listDiv.innerHTML = "";
 
-      if(r && r.ok) {
-        // ★ 讀取後端傳來的啟用日期
-        let systemStartDate = new Date("1900/01/01"); 
-        if (r.systemStartDate) {
-           systemStartDate = new Date(r.systemStartDate);
+      if(r && r.ok && r.dailyData) {
+        if(r.dailyData.length === 0) {
+            listDiv.innerHTML = "<div style='text-align:center;padding:20px;color:#999'>無資料</div>";
+            return;
         }
-
-        const daysInMonth = new Date(y, m, 0).getDate();
-        const map = {};
-        
-        for(let i=1; i<=daysInMonth; i++) map[i] = { shift: r.schedule[i] || 'EARLY', in:null, out:null, leave:null };
-        
-        if (r.clocks) {
-            r.clocks.forEach(c => {
-              const day = parseInt(c.date.split('-')[2]); 
-              if(map[day]) {
-                if(c.type && (c.type.includes('上班') || c.type==='IN')) map[day].in = c.time;
-                if(c.type && (c.type.includes('下班') || c.type==='OUT')) map[day].out = c.time;
-              }
-            });
-        }
-
-        if(r.leaves) {
-            r.leaves.forEach(l => {
-                const day = parseInt(l.date.split('-')[2]);
-                if(map[day]) map[day].leave = l.type;
-            });
-        }
-
-        const today = new Date();
-        today.setHours(23,59,59,999); 
-
-        for(let i=daysInMonth; i>=1; i--) {
-          const currentLoopDate = new Date(y, m-1, i);
-          if (currentLoopDate > today) continue; 
-
-          const item = map[i];
-          const weekDay = ['日','一','二','三','四','五','六'][currentLoopDate.getDay()];
-          
-          let stTag="正常", stCls="ok";
-          
-          // ★ 如果早於系統啟用日，顯示灰色 (這是顯示邏輯，所以在前端)
-          if (currentLoopDate < systemStartDate) {
-             stTag = "未啟用"; stCls = "off"; 
-          }
-          else if (item.leave) {
-             stTag = item.leave; stCls = "leave";
-          } 
-          else if (item.shift === 'OFF') {
-             stTag = "休假"; stCls = "off";
-             if(item.in || item.out) { stTag="加班"; stCls="ok"; }
-          } 
-          else {
-             if(!item.in && !item.out) { stTag="曠職"; stCls="miss"; }
-             else if(!item.in) { stTag="缺上班卡"; stCls="miss"; }
-             else if(!item.out) { stTag="缺下班卡"; stCls="miss"; }
-             else {
-                const minsIn = toMins(item.in);
-                const minsOut = toMins(item.out);
-                let stdIn = 600, stdOut = 1080;
-                if(item.shift === 'LATE') { stdIn = 720; stdOut = 1260; }
-                let isLate = minsIn > stdIn;
-                let isEarly = minsOut < stdOut; 
-                if (minsOut >= (stdOut + 60)) { stTag = "異常"; stCls = "abn"; }
-                else if (isLate && isEarly) { stTag = "遲到/早退"; stCls = "late"; }
-                else if (isLate) { stTag = "遲到"; stCls = "late"; }
-                else if (isEarly) { stTag = "早退"; stCls = "late"; }
-                else { stTag = "正常"; stCls = "ok"; }
-             }
-          }
-
+        r.dailyData.forEach(d => {
           listDiv.innerHTML += `
             <div class="card">
               <div class="date-box">
-                <div class="date-day">${i}</div>
-                <div class="date-w">${weekDay}</div>
+                <div class="date-day">${d.date}</div>
+                <div class="date-w">${d.week}</div>
               </div>
               <div class="info">
-                <div class="time-row"><span>上班</span> ${item.in||'--:--'}</div>
-                <div class="time-row"><span>下班</span> ${item.out||'--:--'}</div>
+                <div class="time-row"><span>上班</span> ${d.in}</div>
+                <div class="time-row"><span>下班</span> ${d.out}</div>
               </div>
-              <div class="tag ${stCls}">${stTag}</div>
+              <div class="tag ${d.cls}">${d.tag}</div>
             </div>`;
-        }
+        });
       } else {
-         listDiv.innerHTML = `<div style='text-align:center;padding:20px;color:red'>讀取失敗: ${r ? r.message : 'Unknown'}</div>`;
+         listDiv.innerHTML = `<div style='text-align:center;color:red'>讀取失敗: ${r?r.message:'Unknown'}</div>`;
       }
     }
-    
     load();
   </script>
 </body>

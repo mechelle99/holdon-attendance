@@ -5,254 +5,96 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>員工系統</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f7fa; margin: 0; padding: 20px; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f7fa; padding: 20px; }
     
-    /* 卡片通用樣式 */
-    .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 20px; }
-    .card h3 { margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px; color: #333; }
+    /* 上方資訊卡 (餘額) */
+    .info-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 20px; }
+    .user-name { font-size: 18px; font-weight: bold; margin-bottom: 15px; color: #333; }
+    .balance-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+    .bal-box { background: #f8f9fa; padding: 10px; border-radius: 8px; text-align: center; }
+    .bal-label { font-size: 13px; color: #666; }
+    .bal-num { font-size: 20px; font-weight: bold; color: #007aff; }
 
-    /* 打卡區 */
-    .clock-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
-    button.clock-btn { padding: 15px; font-size: 16px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; color: white; transition: opacity 0.2s; }
-    .btn-in { background: #34c759; }
-    .btn-out { background: #ff9500; }
-    .btn-outing { background: #5856d6; grid-column: span 2; } /* 外出 */
+    /* 打卡按鈕 (只留上下班) */
+    .clock-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 25px; }
+    .btn-clock { padding: 25px; font-size: 18px; border: none; border-radius: 12px; color: white; cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .btn-in { background: linear-gradient(135deg, #34c759, #30b753); }
+    .btn-out { background: linear-gradient(135deg, #ff9500, #e68600); }
     
-    /* 申請表單 */
-    .form-group { margin-bottom: 15px; }
-    label { display: block; margin-bottom: 6px; font-weight: bold; color: #555; font-size: 14px; }
-    input, select, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
-    .btn-submit { width: 100%; background: #007aff; color: white; padding: 12px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; }
-
-    /* 功能選單 */
-    .menu-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
-    .menu-btn { padding: 12px; background: #fff; border: 1px solid #ddd; border-radius: 8px; text-align: center; color: #333; font-size: 14px; cursor: pointer; text-decoration: none; display: block; }
-    .menu-btn:hover { background: #f0f0f0; }
-
-    /* 歡迎詞 */
-    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-    .user-info { font-size: 18px; font-weight: bold; }
-    .logout { font-size: 14px; color: #ff3b30; cursor: pointer; }
+    /* 下方選單 */
+    .menu-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .btn-menu { background: white; border: 1px solid #ddd; padding: 15px; border-radius: 8px; text-align: center; text-decoration: none; color: #333; font-weight: 500; font-size: 15px; }
+    
+    #gpsStatus { text-align: center; font-size: 12px; color: #999; margin-bottom: 10px; }
   </style>
 </head>
 <body>
 
-<div class="header">
-  <div class="user-info">Hi, <span id="userName">...</span></div>
-  <div class="logout" onclick="logout()">登出</div>
+<div class="info-card">
+  <div class="user-name">Hi, <span id="uName">載入中...</span></div>
+  <div class="balance-grid">
+    <div class="bal-box">
+      <div class="bal-label">特休餘額</div>
+      <div class="bal-num" id="annBal">--</div>
+    </div>
+    <div class="bal-box">
+      <div class="bal-label">補休餘額</div>
+      <div class="bal-num" id="compBal">--</div>
+    </div>
+  </div>
 </div>
 
-<div class="card">
-  <h3>🕒 打卡作業</h3>
-  <div class="clock-grid">
-    <button class="clock-btn btn-in" onclick="clock('clock_in')">上班打卡</button>
-    <button class="clock-btn btn-out" onclick="clock('clock_out')">下班打卡</button>
-    <button class="clock-btn btn-outing" onclick="clock('outing_clock_in')">📍 外出打卡</button>
-  </div>
-  <div id="gpsStatus" style="font-size:12px; color:#999; text-align:center;">定位中...</div>
-</div>
+<div id="gpsStatus">📍 GPS 定位中...</div>
 
-<div class="card">
-  <h3>📝 提出申請</h3>
-  
-  <div class="form-group">
-    <label>申請類別</label>
-    <select id="category" onchange="updateFormUI()">
-      <option value="LEAVE">請假申請</option>
-      <option value="OT">加班申請</option>
-      <option value="CORRECTION">補卡申請</option>
-    </select>
-  </div>
-
-  <div class="form-group" id="typeGroup">
-    <label>假別</label>
-    <select id="leaveType">
-      <option value="annual">特休</option>
-      <option value="personal">事假</option>
-      <option value="sick">病假</option>
-      <option value="comp">補休</option>
-      <option value="official">公假</option>
-      <option value="maternity">產假/陪產假</option>
-      <option value="bereavement">喪假</option>
-    </select>
-  </div>
-
-  <div class="form-group">
-    <label id="startLabel">開始時間</label>
-    <input type="datetime-local" id="start">
-  </div>
-
-  <div class="form-group" id="endGroup">
-    <label>結束時間</label>
-    <input type="datetime-local" id="end" onchange="calcHours()">
-  </div>
-
-  <div class="form-group" id="hoursGroup">
-    <label>時數</label>
-    <input type="number" id="hours" step="0.5" placeholder="自動計算">
-  </div>
-
-  <div class="form-group">
-    <label>事由</label>
-    <textarea id="reason" rows="2" placeholder="請輸入說明..."></textarea>
-  </div>
-
-  <button class="btn-submit" onclick="submitRequest()">送出申請</button>
+<div class="clock-grid">
+  <button class="btn-clock btn-in" onclick="clock('clock_in')">上班打卡</button>
+  <button class="btn-clock btn-out" onclick="clock('clock_out')">下班打卡</button>
 </div>
 
 <div class="menu-grid">
-  <a href="attendance.html" class="menu-btn">📅 出勤紀錄</a>
-  <a href="roster.html" class="menu-btn">📊 團隊排班</a>
-  <a href="manager.html" class="menu-btn" id="mgrBtn" style="display:none; color:#007aff; font-weight:bold;">👨‍💼 主管專區</a>
+  <a href="request.html" class="btn-menu">📝 申請作業</a>
+  <a href="attendance.html" class="btn-menu">📅 出勤紀錄</a>
+  <a href="roster.html" class="btn-menu">📊 排班表</a>
+  <a href="manager.html" class="btn-menu" id="mgrBtn" style="display:none; color:#007aff;">👨‍💼 主管專區</a>
 </div>
 
 <script src="config.js"></script>
 <script>
-  // 初始化檢查
   const uid = localStorage.getItem("employeeId");
-  const uname = localStorage.getItem("employeeName");
-  const isMgr = localStorage.getItem("isManager") === "true";
+  if(!uid) location.href='index.html';
 
-  if (!uid) { location.href = "index.html"; }
-  document.getElementById("userName").innerText = uname || uid;
-  if (isMgr) document.getElementById("mgrBtn").style.display = "block";
-
-  // GPS 變數
-  let currentLat = "", currentLng = "";
-
-  // 啟動 GPS
+  let lat='', lng='';
   navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      currentLat = pos.coords.latitude;
-      currentLng = pos.coords.longitude;
-      document.getElementById("gpsStatus").innerText = "✅ GPS 已定位";
-    },
-    (err) => {
-      document.getElementById("gpsStatus").innerText = "⚠️ 無法定位 (請允許權限)";
-    },
-    { enableHighAccuracy: true }
+    p => { lat=p.coords.latitude; lng=p.coords.longitude; document.getElementById('gpsStatus').innerText='✅ GPS 已定位'; },
+    e => { document.getElementById('gpsStatus').innerText='⚠️ 定位失敗'; }
   );
 
-  // API 呼叫工具
-  function api(action, payload={}) {
-    return new Promise(resolve => {
+  function api(act, data={}) {
+    return new Promise(r => {
       const s = document.createElement("script");
-      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${action}&payload=${encodeURIComponent(JSON.stringify({...payload, userId:uid}))}&callback=cb${Date.now()}`;
-      window[`cb${Date.now()}`] = (res) => { resolve(res); s.remove(); };
+      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${act}&payload=${encodeURIComponent(JSON.stringify({...data, userId:uid}))}&callback=cb${Date.now()}`;
+      window[`cb${Date.now()}`] = (res) => { r(res); s.remove(); };
       document.body.appendChild(s);
     });
   }
 
-  // --- 打卡功能 ---
-  async function clock(type) {
-    if (!currentLat) { alert("請等待 GPS 定位完成"); return; }
-    
-    const btn = event.target;
-    const originalText = btn.innerText;
-    btn.innerText = "處理中...";
-    btn.disabled = true;
-
-    const res = await api(type, { lat: currentLat, lng: currentLng });
-    alert(res.message);
-    
-    btn.innerText = originalText;
-    btn.disabled = false;
-  }
-
-  // --- 申請表單 UI 連動 (關鍵修復：補卡隱藏欄位) ---
-  function updateFormUI() {
-      const cat = document.getElementById("category").value;
-      const typeGroup = document.getElementById("typeGroup");
-      const typeSel = document.getElementById("leaveType");
-      const endGroup = document.getElementById("endGroup");
-      const hoursGroup = document.getElementById("hoursGroup");
-      const startLabel = document.getElementById("startLabel");
-
-      if (cat === 'CORRECTION') {
-          // 補卡模式
-          endGroup.style.display = 'none';
-          hoursGroup.style.display = 'none';
-          startLabel.innerText = "補卡時間 (請選正確打卡點)";
-          
-          // 假別變成 上/下班
-          typeSel.innerHTML = `
-            <option value="IN">上班卡</option>
-            <option value="OUT">下班卡</option>
-          `;
-      } else {
-          // 恢復正常模式
-          endGroup.style.display = 'block';
-          hoursGroup.style.display = 'block';
-          startLabel.innerText = "開始時間";
-          
-          if(cat === 'LEAVE') {
-             typeSel.innerHTML = `
-                <option value="annual">特休</option>
-                <option value="personal">事假</option>
-                <option value="sick">病假</option>
-                <option value="comp">補休</option>
-                <option value="official">公假</option>
-                <option value="maternity">產假/陪產假</option>
-                <option value="bereavement">喪假</option>
-             `;
-          } else {
-             // 加班
-             typeSel.innerHTML = `<option value="OT">加班</option>`;
-          }
-      }
-  }
-
-  // 自動計算時數
-  function calcHours() {
-      const s = new Date(document.getElementById("start").value);
-      const e = new Date(document.getElementById("end").value);
-      if(s && e && e > s) {
-          const diff = (e - s) / (1000 * 60 * 60);
-          document.getElementById("hours").value = diff.toFixed(1);
-      }
-  }
-
-  // --- 送出申請 ---
-  async function submitRequest() {
-      const cat = document.getElementById("category").value;
-      const start = document.getElementById("start").value;
-      
-      if(!start) { alert("請選擇時間"); return; }
-
-      const payload = {
-          category: cat,
-          leaveType: document.getElementById("leaveType").value,
-          start: start,
-          // 補卡時，結束時間 = 開始時間 (後端會處理)
-          end: document.getElementById("end").value || start, 
-          hours: document.getElementById("hours").value || 0,
-          reason: document.getElementById("reason").value
-      };
-
-      const btn = document.querySelector(".btn-submit");
-      btn.innerText = "送出中...";
-      btn.disabled = true;
-
-      const res = await api("submit_request", payload);
-      alert(res.message);
-      
-      btn.innerText = "送出申請";
-      btn.disabled = false;
-      
+  async function init() {
+      const res = await api("get_me");
       if(res.ok) {
-          // 清空表單
-          document.getElementById("reason").value = "";
-          document.getElementById("hours").value = "";
+          document.getElementById("uName").innerText = res.name;
+          document.getElementById("annBal").innerText = res.balances.annual.left;
+          document.getElementById("compBal").innerText = res.balances.comp.left;
+          if(res.isManager) document.getElementById("mgrBtn").style.display = 'block';
       }
   }
 
-  function logout() {
-      localStorage.clear();
-      location.href = "index.html";
+  async function clock(type) {
+      if(!lat) { alert("請等待定位"); return; }
+      const res = await api(type, {lat, lng});
+      alert(res.message);
   }
 
-  // 初始化 UI
-  updateFormUI();
+  init();
 </script>
 </body>
 </html>

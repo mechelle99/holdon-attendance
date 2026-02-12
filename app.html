@@ -5,69 +5,31 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
   <title>HR Portal</title>
   <style>
-    :root {
-      --primary: #4F46E5; /* 現代藍紫 */
-      --primary-light: #EEF2FF;
-      --bg: #F3F4F6;
-      --card: #FFFFFF;
-      --text: #1F2937;
-      --text-light: #6B7280;
-      --success: #10B981;
-      --warning: #F59E0B;
-      --danger: #EF4444;
-      --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    }
-
+    :root { --primary: #4F46E5; --bg: #F3F4F6; --text: #1F2937; --success: #10B981; --warning: #F59E0B; }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: var(--bg); margin: 0; padding: 20px 20px 100px 20px; color: var(--text); }
+    body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 20px 20px 100px 20px; color: var(--text); }
 
-    /* 頂部歡迎卡 */
-    .header-card {
-      background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%);
-      color: white; border-radius: 24px; padding: 24px;
-      box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.3);
-      margin-bottom: 24px;
-    }
+    .header-card { background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); color: white; border-radius: 24px; padding: 24px; box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.3); margin-bottom: 30px; }
     .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
     .user-name { font-size: 24px; font-weight: 700; }
-    .btn-logout { background: rgba(255,255,255,0.2); padding: 6px 12px; border-radius: 20px; font-size: 12px; cursor: pointer; backdrop-filter: blur(4px); }
-    
+    .btn-logout { background: rgba(255,255,255,0.2); padding: 6px 12px; border-radius: 20px; font-size: 12px; cursor: pointer; }
     .balance-row { display: flex; gap: 15px; }
     .bal-item { flex: 1; background: rgba(255,255,255,0.15); padding: 12px; border-radius: 16px; backdrop-filter: blur(4px); }
     .bal-val { font-size: 20px; font-weight: 800; margin-bottom: 4px; }
     .bal-label { font-size: 12px; opacity: 0.9; }
 
-    /* GPS 狀態 */
-    .gps-status { text-align: center; margin-bottom: 20px; font-size: 13px; color: var(--text-light); display: flex; align-items: center; justify-content: center; gap: 6px; }
-    .dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; }
-    .dot.active { background: var(--success); box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2); }
-
-    /* 打卡按鈕 */
     .clock-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 30px; }
-    .clock-btn {
-      border: none; border-radius: 24px; padding: 24px 16px; cursor: pointer;
-      display: flex; flex-direction: column; align-items: center; gap: 8px;
-      background: var(--card); color: var(--text);
-      box-shadow: var(--shadow); transition: transform 0.1s;
-    }
+    .clock-btn { border: none; border-radius: 24px; padding: 24px 16px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 8px; background: white; color: var(--text); box-shadow: 0 4px 6px rgba(0,0,0,0.05); transition: transform 0.1s; }
     .clock-btn:active { transform: scale(0.96); }
-    .btn-icon { font-size: 32px; margin-bottom: 4px; }
+    .btn-icon { font-size: 32px; }
     .btn-text { font-weight: 700; font-size: 16px; }
     .clock-in .btn-text { color: var(--success); }
     .clock-out .btn-text { color: var(--warning); }
 
-    /* 底部導航 */
-    .nav {
-      position: fixed; bottom: 0; left: 0; right: 0;
-      background: var(--card); padding: 12px 20px;
-      padding-bottom: max(12px, env(safe-area-inset-bottom));
-      display: flex; justify-content: space-around;
-      box-shadow: 0 -4px 20px rgba(0,0,0,0.05); border-top-left-radius: 24px; border-top-right-radius: 24px; z-index: 100;
-    }
-    .nav-item { text-decoration: none; color: #9CA3AF; display: flex; flex-direction: column; align-items: center; font-size: 10px; gap: 4px; transition: color 0.2s; }
+    .nav { position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 12px 20px; padding-bottom: max(12px, env(safe-area-inset-bottom)); display: flex; justify-content: space-around; box-shadow: 0 -4px 20px rgba(0,0,0,0.05); border-top-left-radius: 24px; border-top-right-radius: 24px; z-index: 100; }
+    .nav-item { text-decoration: none; color: #9CA3AF; display: flex; flex-direction: column; align-items: center; font-size: 10px; gap: 4px; }
     .nav-item.active { color: var(--primary); }
     .nav-icon { font-size: 22px; }
-
   </style>
 </head>
 <body>
@@ -89,19 +51,12 @@
     </div>
   </div>
 
-  <div class="gps-status">
-    <div class="dot" id="gpsDot"></div>
-    <span id="gpsText">定位中...</span>
-  </div>
-
   <div class="clock-grid">
     <button class="clock-btn clock-in" onclick="clock('clock_in')">
-      <span class="btn-icon">☀️</span>
-      <span class="btn-text">上班打卡</span>
+      <span class="btn-icon">☀️</span><span class="btn-text">上班打卡</span>
     </button>
     <button class="clock-btn clock-out" onclick="clock('clock_out')">
-      <span class="btn-icon">🌙</span>
-      <span class="btn-text">下班打卡</span>
+      <span class="btn-icon">🌙</span><span class="btn-text">下班打卡</span>
     </button>
   </div>
 
@@ -120,13 +75,10 @@
 
   let lat='', lng='';
   
+  // 背景定位 (不顯示 UI)
   navigator.geolocation.getCurrentPosition(
-    p => { 
-      lat=p.coords.latitude; lng=p.coords.longitude; 
-      document.getElementById('gpsDot').classList.add('active');
-      document.getElementById('gpsText').innerText = 'GPS 已鎖定';
-    },
-    e => { document.getElementById('gpsText').innerText = '無法定位'; },
+    p => { lat=p.coords.latitude; lng=p.coords.longitude; },
+    e => { console.log('GPS Error'); },
     { enableHighAccuracy:true }
   );
 
@@ -145,12 +97,13 @@
           document.getElementById("uName").innerText = res.name;
           document.getElementById("annBal").innerText = res.balances.annual.left;
           document.getElementById("compBal").innerText = res.balances.comp.left;
+          // ★ 只要是主管就顯示按鈕
           if(res.isManager) document.getElementById("mgrBtn").style.display = 'flex';
       }
   }
 
   async function clock(type) {
-      if(!lat) { alert("請先等待 GPS 定位完成"); return; }
+      if(!lat) { alert("正在獲取位置，請稍後再試..."); return; } // 雖然不顯示，但若沒抓到還是要擋一下
       const btn = event.currentTarget;
       btn.style.opacity = 0.5;
       const res = await api(type, {lat, lng});

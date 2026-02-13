@@ -7,7 +7,7 @@
   <style>
     :root { --primary: #4F46E5; --bg: #F3F4F6; --card: #FFFFFF; --text: #1F2937; }
     body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 20px 20px 100px 20px; color: var(--text); }
-    
+
     .header { margin-bottom: 15px; }
     .status-bar { font-size: 13px; color: #6B7280; margin-top: 5px; background: #EEF2FF; padding: 8px; border-radius: 8px; display: inline-block; }
     .controls { display: flex; gap: 8px; margin-top: 10px; }
@@ -24,11 +24,11 @@
 
     .shift-sel { width: 100%; padding: 6px; border-radius: 6px; border: 1px solid #E5E7EB; font-size: 12px; -webkit-appearance: none; background: white; text-align: center; font-weight: 700; }
     .shift-sel:disabled { background: #F3F4F6; color: #9CA3AF; border-color: #E5E7EB; opacity: 0.7; }
-    
+
     .bg-EARLY { background-color: #D1FAE5 !important; color: #065F46 !important; border: 1px solid #10B981 !important; }
-    .bg-LATE { background-color: #FEF3C7 !important; color: #92400E !important; border: 1px solid #F59E0B !important; }
-    .bg-OFF { background-color: #F3F4F6 !important; color: #9CA3AF !important; border: 1px solid #E5E7EB !important; }
-    
+    .bg-LATE  { background-color: #FEF3C7 !important; color: #92400E !important; border: 1px solid #F59E0B !important; }
+    .bg-OFF   { background-color: #F3F4F6 !important; color: #9CA3AF !important; border: 1px solid #E5E7EB !important; }
+
     .nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); padding: 10px 0; padding-bottom: max(10px, env(safe-area-inset-bottom)); box-shadow: 0 -4px 20px rgba(0,0,0,0.05); border-top-left-radius: 24px; border-top-right-radius: 24px; z-index: 100; display: grid; grid-template-columns: repeat(4, 1fr); align-items: center; }
     .nav.is-manager { grid-template-columns: repeat(5, 1fr); }
     .nav-item { text-decoration: none; color: #9CA3AF; display: flex; flex-direction: column; align-items: center; font-size: 10px; gap: 4px; width: 100%; }
@@ -51,7 +51,7 @@
     <div class="table-scroll">
       <table id="tbl">
         <thead><tr id="thRow"><th>員工</th></tr></thead>
-        <tbody id="tbRow"><tr><td colspan="5" style="padding:30px;color:#999">載入中...</td></tr></tbody>
+        <tbody id="tbRow"><tr><td colspan="10" style="padding:30px;color:#999">載入中...</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -66,11 +66,12 @@
 
 <script src="config.js"></script>
 <script>
-  const uid = localStorage.getItem("employeeId");
-  if(!uid) location.href='index.html'; // 補上未登入踢出
+  // ✅ 兼容：你舊版用 employeeId，新版用 empId
+  const uid = localStorage.getItem("empId") || localStorage.getItem("employeeId");
+  if(!uid) location.href='index.html';
 
   const isMgr = localStorage.getItem("isManager") === "true";
-  if(isMgr) { document.getElementById("bottomNav").classList.add('is-manager'); }
+  if(isMgr) document.getElementById("bottomNav").classList.add('is-manager');
 
   const yS = document.getElementById("y");
   const mS = document.getElementById("m");
@@ -78,16 +79,14 @@
   for(let i=2024; i<=2026; i++) yS.add(new Option(i,i,i===now.getFullYear(),i===now.getFullYear()));
   for(let i=1; i<=12; i++) mS.add(new Option(i,i,i===now.getMonth()+1,i===now.getMonth()+1));
 
-  // ★ 核心修復：穩定的 API 呼叫 (V106)
+  // ✅ JSONP API：固定把操作者帶 userId（不要再用 empId 當操作者）
   function api(act, d = {}) {
     return new Promise((resolve, reject) => {
-      // 1. 產生唯一的 callback 名稱 (只產生一次，存入變數)
       const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
-
       const s = document.createElement("script");
+
       const payload = encodeURIComponent(JSON.stringify({ ...d, userId: uid }));
 
-      // 15秒超時保護
       const timer = setTimeout(() => {
         cleanup();
         reject(new Error("Timeout: 請求逾時"));
@@ -101,119 +100,135 @@
 
       s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${encodeURIComponent(act)}&payload=${payload}&callback=${cbName}`;
 
-      window[cbName] = (res) => {
-        cleanup();
-        resolve(res);
-      };
-
-      s.onerror = () => {
-        cleanup();
-        reject(new Error("Network Error: 連線失敗"));
-      };
+      window[cbName] = (res) => { cleanup(); resolve(res); };
+      s.onerror = () => { cleanup(); reject(new Error("Network Error: 連線失敗")); };
 
       document.body.appendChild(s);
     });
   }
 
-  // ★ 載入邏輯 (含錯誤處理)
   async function load() {
     try {
-      document.getElementById("statusInfo").innerText = "載入中...";
-      // 清空舊資料，避免誤會
-      document.getElementById("tbRow").innerHTML = '<tr><td colspan="5" style="padding:30px;color:#999">資料讀取中...</td></tr>';
+      const statusEl = document.getElementById("statusInfo");
+      statusEl.style.color = "#6B7280";
+      statusEl.innerText = "載入中...";
 
-      const res = await api("get_roster_data", {year: yS.value, month: mS.value});
-      
-      if(!res.ok) { 
-        document.getElementById("tbRow").innerHTML = `<tr><td style="color:red;padding:20px;">${res.message || '讀取失敗'}</td></tr>`; 
-        document.getElementById("statusInfo").innerText = "讀取失敗";
-        return; 
+      document.getElementById("tbRow").innerHTML =
+        '<tr><td colspan="10" style="padding:30px;color:#999">資料讀取中...</td></tr>';
+
+      const res = await api("get_roster_data", { year: yS.value, month: mS.value });
+
+      if(!res.ok) {
+        document.getElementById("tbRow").innerHTML =
+          `<tr><td style="color:red;padding:20px;">${res.message || '讀取失敗'}</td></tr>`;
+        statusEl.innerText = "讀取失敗";
+        statusEl.style.color = "#EF4444";
+        return;
       }
 
-      // ★ 狀態判定 (鎖定邏輯)
+      // ===== 鎖定判定 =====
       const today = new Date();
       const lockDay = res.lockDay || 25;
       const targetY = Number(yS.value);
       const targetM = Number(mS.value);
-      
+
       const currentVal = today.getFullYear() * 12 + (today.getMonth() + 1);
-      const targetVal = targetY * 12 + targetM;
+      const targetVal  = targetY * 12 + targetM;
       const isNextMonth = (targetVal === currentVal + 1);
-      
+
       const isLocked = !res.isManager && (!isNextMonth || (isNextMonth && today.getDate() > lockDay));
 
       let info = "";
-      if (res.isManager) info = "👑 主管模式 (可任意編輯)";
-      else if (!isLocked) info = `🟢 開放排班中 (每月${lockDay}號截止)`;
+      if (res.isManager) info = "👑 主管模式（可任意編輯）";
+      else if (!isLocked) info = `🟢 開放排班中（每月${lockDay}號截止）`;
       else if (!isNextMonth) info = "🔒 本月/過期/未來班表已鎖定";
-      else info = `🔴 排班已截止 (截止日: ${lockDay}號)`;
-      
-      document.getElementById("statusInfo").innerText = info;
-      if(isLocked) document.getElementById("statusInfo").style.color = "#EF4444";
+      else info = `🔴 排班已截止（截止日：${lockDay}號）`;
 
-      // 表格繪製
-      const days = new Date(yS.value, mS.value, 0).getDate();
+      statusEl.innerText = info;
+      if (isLocked) statusEl.style.color = "#EF4444";
+
+      // ===== 畫表頭 =====
+      const days = new Date(Number(yS.value), Number(mS.value), 0).getDate();
       let head = `<th>員工</th>`;
       for(let d=1; d<=days; d++) {
-          const wk = ['日','一','二','三','四','五','六'][new Date(yS.value, mS.value-1, d).getDay()];
-          const color = (wk==='日'||wk==='六') ? 'color:#EF4444' : '';
-          head += `<th style="${color}">${d}<br><small>${wk}</small></th>`;
+        const wk = ['日','一','二','三','四','五','六'][new Date(yS.value, mS.value-1, d).getDay()];
+        const color = (wk==='日'||wk==='六') ? 'color:#EF4444' : '';
+        head += `<th style="${color}">${d}<br><small>${wk}</small></th>`;
       }
       document.getElementById("thRow").innerHTML = head;
 
+      // ===== 畫資料列 =====
+      const employees = Array.isArray(res.employees) ? res.employees : [];
+      const roster = res.roster || {};
+
       let rows = "";
-      res.employees.forEach(e => {
-          let tds = `<td>${e.name}</td>`;
-          for(let d=1; d<=days; d++) {
-              const cell = (res.roster[e.id] && res.roster[e.id][d]) ? res.roster[e.id][d] : {};
-              const dateStr = `${yS.value}-${String(mS.value).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-              
-              if(cell.type === 'LEAVE') {
-                  tds += `<td><span class="tag" style="background:#DBEAFE;color:#1E40AF;padding:2px 6px;border-radius:4px;font-size:11px;">${cell.value}</span></td>`;
-              } else {
-                  let v = cell.value || '';
-                  let cls = '';
-                  if(v==='早班'||v==='EARLY') { v='早班'; cls='bg-EARLY'; }
-                  else if(v==='午班'||v==='LATE') { v='午班'; cls='bg-LATE'; }
-                  else if(v==='休假'||v==='OFF') { v='休假'; cls='bg-OFF'; }
-                  
-                  const dis = isLocked ? 'disabled' : '';
-                  
-                  tds += `<td><select class="shift-sel ${cls}" ${dis} onchange="upd('${e.id}','${dateStr}',this)">
-                    <option value="">-</option>
-                    <option value="早班" ${v==='早班'?'selected':''}>早</option>
-                    <option value="午班" ${v==='午班'?'selected':''}>午</option>
-                    <option value="休假" ${v==='休假'?'selected':''}>休</option>
-                  </select></td>`;
-              }
+      employees.forEach(e => {
+        const empId = e.empId || e.id || "";
+        const empName = e.empName || e.name || empId;
+
+        let tds = `<td>${empName}</td>`;
+
+        for(let d=1; d<=days; d++) {
+          const cell = (roster[empId] && roster[empId][d]) ? roster[empId][d] : {};
+          const dateStr = `${yS.value}-${String(mS.value).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+
+          if(cell.type === 'LEAVE') {
+            tds += `<td><span style="background:#DBEAFE;color:#1E40AF;padding:2px 6px;border-radius:4px;font-size:11px;">${cell.value}</span></td>`;
+          } else {
+            let v = cell.value || '';
+            let cls = '';
+            if(v==='早班'||v==='EARLY') { v='早班'; cls='bg-EARLY'; }
+            else if(v==='午班'||v==='LATE') { v='午班'; cls='bg-LATE'; }
+            else if(v==='休假'||v==='OFF') { v='休假'; cls='bg-OFF'; }
+
+            const dis = isLocked ? 'disabled' : '';
+
+            // ✅ 重要：送 targetEmpId（被排班的人），操作者由 api() 自動塞 userId
+            tds += `<td>
+              <select class="shift-sel ${cls}" ${dis}
+                      onchange="upd('${empId}','${dateStr}',this)">
+                <option value="">-</option>
+                <option value="早班" ${v==='早班'?'selected':''}>早</option>
+                <option value="午班" ${v==='午班'?'selected':''}>午</option>
+                <option value="休假" ${v==='休假'?'selected':''}>休</option>
+              </select>
+            </td>`;
           }
-          rows += `<tr>${tds}</tr>`;
+        }
+
+        rows += `<tr>${tds}</tr>`;
       });
-      document.getElementById("tbRow").innerHTML = rows;
+
+      document.getElementById("tbRow").innerHTML = rows || `<tr><td colspan="${days+1}" style="padding:30px;color:#999">沒有可排班的人員</td></tr>`;
 
     } catch (err) {
       document.getElementById("tbRow").innerHTML = `<tr><td style="color:red;padding:20px;">${err.message}</td></tr>`;
-      document.getElementById("statusInfo").innerText = "連線異常";
+      const statusEl = document.getElementById("statusInfo");
+      statusEl.innerText = "連線異常";
+      statusEl.style.color = "#EF4444";
     }
   }
 
-  function upd(eid, d, el) {
-      el.className = 'shift-sel';
-      if(el.value==='早班') el.classList.add('bg-EARLY');
-      if(el.value==='午班') el.classList.add('bg-LATE');
-      if(el.value==='休假') el.classList.add('bg-OFF');
-      
-      api("update_schedule", {empId:eid, date:d, shift:el.value}).then(res => {
-          if(!res.ok) { 
-              alert(res.message); 
-              el.value = ""; // 還原
-              el.className = 'shift-sel'; 
-          }
-      }).catch(err => {
-          alert("更新失敗: " + err.message);
+  function upd(targetEmpId, dateStr, el) {
+    // UI 上色
+    el.className = 'shift-sel';
+    if(el.value==='早班') el.classList.add('bg-EARLY');
+    if(el.value==='午班') el.classList.add('bg-LATE');
+    if(el.value==='休假') el.classList.add('bg-OFF');
+
+    api("update_schedule", { targetEmpId, date: dateStr, shift: el.value })
+      .then(res => {
+        if(!res.ok) {
+          alert(res.message || "更新失敗");
+          el.value = "";
+          el.className = 'shift-sel';
+        }
+      })
+      .catch(err => {
+        alert("更新失敗: " + err.message);
       });
   }
-  
+
   load();
 </script>
 </body>

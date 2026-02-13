@@ -5,119 +5,148 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
   <title>填寫申請單</title>
   <style>
-    :root { --primary: #4F46E5; --bg: #F3F4F6; --card: #FFFFFF; --text: #1F2937; }
-    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); margin: 0; padding: 20px 20px 80px 20px; color: var(--text); }
-    h2 { font-size: 20px; margin-bottom: 12px; font-weight: 700; }
-    .hint { font-size:12px; color:#6B7280; margin:0 0 14px; }
-    .form-group { margin-bottom: 18px; }
-    label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; color: #4B5563; }
-    input, select, textarea { width: 100%; padding: 12px; border-radius: 12px; border: 1px solid #E5E7EB; background: #fff; font-size: 16px; box-sizing: border-box; -webkit-appearance: none; }
-    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }
-    textarea { resize: vertical; min-height: 80px; }
+    :root { --primary:#4F46E5; --bg:#F3F4F6; --card:#FFFFFF; --text:#1F2937; }
+    body { font-family:-apple-system,BlinkMacSystemFont,sans-serif; background:var(--bg); margin:0; padding:20px 20px 80px; color:var(--text); }
+    h2 { font-size:20px; margin:0 0 10px; font-weight:800; }
+    .hint { font-size:12px; color:#6B7280; margin:0 0 14px; line-height:1.4; }
+
+    .card { background:var(--card); border-radius:18px; padding:16px; box-shadow:0 2px 8px rgba(0,0,0,.04); }
+    .form-group { margin-bottom:16px; }
+    label { display:block; font-size:14px; font-weight:700; margin-bottom:8px; color:#4B5563; }
+
+    input, select, textarea {
+      width:100%; padding:12px; border-radius:12px; border:1px solid #E5E7EB;
+      background:#fff; font-size:16px; box-sizing:border-box; -webkit-appearance:none;
+    }
+    input:focus, select:focus, textarea:focus { outline:none; border-color:var(--primary); box-shadow:0 0 0 3px rgba(79,70,229,.12); }
+    textarea { resize:vertical; min-height:86px; }
+
     .row { display:flex; gap:10px; }
     .row > div { flex:1; }
-    .chip { display:inline-flex; align-items:center; gap:8px; padding:10px 12px; border:1px solid #E5E7EB; border-radius:12px; background:#fff; }
+
+    .chiprow { display:flex; gap:10px; flex-wrap:wrap; }
+    .chip {
+      display:inline-flex; align-items:center; gap:8px;
+      padding:10px 12px; border:1px solid #E5E7EB; border-radius:12px; background:#fff;
+      user-select:none;
+    }
     .chip input { width:auto; }
-    .btn-submit { width: 100%; background: var(--primary); color: white; padding: 14px; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; margin-top: 10px; cursor: pointer; }
-    .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
-    .nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); padding: 12px 20px; padding-bottom: max(12px, env(safe-area-inset-bottom)); display: flex; justify-content: space-around; box-shadow: 0 -4px 20px rgba(0,0,0,0.05); border-top-left-radius: 24px; border-top-right-radius: 24px; z-index: 100; }
-    .nav-item { text-decoration: none; color: #9CA3AF; display: flex; flex-direction: column; align-items: center; font-size: 10px; gap: 4px; }
-    .nav-item.active { color: var(--primary); } .nav-icon { font-size: 22px; }
+
+    .mutedBox { background:#F9FAFB; border:1px solid #E5E7EB; padding:12px; border-radius:12px; font-size:13px; color:#6B7280; line-height:1.45; }
+
+    .btn-submit {
+      width:100%; background:var(--primary); color:#fff;
+      padding:14px; border:none; border-radius:14px;
+      font-size:16px; font-weight:800; margin-top:10px; cursor:pointer;
+      box-shadow:0 10px 22px rgba(79,70,229,.18);
+    }
+    .btn-submit:disabled { opacity:.55; cursor:not-allowed; box-shadow:none; }
+
+    .nav {
+      position:fixed; bottom:0; left:0; right:0; background:var(--card);
+      padding:12px 20px; padding-bottom:max(12px, env(safe-area-inset-bottom));
+      display:flex; justify-content:space-around;
+      box-shadow:0 -4px 20px rgba(0,0,0,.06);
+      border-top-left-radius:24px; border-top-right-radius:24px; z-index:100;
+    }
+    .nav-item { text-decoration:none; color:#9CA3AF; display:flex; flex-direction:column; align-items:center; font-size:10px; gap:4px; }
+    .nav-item.active { color:var(--primary); }
+    .nav-icon { font-size:22px; }
+
+    .hide { display:none !important; }
   </style>
 </head>
 <body>
 
   <h2>📝 填寫申請單</h2>
-  <p class="hint">請假：依「排班時段」計算（早班 10-18；午班 12-20；未排班預設早班）。加班/外出：依實際區間。</p>
+  <p class="hint">請假：依「排班時段」計算（早班 10-18；午班 12-20；未排班預設早班）。加班/外出：依實際區間。補卡：只需要一個時間點。</p>
 
-  <div class="form-group">
-    <label>申請類型</label>
-    <select id="cat">
-      <option value="LEAVE">請假</option>
-      <option value="OT">加班</option>
-      <option value="OUTING">外出</option>
-      <option value="CORRECTION">補卡</option>
-    </select>
-  </div>
+  <div class="card">
+    <div class="form-group">
+      <label>申請類型</label>
+      <select id="cat">
+        <option value="LEAVE">請假</option>
+        <option value="OT">加班</option>
+        <option value="OUTING">外出</option>
+        <option value="CORRECTION">補卡</option>
+      </select>
+    </div>
 
-  <div class="form-group" id="typeGroup">
-    <label>假別</label>
-    <select id="type">
-      <option value="annual">特休</option>
-      <option value="comp">補休</option>
-      <option value="personal">事假</option>
-      <option value="sick">病假</option>
-      <option value="official">公假</option>
-      <option value="marriage">婚假</option>
-      <option value="bereavement">喪假</option>
-      <option value="menstrual">生理假</option>
-      <option value="maternity">產假</option>
-      <option value="paternity">陪產假</option>
-      <option value="family">家庭照顧假</option>
-      <option value="birthday">生日假</option>
-    </select>
-  </div>
+    <div class="form-group" id="typeGroup">
+      <label>假別</label>
+      <select id="type">
+        <option value="annual">特休</option>
+        <option value="comp">補休</option>
+        <option value="personal">事假</option>
+        <option value="sick">病假</option>
+        <option value="official">公假</option>
+        <option value="marriage">婚假</option>
+        <option value="bereavement">喪假</option>
+        <option value="menstrual">生理假</option>
+        <option value="maternity">產假</option>
+        <option value="paternity">陪產假</option>
+        <option value="family">家庭照顧假</option>
+        <option value="birthday">生日假</option>
+      </select>
+    </div>
 
-  <div class="form-group">
-    <label>開始時間</label>
-    <input type="datetime-local" id="start">
-  </div>
+    <div class="form-group">
+      <label id="startLabel">開始時間</label>
+      <input type="datetime-local" id="start">
+    </div>
 
-  <div class="form-group" id="endGroup">
-    <label>結束時間</label>
-    <input type="datetime-local" id="end">
-  </div>
+    <div class="form-group" id="endWrap">
+      <label>結束時間</label>
+      <input type="datetime-local" id="end">
+    </div>
 
-  <div class="form-group" id="extraGroup" style="display:none;">
-    <div class="row">
-      <div class="chip">
-        <input type="checkbox" id="isTrip"/>
-        <label for="isTrip" style="margin:0;">出差（外出可超過 8 小時）</label>
-      </div>
-      <div class="chip">
-        <input type="checkbox" id="autoClock" />
-        <label for="autoClock" style="margin:0;">外出單同時自動打卡</label>
+    <div class="form-group" id="extraGroup" style="display:none;">
+      <div class="chiprow">
+        <label class="chip"><input type="checkbox" id="isTrip"/> 出差（外出可超過 8 小時）</label>
+        <label class="chip"><input type="checkbox" id="autoClock"/> 外出單同時自動打卡</label>
       </div>
     </div>
-  </div>
 
-  <div class="form-group" id="hoursGroup">
-    <label>時數（自動計算）</label>
-    <input type="number" id="hours" value="0" readonly style="background-color: #F3F4F6;">
-  </div>
+    <div class="form-group" id="hoursGroup">
+      <label>時數（自動計算）</label>
+      <input type="number" id="hours" value="0" readonly style="background-color:#F3F4F6;">
+    </div>
 
-  <div class="form-group">
-    <label>事由</label>
-    <textarea id="reason" placeholder="請填寫說明..."></textarea>
-  </div>
+    <div class="form-group">
+      <label>事由</label>
+      <textarea id="reason" placeholder="請填寫說明..."></textarea>
+    </div>
 
-  <button class="btn-submit" id="submitBtn" onclick="submitReq()">送出申請</button>
+    <div class="mutedBox" id="tipsBox"></div>
+
+    <button class="btn-submit" id="submitBtn" onclick="submitReq()">送出申請</button>
+  </div>
 
   <nav class="nav">
     <a href="app.html" class="nav-item"><span class="nav-icon">🏠</span>首頁</a>
     <a href="request.html" class="nav-item active"><span class="nav-icon">📝</span>申請</a>
     <a href="history.html" class="nav-item"><span class="nav-icon">📋</span>紀錄</a>
     <a href="schedule.html" class="nav-item"><span class="nav-icon">📅</span>排班</a>
-    <a href="manager.html" class="nav-item"><span class="nav-icon">👑</span>主管</a>
+    <a href="manager.html" class="nav-item" id="mgrBtn" style="display:none;"><span class="nav-icon">👑</span>主管</a>
   </nav>
 
 <script src="config.js"></script>
 <script>
+  // ========= 基本身份 =========
   const uid = localStorage.getItem("employeeId");
-  if(!uid) location.href='index.html';
+  const isMgr = localStorage.getItem("isManager") === "true";
+  if(isMgr) document.getElementById("mgrBtn").style.display = "flex";
+  if(!uid) location.href = "index.html";
 
-  // ======== JSONP API（穩定版：不撞 callback + timeout + cleanup） ========
-  function api(act, d={}) {
+  // ========= JSONP API（穩定版：callback 名字固定，不會被 Date.now() 打架） =========
+  function api(act, d={}){
     return new Promise((resolve, reject) => {
-      const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
+      const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random()*100000);
       const s = document.createElement("script");
       const payload = encodeURIComponent(JSON.stringify({...d, userId: uid}));
-      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${act}&payload=${payload}&callback=${cbName}&_=${Date.now()}`;
+      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${encodeURIComponent(act)}&payload=${payload}&callback=${cbName}&_=${Date.now()}`;
 
-      const timer = setTimeout(() => {
-        cleanup();
-        reject(new Error("timeout"));
-      }, 15000);
+      const timer = setTimeout(() => { cleanup(); reject(new Error("timeout")); }, 15000);
 
       function cleanup(){
         clearTimeout(timer);
@@ -131,8 +160,8 @@
     });
   }
 
-  // ======== 班表快取 ========
-  let RULES = null; // { scheduleMap:{'yyyy-mm-dd':'EARLY|LATE|OFF|...'} }
+  // ========= 班表快取 =========
+  let RULES = null;
   async function ensureRules(){
     if (RULES) return RULES;
     const sVal = document.getElementById("start").value;
@@ -143,54 +172,109 @@
     return RULES;
   }
 
-  // ======== 初始化時間：今天 10:00-18:00 ========
+  // ========= 初始化時間：今天 10:00-18:00 =========
   const now = new Date();
   const ymd = now.toISOString().split('T')[0];
   document.getElementById("start").value = `${ymd}T10:00`;
   document.getElementById("end").value   = `${ymd}T18:00`;
 
-  function toggleType() {
+  // ========= 小工具 =========
+  function toYMD(d){
+    const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${dd}`;
+  }
+  function overlapHours(aStart,aEnd,bStart,bEnd){
+    const ms = Math.max(0, Math.min(aEnd,bEnd) - Math.max(aStart,bStart));
+    return ms/(1000*60*60);
+  }
+  function roundToHalf(h){ return Math.round(h*2)/2; }
+  function sameDay_(a,b){ return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate(); }
+
+  // EARLY 10-18 / LATE 12-20 / OFF
+  function shiftWindowForYMD(ymd, scheduleMap){
+    const raw = (scheduleMap && scheduleMap[ymd]) ? String(scheduleMap[ymd]).toUpperCase().trim() : "";
+    const isOff = raw.includes("OFF") || raw.includes("休");
+    if (isOff) return { off:true };
+
+    const isLate = raw.includes("LATE") || raw.includes("午") || raw.includes("12") || raw.includes("21") || raw.includes("20");
+    const startH = isLate ? 12 : 10;
+    const endH   = isLate ? 20 : 18;
+    return { off:false, startH, endH };
+  }
+
+  // ========= UI 切換 =========
+  const tipsBox = document.getElementById("tipsBox");
+
+  function setTips(){
+    const cat = document.getElementById("cat").value;
+    const type = document.getElementById("type").value;
+
+    let msg = "";
+    if (cat === "CORRECTION"){
+      msg = "✅ 補卡：只需選擇「補卡當下的時間點」，系統不要求結束時間，時數固定為 0。";
+    } else if (cat === "OUTING"){
+      msg = "✅ 外出：依實際時間計算，非出差最多 8 小時；可勾選「外出單同時自動打卡」。";
+    } else if (cat === "OT"){
+      msg = "✅ 加班：依實際區間計算，核准後會轉入補休（comp）。";
+    } else {
+      msg = "✅ 請假：依排班時段計算重疊時數（早班 10-18；午班 12-20）；生日假只能在生日當月且不可跨日。";
+      if (type === "birthday") msg += "（你現在選的是生日假）";
+    }
+    tipsBox.textContent = msg;
+  }
+
+  function toggleType(){
     const cat = document.getElementById("cat").value;
     const typeGroup = document.getElementById("typeGroup");
     const hoursGroup = document.getElementById("hoursGroup");
-    const endGroup = document.getElementById("endGroup");
+    const endWrap = document.getElementById("endWrap");
     const extraGroup = document.getElementById("extraGroup");
+    const startLabel = document.getElementById("startLabel");
 
     RULES = null;
 
-    if (cat === 'CORRECTION') {
-      typeGroup.style.display = 'none';
-      hoursGroup.style.display = 'none';
-      endGroup.style.display = 'none';
-      extraGroup.style.display = 'none';
-      const sVal = document.getElementById("start").value;
-      if (sVal) document.getElementById("end").value = sVal;
+    if (cat === "CORRECTION"){
+      // ✅ 補卡：只要 start，一律不顯示 end/hours/extra/type
+      typeGroup.style.display = "none";
+      hoursGroup.style.display = "none";
+      endWrap.style.display = "none";
+      extraGroup.style.display = "none";
+      startLabel.textContent = "補卡時間";
       document.getElementById("hours").value = 0;
-    } else if (cat === 'OUTING') {
-      typeGroup.style.display = 'none';
-      hoursGroup.style.display = 'block';
-      endGroup.style.display = 'block';
-      extraGroup.style.display = 'block';
+      document.getElementById("end").value = "";
+    } else if (cat === "OUTING"){
+      typeGroup.style.display = "none";
+      hoursGroup.style.display = "block";
+      endWrap.style.display = "block";
+      extraGroup.style.display = "block";
+      startLabel.textContent = "開始時間";
       calcHoursSmart();
-    } else if (cat === 'OT') {
-      typeGroup.style.display = 'none';
-      extraGroup.style.display = 'none';
-      hoursGroup.style.display = 'block';
-      endGroup.style.display = 'block';
+    } else if (cat === "OT"){
+      typeGroup.style.display = "none";
+      hoursGroup.style.display = "block";
+      endWrap.style.display = "block";
+      extraGroup.style.display = "none";
+      startLabel.textContent = "開始時間";
       calcHoursSmart();
     } else {
-      typeGroup.style.display = 'block';
-      extraGroup.style.display = 'none';
-      hoursGroup.style.display = 'block';
-      endGroup.style.display = 'block';
+      typeGroup.style.display = "block";
+      hoursGroup.style.display = "block";
+      endWrap.style.display = "block";
+      extraGroup.style.display = "none";
+      startLabel.textContent = "開始時間";
       calcHoursSmart();
     }
+
+    setTips();
   }
 
   function onTimeChange(){
+    const cat = document.getElementById("cat").value;
+    if (cat === "CORRECTION") return;
+
     const sVal = document.getElementById("start").value;
     const eVal = document.getElementById("end").value;
-    if (sVal && eVal) {
+    if (sVal && eVal){
       const s = new Date(sVal);
       const e = new Date(eVal);
       if (e < s) document.getElementById("end").value = sVal;
@@ -199,35 +283,10 @@
     calcHoursSmart();
   }
 
-  function toYMD(d){
-    const y = d.getFullYear();
-    const m = String(d.getMonth()+1).padStart(2,'0');
-    const day = String(d.getDate()).padStart(2,'0');
-    return `${y}-${m}-${day}`;
-  }
-  function overlapHours(aStart, aEnd, bStart, bEnd){
-    const ms = Math.max(0, Math.min(aEnd, bEnd) - Math.max(aStart, bStart));
-    return ms / (1000*60*60);
-  }
-  function roundToHalf(h){ return Math.round(h * 2) / 2; }
-  function sameDay_(a,b){ return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate(); }
-
-  // EARLY: 10:00-18:00 (8h)
-  // LATE : 12:00-20:00 (8h)
-  function shiftWindowForYMD(ymd, scheduleMap){
-    const raw = (scheduleMap && scheduleMap[ymd]) ? String(scheduleMap[ymd]).toUpperCase().trim() : "";
-    const isOff = raw.includes("OFF") || raw.includes("休");
-    if (isOff) return { off:true };
-
-    const isLate = raw.includes("LATE") || raw.includes("午") || raw.includes("12") || raw.includes("21");
-    const startH = isLate ? 12 : 10;
-    const endH   = isLate ? 20 : 18;
-    return { off:false, startH, endH };
-  }
-
+  // ========= 時數計算 =========
   async function calcHoursSmart(){
     const cat = document.getElementById("cat").value;
-    if (cat === 'CORRECTION') return;
+    if (cat === "CORRECTION") return;
 
     const sVal = document.getElementById("start").value;
     const eVal = document.getElementById("end").value;
@@ -236,9 +295,10 @@
     const s = new Date(sVal);
     const e = new Date(eVal);
 
-    // 生日假不可跨日（前端 UX）
     const leaveType = document.getElementById("type")?.value;
-    if (cat === 'LEAVE' && leaveType === 'birthday' && !sameDay_(s,e)){
+
+    // 生日假 UX 防呆
+    if (cat === "LEAVE" && leaveType === "birthday" && !sameDay_(s,e)){
       document.getElementById("end").value = sVal;
       document.getElementById("hours").value = "0.0";
       return;
@@ -250,7 +310,7 @@
     }
 
     try{
-      if (cat === 'LEAVE'){
+      if (cat === "LEAVE"){
         const rules = await ensureRules();
         const scheduleMap = rules.scheduleMap || {};
         let total = 0;
@@ -261,13 +321,11 @@
         while (cur <= endDay){
           const ymd = toYMD(cur);
           const win = shiftWindowForYMD(ymd, scheduleMap);
-
           if (!win.off){
-            const dayShiftStart = new Date(cur); dayShiftStart.setHours(win.startH, 0, 0, 0);
-            const dayShiftEnd   = new Date(cur); dayShiftEnd.setHours(win.endH,   0, 0, 0);
-            total += overlapHours(s, e, dayShiftStart, dayShiftEnd);
+            const shiftStart = new Date(cur); shiftStart.setHours(win.startH,0,0,0);
+            const shiftEnd   = new Date(cur); shiftEnd.setHours(win.endH,0,0,0);
+            total += overlapHours(s,e,shiftStart,shiftEnd);
           }
-
           cur.setDate(cur.getDate()+1);
         }
 
@@ -276,7 +334,7 @@
         return;
       }
 
-      if (cat === 'OT'){
+      if (cat === "OT"){
         let diff = Math.max(0, (e - s) / (1000*60*60));
         diff = roundToHalf(diff);
         diff = Math.max(0.5, diff);
@@ -284,7 +342,7 @@
         return;
       }
 
-      if (cat === 'OUTING'){
+      if (cat === "OUTING"){
         const isTrip = document.getElementById("isTrip").checked;
         let diff = Math.max(0, (e - s) / (1000*60*60));
         diff = roundToHalf(diff);
@@ -295,18 +353,16 @@
       }
     }catch(err){
       // fallback
-      if (cat === 'LEAVE'){
+      if (cat === "LEAVE"){
         let total = 0;
         const cur = new Date(s); cur.setHours(0,0,0,0);
         const endDay = new Date(e); endDay.setHours(0,0,0,0);
-
         while (cur <= endDay){
-          const dayShiftStart = new Date(cur); dayShiftStart.setHours(10,0,0,0);
-          const dayShiftEnd   = new Date(cur); dayShiftEnd.setHours(18,0,0,0);
-          total += overlapHours(s, e, dayShiftStart, dayShiftEnd);
+          const shiftStart = new Date(cur); shiftStart.setHours(10,0,0,0);
+          const shiftEnd   = new Date(cur); shiftEnd.setHours(18,0,0,0);
+          total += overlapHours(s,e,shiftStart,shiftEnd);
           cur.setDate(cur.getDate()+1);
         }
-
         total = roundToHalf(total);
         document.getElementById("hours").value = total.toFixed(1);
       } else {
@@ -316,15 +372,7 @@
     }
   }
 
-  function leaveTypeByCategory(cat){
-    // ✅ 保證四種都有 leaveType（避免後端報錯）
-    if (cat === 'LEAVE') return document.getElementById("type").value;
-    if (cat === 'OT') return 'ot';
-    if (cat === 'OUTING') return 'outing';
-    if (cat === 'CORRECTION') return 'correction';
-    return '';
-  }
-
+  // ========= 送出申請 =========
   async function submitReq(){
     const btn = document.getElementById("submitBtn");
     const cat = document.getElementById("cat").value;
@@ -333,10 +381,17 @@
     btn.innerText = "送出中...";
 
     const start = document.getElementById("start").value;
-    const end = (cat === 'CORRECTION') ? start : document.getElementById("end").value;
-    const hours = (cat === 'CORRECTION') ? 0 : Number(document.getElementById("hours").value || 0);
+    let end = document.getElementById("end").value;
 
-    if (cat !== 'CORRECTION' && hours <= 0){
+    // ✅ 補卡：前端直接保險（避免你後端還沒修就炸）
+    if (cat === "CORRECTION"){
+      end = start; // 後端若仍檢查 end<=start，至少不會空
+    }
+
+    const hours = (cat === "CORRECTION") ? 0 : Number(document.getElementById("hours").value || 0);
+
+    // 非補卡：時數必須 >0
+    if (cat !== "CORRECTION" && hours <= 0){
       alert("時數不正確：請確認開始/結束時間");
       btn.disabled = false;
       btn.innerText = "送出申請";
@@ -345,20 +400,18 @@
 
     const data = {
       category: cat,
-      leaveType: leaveTypeByCategory(cat), // ✅ FIX
-      start, end,
+      // 後端目前會檢查 leaveType，所以補卡也一定要帶 correction
+      leaveType: (cat === "LEAVE") ? document.getElementById("type").value
+              : (cat === "OT") ? "ot"
+              : (cat === "OUTING") ? "outing"
+              : "correction",
+      start,
+      end,
       hours,
       reason: document.getElementById("reason").value || "",
-      autoClock: (cat === 'OUTING') ? !!document.getElementById("autoClock").checked : false,
-      isTrip: (cat === 'OUTING') ? !!document.getElementById("isTrip").checked : false
+      autoClock: (cat === "OUTING") ? !!document.getElementById("autoClock").checked : false,
+      isTrip: (cat === "OUTING") ? !!document.getElementById("isTrip").checked : false
     };
-
-    if (!data.leaveType){
-      alert("失敗：缺少 leaveType（請確認申請類型）");
-      btn.disabled = false;
-      btn.innerText = "送出申請";
-      return;
-    }
 
     try{
       const res = await api("submit_request", data);
@@ -377,7 +430,7 @@
     }
   }
 
-  // Safari/WebView 修正：datetime-local 常不觸發 onchange
+  // ✅ Safari/WebView 修正：datetime-local 常不觸發 onchange → 全綁
   (function bindRecalcEvents(){
     const startEl = document.getElementById("start");
     const endEl   = document.getElementById("end");
@@ -386,16 +439,16 @@
     const isTripEl= document.getElementById("isTrip");
     const autoClockEl= document.getElementById("autoClock");
 
-    const safeRecalc = () => { RULES = null; calcHoursSmart(); };
+    const safeRecalc = () => { RULES = null; calcHoursSmart(); setTips(); };
 
-    [startEl, endEl].forEach(el => {
+    [startEl, endEl].forEach(el=>{
       if (!el) return;
       el.addEventListener("input", safeRecalc);
       el.addEventListener("change", safeRecalc);
       el.addEventListener("blur", safeRecalc);
     });
 
-    [catEl, typeEl, isTripEl, autoClockEl].forEach(el => {
+    [catEl, typeEl, isTripEl, autoClockEl].forEach(el=>{
       if (!el) return;
       el.addEventListener("change", safeRecalc);
       el.addEventListener("input", safeRecalc);
@@ -403,12 +456,14 @@
   })();
 
   document.getElementById("cat").addEventListener("change", toggleType);
-  document.getElementById("type").addEventListener("change", () => { RULES=null; calcHoursSmart(); });
+  document.getElementById("type").addEventListener("change", () => { RULES=null; calcHoursSmart(); setTips(); });
   document.getElementById("start").addEventListener("change", onTimeChange);
   document.getElementById("end").addEventListener("change", onTimeChange);
 
+  // 啟動
   toggleType();
   calcHoursSmart();
+  setTips();
 </script>
 </body>
 </html>

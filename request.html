@@ -3,58 +3,18 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-  <title>提出申請</title>
+  <title>填寫申請單</title>
   <style>
     :root { --primary: #4F46E5; --bg: #F3F4F6; --card: #FFFFFF; --text: #1F2937; }
-    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); margin: 0; padding: 20px; color: var(--text); }
-    
-    .header { margin-bottom: 20px; } 
-    h2 { margin: 0; font-size: 22px; font-weight: 700; }
-
-    .form-card { background: var(--card); border-radius: 20px; padding: 24px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
-    
-    .input-group { margin-bottom: 20px; width: 100%; }
-    label { display: block; font-size: 13px; font-weight: 600; color: #4B5563; margin-bottom: 8px; }
-    
-    /* ★ V96 CSS 強力修正：強制所有輸入框寬度一致 */
-    select, input, textarea {
-      width: 100% !important;           /* 強制滿版 */
-      box-sizing: border-box !important; /* 邊框算在寬度內 (關鍵) */
-      padding: 12px;
-      border: 1px solid #E5E7EB;
-      border-radius: 12px;
-      font-size: 16px;
-      background: #F9FAFB;
-      outline: none;
-      margin: 0;
-      
-      /* 移除手機預設樣式 */
-      -webkit-appearance: none;
-      appearance: none;
-      display: block;
-    }
-
-    /* 針對日期輸入框的特殊修正 */
-    input[type="datetime-local"] {
-        /* 確保高度與文字框一致 */
-        line-height: 1.3;
-        min-height: 45px; 
-    }
-
-    /* 唯讀欄位樣式 */
-    input[readonly] { background-color: #F3F4F6; color: #6B7280; }
-
-    .checkbox-wrapper { display: flex; align-items: center; gap: 10px; padding: 12px; background: #EEF2FF; border-radius: 12px; display: none; width: 100%; box-sizing: border-box; }
-    .checkbox-wrapper input { width: 20px !important; height: 20px; margin: 0; -webkit-appearance: checkbox; appearance: checkbox; }
-    .checkbox-wrapper label { margin: 0; color: var(--primary); font-weight: 600; }
-
-    .btn-submit {
-      width: 100%; background: var(--primary); color: white; padding: 16px;
-      border: none; border-radius: 16px; font-size: 16px; font-weight: 700;
-      cursor: pointer; margin-top: 10px; box-shadow: 0 4px 10px rgba(79, 70, 229, 0.2);
-    }
-    .btn-submit:active { transform: scale(0.98); }
-
+    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); margin: 0; padding: 20px 20px 80px 20px; color: var(--text); }
+    h2 { font-size: 20px; margin-bottom: 20px; font-weight: 700; }
+    .form-group { margin-bottom: 20px; }
+    label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; color: #4B5563; }
+    input, select, textarea { width: 100%; padding: 12px; border-radius: 12px; border: 1px solid #E5E7EB; background: #fff; font-size: 16px; box-sizing: border-box; -webkit-appearance: none; }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }
+    textarea { resize: vertical; min-height: 80px; }
+    .btn-submit { width: 100%; background: var(--primary); color: white; padding: 14px; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; margin-top: 10px; cursor: pointer; }
+    .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
     .nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); padding: 12px 20px; padding-bottom: max(12px, env(safe-area-inset-bottom)); display: flex; justify-content: space-around; box-shadow: 0 -4px 20px rgba(0,0,0,0.05); border-top-left-radius: 24px; border-top-right-radius: 24px; z-index: 100; }
     .nav-item { text-decoration: none; color: #9CA3AF; display: flex; flex-direction: column; align-items: center; font-size: 10px; gap: 4px; }
     .nav-item.active { color: var(--primary); } .nav-icon { font-size: 22px; }
@@ -62,188 +22,189 @@
 </head>
 <body>
 
-  <div class="header"><h2>📝 提出申請</h2></div>
+  <h2>📝 填寫申請單</h2>
 
-  <div class="form-card">
-    <div class="input-group">
-      <label>申請類型</label>
-      <select id="cat" onchange="uiChange()">
-        <option value="LEAVE">請假</option>
-        <option value="OT">加班</option>
-        <option value="CORRECTION">補卡</option>
-        <option value="OUTING">外出申請</option>
-      </select>
-    </div>
-
-    <div class="input-group" id="typeGrp">
-      <label>假別</label>
-      <select id="type">
-        <option value="annual">特休</option>
-        <option value="comp">補休</option>
-        <option value="sick">病假</option>
-        <option value="personal">事假</option>
-        <option value="official">公假</option>
-        <option value="marriage">婚假</option>
-        <option value="bereavement">喪假</option>
-        <option value="menstrual">生理假</option>
-        <option value="maternity">產假</option>
-        <option value="paternity">陪產假</option>
-        <option value="family">家庭照顧假</option>
-      </select>
-    </div>
-
-    <div class="input-group">
-      <label id="startLbl">開始時間</label>
-      <input type="datetime-local" id="start" onchange="calc()" oninput="calc()">
-    </div>
-
-    <div class="input-group" id="endGrp">
-      <label>結束時間</label>
-      <input type="datetime-local" id="end" onchange="calc()" oninput="calc()">
-    </div>
-    
-    <div class="input-group" id="hrsGrp">
-      <label>時數 (自動計算)</label>
-      <input type="number" id="hours" step="0.1" readonly placeholder="系統自動計算">
-    </div>
-
-    <div class="checkbox-wrapper" id="autoClockGrp">
-      <input type="checkbox" id="autoClock">
-      <label for="autoClock">立即打卡 (現在出門)</label>
-    </div>
-
-    <div class="input-group">
-      <label>事由</label>
-      <textarea id="reason" rows="3" placeholder="請填寫說明..."></textarea>
-    </div>
-
-    <button class="btn-submit" onclick="submit()">送出申請</button>
+  <div class="form-group">
+    <label>申請類型</label>
+    <select id="cat" onchange="toggleType()">
+      <option value="LEAVE">請假</option>
+      <option value="OT">加班</option>
+      <option value="OUTING">外出</option>
+      <option value="CORRECTION">補卡</option>
+    </select>
   </div>
+
+  <div class="form-group" id="typeGroup">
+    <label>假別</label>
+    <select id="type">
+      <option value="annual">特休</option>
+      <option value="comp">補休</option>
+      <option value="personal">事假</option>
+      <option value="sick">病假</option>
+      <option value="official">公假</option>
+      <option value="marriage">婚假</option>
+      <option value="bereavement">喪假</option>
+      <option value="menstrual">生理假</option>
+      <option value="maternity">產假</option>
+      <option value="paternity">陪產假</option>
+      <option value="family">家庭照顧假</option>
+      <option value="birthday">生日假</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label>開始時間</label>
+    <input type="datetime-local" id="start" onchange="calcDiff()">
+  </div>
+
+  <div class="form-group">
+    <label>結束時間</label>
+    <input type="datetime-local" id="end" onchange="calcDiff()">
+  </div>
+
+  <div class="form-group" id="hoursGroup">
+    <label>時數 (自動計算)</label>
+    <input type="number" id="hours" value="0" readonly style="background-color: #F3F4F6;">
+  </div>
+
+  <div class="form-group">
+    <label>事由</label>
+    <textarea id="reason" placeholder="請填寫說明..."></textarea>
+  </div>
+
+  <button class="btn-submit" id="submitBtn" onclick="submit()">送出申請</button>
 
   <nav class="nav">
     <a href="app.html" class="nav-item"><span class="nav-icon">🏠</span>首頁</a>
     <a href="request.html" class="nav-item active"><span class="nav-icon">📝</span>申請</a>
     <a href="history.html" class="nav-item"><span class="nav-icon">📋</span>紀錄</a>
     <a href="schedule.html" class="nav-item"><span class="nav-icon">📅</span>排班</a>
-    <a href="manager.html" class="nav-item" id="mgrBtn" style="display:none"><span class="nav-icon">👑</span>主管</a>
+    <a href="manager.html" class="nav-item"><span class="nav-icon">👑</span>主管</a>
   </nav>
 
 <script src="config.js"></script>
 <script>
   const uid = localStorage.getItem("employeeId");
-  const isMgr = localStorage.getItem("isManager") === "true";
-  if(isMgr) document.getElementById("mgrBtn").style.display = 'flex';
+  if(!uid) location.href='index.html';
 
-  const fullLeaveOptions = document.getElementById("type").innerHTML;
+  // 初始化時間：預設今天 09:00 - 18:00
+  const now = new Date();
+  const ymd = now.toISOString().split('T')[0];
+  document.getElementById("start").value = `${ymd}T09:00`;
+  document.getElementById("end").value = `${ymd}T18:00`;
 
-  function uiChange() {
-      const c = document.getElementById("cat").value;
-      const typeDiv = document.getElementById("typeGrp");
-      const endDiv = document.getElementById("endGrp");
-      const hrsDiv = document.getElementById("hrsGrp");
-      const lbl = document.getElementById("startLbl");
-      const clockDiv = document.getElementById("autoClockGrp");
+  // ★ 補丁 A：toggleType 分支優化
+  function toggleType() {
+    const cat = document.getElementById("cat").value;
+    const typeGroup = document.getElementById("typeGroup");
+    const hoursGroup = document.getElementById("hoursGroup");
+    const endWrap = document.getElementById("end").parentNode;
 
-      typeDiv.style.display = 'block';
-      endDiv.style.display = 'block';
-      hrsDiv.style.display = 'block';
-      clockDiv.style.display = 'none';
-      lbl.innerText = '開始時間';
-
-      if (c === 'CORRECTION') { 
-          endDiv.style.display = 'none';
-          hrsDiv.style.display = 'none';
-          typeDiv.style.display = 'none';
-          lbl.innerText = '補卡時間';
-      } else if (c === 'OUTING') { 
-          typeDiv.style.display = 'none'; 
-          lbl.innerText = '預計外出時間';
-          clockDiv.style.display = 'flex';
-      } else if (c === 'OT') { 
-          typeDiv.style.display = 'none';
-          lbl.innerText = '加班開始時間';
-      } else {
-          document.getElementById("type").innerHTML = fullLeaveOptions;
-      }
-      calc();
+    if (cat === 'CORRECTION') {
+      typeGroup.style.display = 'none';
+      hoursGroup.style.display = 'none';
+      endWrap.style.display = 'none';
+      // 同步時間與時數
+      const sVal = document.getElementById("start").value;
+      if (sVal) document.getElementById("end").value = sVal;
+      document.getElementById("hours").value = 0;
+    } else if (cat === 'OUTING') {
+      typeGroup.style.display = 'none';
+      hoursGroup.style.display = 'block';
+      endWrap.style.display = 'block';
+      calcDiff();
+    } else if (cat === 'OT') {
+      // 加班固定為補休來源
+      typeGroup.style.display = 'none';
+      document.getElementById("type").value = 'comp';
+      hoursGroup.style.display = 'block';
+      endWrap.style.display = 'block';
+      calcDiff();
+    } else {
+      typeGroup.style.display = 'block';
+      hoursGroup.style.display = 'block';
+      endWrap.style.display = 'block';
+      calcDiff();
+    }
   }
 
-  function calc() {
-      const cat = document.getElementById("cat").value;
-      const sVal = document.getElementById("start").value;
-      const eVal = document.getElementById("end").value;
-      const hInput = document.getElementById("hours");
+  // ★ 補丁 B：calcDiff 補卡判定
+  function calcDiff() {
+    const cat = document.getElementById("cat").value;
+    if (cat === 'CORRECTION') return;
 
-      if (cat === 'CORRECTION') { hInput.value = 0; return; }
-      if (!sVal || !eVal) return;
+    const sVal = document.getElementById("start").value;
+    const eVal = document.getElementById("end").value;
+    if (!sVal || !eVal) return;
 
-      const s = new Date(sVal);
-      const e = new Date(eVal);
+    const s = new Date(sVal);
+    const e = new Date(eVal);
 
-      if (e <= s) { hInput.value = 0; return; }
+    if (e <= s) {
+      document.getElementById("hours").value = 0;
+      return;
+    }
 
-      // 1. OT 或 OUTING：實報實銷
-      if (cat === 'OT' || cat === 'OUTING') {
-          const diffHours = (e - s) / 3600000;
-          hInput.value = diffHours.toFixed(1);
-          return;
-      }
-
-      // 2. LEAVE：天數 x 8 (跨日) 或 時數 (同日)
-      const isSameDate = (
-          s.getFullYear() === e.getFullYear() &&
-          s.getMonth() === e.getMonth() &&
-          s.getDate() === e.getDate()
-      );
-
-      if (isSameDate) {
-          const diffHours = (e - s) / 3600000;
-          hInput.value = diffHours.toFixed(1);
-      } else {
-          const utc1 = Date.UTC(s.getFullYear(), s.getMonth(), s.getDate());
-          const utc2 = Date.UTC(e.getFullYear(), e.getMonth(), e.getDate());
-          const dayDiff = Math.floor((utc2 - utc1) / (1000 * 60 * 60 * 24));
-          hInput.value = (dayDiff + 1) * 8;
-      }
+    const diffHrs = (e - s) / (1000 * 60 * 60);
+    document.getElementById("hours").value = diffHrs.toFixed(1);
   }
 
   function api(act, d={}) {
-    return new Promise(r => {
+    return new Promise((resolve, reject) => {
+      const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
       const s = document.createElement("script");
-      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${act}&payload=${encodeURIComponent(JSON.stringify({...d, userId:uid}))}&callback=cb${Date.now()}`;
-      window[`cb${Date.now()}`] = (res) => { r(res); s.remove(); };
+      const payload = encodeURIComponent(JSON.stringify({...d, userId:uid}));
+      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${act}&payload=${payload}&callback=${cbName}&_=${Date.now()}`;
+      window[cbName] = (res) => { try { resolve(res); } finally { delete window[cbName]; s.remove(); } };
+      s.onerror = () => { delete window[cbName]; s.remove(); reject(new Error("Network Error")); };
       document.body.appendChild(s);
     });
   }
 
+  // ★ 補丁 C：組裝資料邏輯強化
   async function submit() {
-      const cat = document.getElementById("cat").value;
-      const start = document.getElementById("start").value;
-      const end = document.getElementById("end").value;
-      const auto = document.getElementById("autoClock").checked;
-      
-      if(!start) { alert("請填寫時間"); return; }
-      if(cat !== 'CORRECTION' && !end) { alert("請填寫結束時間"); return; }
+    const btn = document.getElementById("submitBtn");
+    const cat = document.getElementById("cat").value;
+    
+    btn.disabled = true;
+    btn.innerText = "送出中...";
 
-      const btn = document.querySelector(".btn-submit");
-      btn.innerText = "處理中..."; btn.disabled = true;
+    const data = {
+      category: cat,
+      leaveType: (cat === 'LEAVE') ? document.getElementById("type").value
+              : (cat === 'OT') ? 'comp'
+              : '', 
+      start: document.getElementById("start").value,
+      end: (cat === 'CORRECTION') ? document.getElementById("start").value : document.getElementById("end").value,
+      hours: (cat === 'CORRECTION') ? 0 : document.getElementById("hours").value,
+      reason: document.getElementById("reason").value
+    };
 
-      const payload = {
-          category: cat,
-          leaveType: document.getElementById("type").value,
-          start: start,
-          end: cat === 'CORRECTION' ? start : end,
-          hours: document.getElementById("hours").value || 0,
-          reason: document.getElementById("reason").value,
-          autoClock: auto
-      };
+    if (cat !== 'CORRECTION' && Number(data.hours) <= 0) {
+      alert("錯誤：結束時間必須晚於開始時間");
+      btn.disabled = false;
+      btn.innerText = "送出申請";
+      return;
+    }
 
-      const res = await api("submit_request", payload);
-      alert(res.message);
-      location.href = 'history.html';
+    try {
+      const res = await api("submit_request", data);
+      if(res.ok) {
+        alert("申請成功！");
+        location.href = "history.html";
+      } else {
+        alert("失敗: " + res.message);
+        btn.disabled = false;
+        btn.innerText = "送出申請";
+      }
+    } catch(e) {
+      alert("網路錯誤，請重試");
+      btn.disabled = false;
+      btn.innerText = "送出申請";
+    }
   }
   
-  uiChange();
+  toggleType(); // 初始 UI 調校
 </script>
 </body>
 </html>

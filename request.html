@@ -42,6 +42,18 @@
 
   <div class="form-group" id="typeGroup">
     <label>假別</label>
+const leaveType = document.getElementById("type")?.value;
+if (cat === 'LEAVE' && leaveType === 'birthday'){
+  const sVal = document.getElementById("start").value;
+  const eVal = document.getElementById("end").value;
+  if (sVal && eVal){
+    const s = new Date(sVal), e = new Date(eVal);
+    if (s.toDateString() !== e.toDateString()){
+      // 直接拉齊，不讓你跨日造成錯覺
+      document.getElementById("end").value = sVal;
+    }
+  }
+}
     <select id="type" onchange="calcHoursSmart()">
       <option value="annual">特休</option>
       <option value="comp">補休</option>

@@ -5,21 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
   <title>填寫申請單</title>
   <style>
-    :root { --primary: #4F46E5; --bg: #F3F4F6; --card: #FFFFFF; --text: #1F2937; --danger:#EF4444; }
+    :root { --primary: #4F46E5; --bg: #F3F4F6; --card: #FFFFFF; --text: #1F2937; }
     body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); margin: 0; padding: 20px 20px 80px 20px; color: var(--text); }
-    h2 { font-size: 20px; margin-bottom: 20px; font-weight: 700; }
-    .form-group { margin-bottom: 20px; }
+    h2 { font-size: 20px; margin-bottom: 12px; font-weight: 700; }
+    .hint { font-size:12px; color:#6B7280; margin:0 0 14px; }
+    .form-group { margin-bottom: 18px; }
     label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; color: #4B5563; }
     input, select, textarea { width: 100%; padding: 12px; border-radius: 12px; border: 1px solid #E5E7EB; background: #fff; font-size: 16px; box-sizing: border-box; -webkit-appearance: none; }
     input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }
     textarea { resize: vertical; min-height: 80px; }
-
-    .hint { font-size: 12px; color:#6B7280; margin-top:8px; line-height:1.4; }
-    .error { font-size: 12px; color: var(--danger); margin-top:8px; display:none; }
-
+    .row { display:flex; gap:10px; }
+    .row > div { flex:1; }
+    .chip { display:inline-flex; align-items:center; gap:8px; padding:10px 12px; border:1px solid #E5E7EB; border-radius:12px; background:#fff; }
+    .chip input { width:auto; }
     .btn-submit { width: 100%; background: var(--primary); color: white; padding: 14px; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; margin-top: 10px; cursor: pointer; }
     .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
-
     .nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); padding: 12px 20px; padding-bottom: max(12px, env(safe-area-inset-bottom)); display: flex; justify-content: space-around; box-shadow: 0 -4px 20px rgba(0,0,0,0.05); border-top-left-radius: 24px; border-top-right-radius: 24px; z-index: 100; }
     .nav-item { text-decoration: none; color: #9CA3AF; display: flex; flex-direction: column; align-items: center; font-size: 10px; gap: 4px; }
     .nav-item.active { color: var(--primary); } .nav-icon { font-size: 22px; }
@@ -28,21 +28,21 @@
 <body>
 
   <h2>📝 填寫申請單</h2>
+  <p class="hint">請假會用「工作日 × 8 小時」或「排班表」自動換算；加班/外出用實際區間並套用休息規則。</p>
 
   <div class="form-group">
     <label>申請類型</label>
-    <select id="cat">
+    <select id="cat" onchange="toggleType()">
       <option value="LEAVE">請假</option>
       <option value="OT">加班</option>
       <option value="OUTING">外出</option>
       <option value="CORRECTION">補卡</option>
     </select>
-    <div class="hint">※ 加班會自動轉為補休時數；補卡不需要填結束時間與時數</div>
   </div>
 
   <div class="form-group" id="typeGroup">
     <label>假別</label>
-    <select id="type">
+    <select id="type" onchange="calcHoursSmart()">
       <option value="annual">特休</option>
       <option value="comp">補休</option>
       <option value="personal">事假</option>
@@ -58,19 +58,31 @@
     </select>
   </div>
 
-  <div class="form-group" id="startWrap">
+  <div class="form-group">
     <label>開始時間</label>
-    <input type="datetime-local" id="start">
+    <input type="datetime-local" id="start" onchange="onTimeChange()">
   </div>
 
-  <div class="form-group" id="endWrap">
+  <div class="form-group" id="endGroup">
     <label>結束時間</label>
-    <input type="datetime-local" id="end">
-    <div class="error" id="timeErr">結束時間不能小於開始時間（已自動修正）</div>
+    <input type="datetime-local" id="end" onchange="onTimeChange()">
+  </div>
+
+  <div class="form-group" id="extraGroup" style="display:none;">
+    <div class="row">
+      <div class="chip">
+        <input type="checkbox" id="isTrip" onchange="calcHoursSmart()"/>
+        <label for="isTrip" style="margin:0;">出差（外出可超過 8 小時）</label>
+      </div>
+      <div class="chip">
+        <input type="checkbox" id="autoClock" />
+        <label for="autoClock" style="margin:0;">外出單同時自動打卡</label>
+      </div>
+    </div>
   </div>
 
   <div class="form-group" id="hoursGroup">
-    <label>時數 (自動計算)</label>
+    <label>時數（自動計算）</label>
     <input type="number" id="hours" value="0" readonly style="background-color: #F3F4F6;">
   </div>
 
@@ -79,7 +91,7 @@
     <textarea id="reason" placeholder="請填寫說明..."></textarea>
   </div>
 
-  <button class="btn-submit" id="submitBtn">送出申請</button>
+  <button class="btn-submit" id="submitBtn" onclick="submitReq()">送出申請</button>
 
   <nav class="nav">
     <a href="app.html" class="nav-item"><span class="nav-icon">🏠</span>首頁</a>
@@ -94,124 +106,18 @@
   const uid = localStorage.getItem("employeeId");
   if(!uid) location.href='index.html';
 
-  const $ = (id) => document.getElementById(id);
-
-  // --- Date helpers ---
-  function pad2(n){ return String(n).padStart(2,'0'); }
-  function toLocalInputValue(d){
-    return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-  }
-  function parseLocalInput(v){
-    // v: "YYYY-MM-DDTHH:mm"
-    if (!v) return null;
-    const d = new Date(v);
-    return isNaN(d.getTime()) ? null : d;
-  }
-
-  // --- UI state ---
-  let lastWarnAt = 0;
-  function showTimeWarnOnce(){
-    const now = Date.now();
-    if (now - lastWarnAt < 1200) return; // 1.2s 內不要連噴
-    lastWarnAt = now;
-    $("timeErr").style.display = 'block';
-    setTimeout(()=>{ $("timeErr").style.display = 'none'; }, 1600);
-  }
-
-  function enforceEndNotBeforeStart(fix=true){
-    const cat = $("cat").value;
-
-    // 補卡：不需要 end
-    if (cat === 'CORRECTION') {
-      $("end").value = $("start").value || $("end").value;
-      $("end").min = $("start").value || "";
-      return true;
-    }
-
-    const sVal = $("start").value;
-    if (sVal) $("end").min = sVal; // ✅ 讓 picker 直接不能選更早
-
-    const s = parseLocalInput(sVal);
-    const e = parseLocalInput($("end").value);
-
-    if (!s || !e) return true;
-    if (e < s) {
-      if (fix) {
-        $("end").value = sVal; // ✅ 自動修正
-        showTimeWarnOnce();
-      }
-      return false;
-    }
-    return true;
-  }
-
-  function calcHours(){
-    const cat = $("cat").value;
-    if (cat === 'CORRECTION') { $("hours").value = 0; return; }
-
-    enforceEndNotBeforeStart(true);
-
-    const s = parseLocalInput($("start").value);
-    const e = parseLocalInput($("end").value);
-    if (!s || !e) { $("hours").value = 0; return; }
-
-    const diffHrs = (e - s) / (1000 * 60 * 60);
-    $("hours").value = diffHrs > 0 ? diffHrs.toFixed(1) : 0;
-  }
-
-  function toggleType(){
-    const cat = $("cat").value;
-
-    const typeGroup = $("typeGroup");
-    const hoursGroup = $("hoursGroup");
-    const endWrap = $("endWrap");
-
-    if (cat === 'CORRECTION') {
-      typeGroup.style.display = 'none';
-      hoursGroup.style.display = 'none';
-      endWrap.style.display = 'none';
-
-      // ✅ 補卡：end=start, hours=0
-      if ($("start").value) $("end").value = $("start").value;
-      $("hours").value = 0;
-      enforceEndNotBeforeStart(true);
-
-    } else if (cat === 'OUTING') {
-      typeGroup.style.display = 'none';
-      hoursGroup.style.display = 'block';
-      endWrap.style.display = 'block';
-      enforceEndNotBeforeStart(true);
-      calcHours();
-
-    } else if (cat === 'OT') {
-      // ✅ 加班：不顯示假別，強制 comp
-      typeGroup.style.display = 'none';
-      $("type").value = 'comp';
-      hoursGroup.style.display = 'block';
-      endWrap.style.display = 'block';
-      enforceEndNotBeforeStart(true);
-      calcHours();
-
-    } else { // LEAVE
-      typeGroup.style.display = 'block';
-      hoursGroup.style.display = 'block';
-      endWrap.style.display = 'block';
-      enforceEndNotBeforeStart(true);
-      calcHours();
-    }
-  }
-
-  // --- API(JSONP) ---
+  // ======== JSONP API (含 timeout，避免「送出中卡住」) ========
   function api(act, d={}) {
     return new Promise((resolve, reject) => {
       const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
       const s = document.createElement("script");
-      const payload = encodeURIComponent(JSON.stringify({...d, userId:uid}));
-      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${encodeURIComponent(act)}&payload=${payload}&callback=${cbName}&_=${Date.now()}`;
+
+      const payload = encodeURIComponent(JSON.stringify({...d, userId: uid}));
+      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${act}&payload=${payload}&callback=${cbName}&_=${Date.now()}`;
 
       const timer = setTimeout(() => {
         cleanup();
-        reject(new Error("Timeout"));
+        reject(new Error("timeout"));
       }, 15000);
 
       function cleanup(){
@@ -220,94 +126,244 @@
         try { s.remove(); } catch(e){}
       }
 
-      window[cbName] = (res) => {
-        cleanup();
-        resolve(res);
-      };
+      window[cbName] = (res) => { cleanup(); resolve(res); };
       s.onerror = () => { cleanup(); reject(new Error("Network Error")); };
       document.body.appendChild(s);
     });
   }
 
-  // --- Submit ---
-  async function submit(){
-    const btn = $("submitBtn");
-    const cat = $("cat").value;
-
-    // ✅ 最後防線：校正時間
-    enforceEndNotBeforeStart(true);
-    calcHours();
-
-    const data = {
-      category: cat,
-      leaveType: (cat === 'LEAVE') ? $("type").value
-              : (cat === 'OT') ? 'comp'
-              : '',
-      start: $("start").value,
-      end: (cat === 'CORRECTION') ? $("start").value : $("end").value,
-      hours: (cat === 'CORRECTION') ? 0 : Number($("hours").value || 0),
-      reason: $("reason").value
+  // ======== 時數換算核心：規則資料快取 ========
+  let RULES = null; // { holidays:Set, scheduleMap:{'yyyy-mm-dd':'EARLY|LATE|OFF'} }
+  async function ensureRules(){
+    if (RULES) return RULES;
+    // 拉一個涵蓋區間：start~end 跨月也OK（後端會回傳該區間需要的資料）
+    const sVal = document.getElementById("start").value;
+    const eVal = document.getElementById("end").value || sVal;
+    const res = await api("get_rules", { start: sVal, end: eVal });
+    if (!res || !res.ok) throw new Error(res && res.message ? res.message : "get_rules failed");
+    RULES = {
+      holidays: new Set(res.holidays || []),
+      scheduleMap: res.scheduleMap || {}
     };
+    return RULES;
+  }
 
-    // ✅ 硬驗證：非補卡一定要 end>=start 且 hours>0
-    if (cat !== 'CORRECTION') {
-      const s = parseLocalInput(data.start);
-      const e = parseLocalInput(data.end);
-      if (!s || !e || e < s) {
-        alert("錯誤：結束時間不能小於開始時間");
+  // ======== 初始化時間：今天 09:00-18:00 ========
+  const now = new Date();
+  const ymd = now.toISOString().split('T')[0];
+  document.getElementById("start").value = `${ymd}T09:00`;
+  document.getElementById("end").value   = `${ymd}T18:00`;
+
+  // ======== UI toggle ========
+  function toggleType() {
+    const cat = document.getElementById("cat").value;
+    const typeGroup = document.getElementById("typeGroup");
+    const hoursGroup = document.getElementById("hoursGroup");
+    const endGroup = document.getElementById("endGroup");
+    const extraGroup = document.getElementById("extraGroup");
+
+    // reset rules cache when type change (避免跨月資料不夠)
+    RULES = null;
+
+    if (cat === 'CORRECTION') {
+      typeGroup.style.display = 'none';
+      hoursGroup.style.display = 'none';
+      endGroup.style.display = 'none';
+      extraGroup.style.display = 'none';
+      const sVal = document.getElementById("start").value;
+      if (sVal) document.getElementById("end").value = sVal;
+      document.getElementById("hours").value = 0;
+    } else if (cat === 'OUTING') {
+      typeGroup.style.display = 'none';
+      hoursGroup.style.display = 'block';
+      endGroup.style.display = 'block';
+      extraGroup.style.display = 'block';
+      calcHoursSmart();
+    } else if (cat === 'OT') {
+      typeGroup.style.display = 'none';
+      extraGroup.style.display = 'none';
+      hoursGroup.style.display = 'block';
+      endGroup.style.display = 'block';
+      calcHoursSmart();
+    } else {
+      typeGroup.style.display = 'block';
+      extraGroup.style.display = 'none';
+      hoursGroup.style.display = 'block';
+      endGroup.style.display = 'block';
+      calcHoursSmart();
+    }
+  }
+
+  function onTimeChange(){
+    // 結束時間不能小於開始時間：自動拉齊
+    const sVal = document.getElementById("start").value;
+    const eVal = document.getElementById("end").value;
+    if (sVal && eVal) {
+      const s = new Date(sVal);
+      const e = new Date(eVal);
+      if (e < s) document.getElementById("end").value = sVal;
+    }
+    RULES = null; // 時間變了，規則資料重新抓
+    calcHoursSmart();
+  }
+
+  // ======== 工具：日期/區間 ========
+  function toYMD(d){
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
+  }
+  function isWeekend(d){ const w = d.getDay(); return w===0 || w===6; }
+
+  // 扣午休：規則（你要改午休時段就改這裡）
+  function breakDeductionHours(s, e){
+    // 午班休 1 小時（預設 12:00-13:00）
+    const b1s = new Date(s); b1s.setHours(12,0,0,0);
+    const b1e = new Date(s); b1e.setHours(13,0,0,0);
+
+    // 如果區間跨到休息時間，扣 1
+    const overlap = Math.max(0, Math.min(e, b1e) - Math.max(s, b1s));
+    return overlap > 0 ? 1 : 0;
+  }
+
+  // ======== 核心：智能算時數 ========
+  async function calcHoursSmart(){
+    const cat = document.getElementById("cat").value;
+    if (cat === 'CORRECTION') return;
+
+    const sVal = document.getElementById("start").value;
+    const eVal = document.getElementById("end").value;
+    if (!sVal || !eVal) return;
+
+    const s = new Date(sVal);
+    const e = new Date(eVal);
+
+    if (e <= s){
+      document.getElementById("hours").value = 0;
+      return;
+    }
+
+    try{
+      // 請假：用工作日×8 / 排班表
+      if (cat === 'LEAVE'){
+        const rules = await ensureRules();
+
+        let total = 0;
+        // 逐日計算：每天最多 8 小時（符合你要的）
+        // 規則：當天若 OFF / 假日 / 週末 => 0；否則 => 8
+        const cur = new Date(s); cur.setHours(0,0,0,0);
+        const endDay = new Date(e); endDay.setHours(0,0,0,0);
+
+        while (cur <= endDay){
+          const ymd = toYMD(cur);
+          const isHol = rules.holidays.has(ymd);
+          const shift = (rules.scheduleMap[ymd] || "").toUpperCase(); // EARLY / LATE / OFF
+          const offBySch = (shift.includes("OFF") || shift.includes("休"));
+          const off = isHol || isWeekend(cur) || offBySch;
+
+          if (!off) total += 8;
+
+          cur.setDate(cur.getDate()+1);
+        }
+
+        document.getElementById("hours").value = total.toFixed(1);
         return;
       }
-      if (!(data.hours > 0)) {
-        alert("錯誤：時數必須大於 0（請確認時間區間）");
+
+      // 加班：實際區間 - 扣午休
+      if (cat === 'OT'){
+        let diff = (e - s) / (1000*60*60);
+        diff -= breakDeductionHours(s, e);
+        diff = Math.max(0, diff);
+        // 最小 0.5
+        diff = Math.max(0.5, Math.round(diff * 2) / 2);
+        document.getElementById("hours").value = diff.toFixed(1);
         return;
+      }
+
+      // 外出：實際區間 - 扣午休；最小 0.5；最多 8（出差除外）
+      if (cat === 'OUTING'){
+        const isTrip = document.getElementById("isTrip").checked;
+        let diff = (e - s) / (1000*60*60);
+        diff -= breakDeductionHours(s, e);
+        diff = Math.max(0, diff);
+
+        // 0.5 小時為單位
+        diff = Math.round(diff * 2) / 2;
+        diff = Math.max(0.5, diff);
+
+        if (!isTrip) diff = Math.min(8, diff);
+
+        document.getElementById("hours").value = diff.toFixed(1);
+        return;
+      }
+    }catch(err){
+      // 拉規則失敗就退回保守：請假用工作日×8（不看班表/假日表），其他照實際差
+      if (cat === 'LEAVE'){
+        let total = 0;
+        const cur = new Date(s); cur.setHours(0,0,0,0);
+        const endDay = new Date(e); endDay.setHours(0,0,0,0);
+        while(cur <= endDay){
+          if(!isWeekend(cur)) total += 8;
+          cur.setDate(cur.getDate()+1);
+        }
+        document.getElementById("hours").value = total.toFixed(1);
+      } else {
+        const diff = Math.max(0, (e - s) / (1000*60*60));
+        document.getElementById("hours").value = diff.toFixed(1);
       }
     }
+  }
+
+  // ======== 送出 ========
+  async function submitReq(){
+    const btn = document.getElementById("submitBtn");
+    const cat = document.getElementById("cat").value;
 
     btn.disabled = true;
     btn.innerText = "送出中...";
 
-    try {
+    const start = document.getElementById("start").value;
+    const end = (cat === 'CORRECTION') ? start : document.getElementById("end").value;
+    const hours = (cat === 'CORRECTION') ? 0 : Number(document.getElementById("hours").value || 0);
+
+    if (cat !== 'CORRECTION' && hours <= 0){
+      alert("時數不正確：請確認開始/結束時間");
+      btn.disabled = false;
+      btn.innerText = "送出申請";
+      return;
+    }
+
+    const data = {
+      category: cat,
+      leaveType: (cat === 'LEAVE') ? document.getElementById("type").value : (cat === 'OT') ? 'comp' : '',
+      start, end,
+      hours,
+      reason: document.getElementById("reason").value || "",
+      autoClock: (cat === 'OUTING') ? (document.getElementById("autoClock").checked ? true : false) : false,
+      isTrip: (cat === 'OUTING') ? (document.getElementById("isTrip").checked ? true : false) : false
+    };
+
+    try{
       const res = await api("submit_request", data);
-      if (res && res.ok) {
+      if(res && res.ok){
         alert("申請成功！");
         location.href = "history.html";
-      } else {
-        alert("失敗: " + ((res && res.message) || "未知錯誤"));
+      }else{
+        alert("失敗：" + (res && res.message ? res.message : "unknown"));
         btn.disabled = false;
         btn.innerText = "送出申請";
       }
-    } catch(e) {
-      alert("網路錯誤，請重試");
+    }catch(e){
+      alert("網路或伺服器逾時，請稍後重試");
       btn.disabled = false;
       btn.innerText = "送出申請";
     }
   }
 
-  // --- Init defaults ---
-  (function init(){
-    // 預設：今天 09:00 - 18:00（用本地時間組字串，避免時區偏移）
-    const now = new Date();
-    const s = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0);
-    const e = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 18, 0, 0);
-    $("start").value = toLocalInputValue(s);
-    $("end").value = toLocalInputValue(e);
-
-    // 綁事件：用 input 比 onchange 更即時（Safari 也較穩）
-    $("cat").addEventListener("change", toggleType);
-
-    $("start").addEventListener("change", () => { enforceEndNotBeforeStart(true); calcHours(); });
-    $("start").addEventListener("input",  () => { enforceEndNotBeforeStart(true); calcHours(); });
-
-    $("end").addEventListener("change", () => { enforceEndNotBeforeStart(true); calcHours(); });
-    $("end").addEventListener("input",  () => { enforceEndNotBeforeStart(true); calcHours(); });
-
-    $("submitBtn").addEventListener("click", submit);
-
-    // 先跑一次
-    toggleType();
-    enforceEndNotBeforeStart(true);
-    calcHours();
-  })();
+  toggleType();
+  calcHoursSmart();
 </script>
 </body>
 </html>

@@ -106,7 +106,7 @@
   const uid = localStorage.getItem("employeeId");
   if(!uid) location.href='index.html';
 
-  // ======== JSONP API ========
+  // ======== JSONP API（穩定版：不撞 callback + timeout + cleanup） ========
   function api(act, d={}) {
     return new Promise((resolve, reject) => {
       const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
@@ -212,10 +212,8 @@
   function roundToHalf(h){ return Math.round(h * 2) / 2; }
   function sameDay_(a,b){ return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate(); }
 
-  // ======== 班別視窗（重點：午班也算 8 小時 → 12:00-20:00） ========
   // EARLY: 10:00-18:00 (8h)
   // LATE : 12:00-20:00 (8h)
-  // 未排班 -> 預設 EARLY
   function shiftWindowForYMD(ymd, scheduleMap){
     const raw = (scheduleMap && scheduleMap[ymd]) ? String(scheduleMap[ymd]).toUpperCase().trim() : "";
     const isOff = raw.includes("OFF") || raw.includes("休");
@@ -223,7 +221,7 @@
 
     const isLate = raw.includes("LATE") || raw.includes("午") || raw.includes("12") || raw.includes("21");
     const startH = isLate ? 12 : 10;
-    const endH   = isLate ? 20 : 18; // ✅ 午班改 20（8小時）
+    const endH   = isLate ? 20 : 18;
     return { off:false, startH, endH };
   }
 
@@ -238,7 +236,7 @@
     const s = new Date(sVal);
     const e = new Date(eVal);
 
-    // ✅ 生日假防呆：不可跨日（前端只做 UX，真正擋要後端）
+    // 生日假不可跨日（前端 UX）
     const leaveType = document.getElementById("type")?.value;
     if (cat === 'LEAVE' && leaveType === 'birthday' && !sameDay_(s,e)){
       document.getElementById("end").value = sVal;
@@ -252,7 +250,6 @@
     }
 
     try{
-      // ===== 請假：請假區間 ∩ 當日班別區間 =====
       if (cat === 'LEAVE'){
         const rules = await ensureRules();
         const scheduleMap = rules.scheduleMap || {};
@@ -279,7 +276,6 @@
         return;
       }
 
-      // 加班：實際差（你說不固定扣休）
       if (cat === 'OT'){
         let diff = Math.max(0, (e - s) / (1000*60*60));
         diff = roundToHalf(diff);
@@ -288,7 +284,6 @@
         return;
       }
 
-      // 外出：實際差；最小 0.5；最多 8（出差除外）
       if (cat === 'OUTING'){
         const isTrip = document.getElementById("isTrip").checked;
         let diff = Math.max(0, (e - s) / (1000*60*60));
@@ -299,7 +294,7 @@
         return;
       }
     }catch(err){
-      // fallback：不看班表 → 預設早班 10-18 做重疊
+      // fallback
       if (cat === 'LEAVE'){
         let total = 0;
         const cur = new Date(s); cur.setHours(0,0,0,0);
@@ -319,6 +314,15 @@
         document.getElementById("hours").value = diff.toFixed(1);
       }
     }
+  }
+
+  function leaveTypeByCategory(cat){
+    // ✅ 保證四種都有 leaveType（避免後端報錯）
+    if (cat === 'LEAVE') return document.getElementById("type").value;
+    if (cat === 'OT') return 'ot';
+    if (cat === 'OUTING') return 'outing';
+    if (cat === 'CORRECTION') return 'correction';
+    return '';
   }
 
   async function submitReq(){
@@ -341,13 +345,20 @@
 
     const data = {
       category: cat,
-      leaveType: (cat === 'LEAVE') ? document.getElementById("type").value : (cat === 'OT') ? 'comp' : '',
+      leaveType: leaveTypeByCategory(cat), // ✅ FIX
       start, end,
       hours,
       reason: document.getElementById("reason").value || "",
       autoClock: (cat === 'OUTING') ? !!document.getElementById("autoClock").checked : false,
       isTrip: (cat === 'OUTING') ? !!document.getElementById("isTrip").checked : false
     };
+
+    if (!data.leaveType){
+      alert("失敗：缺少 leaveType（請確認申請類型）");
+      btn.disabled = false;
+      btn.innerText = "送出申請";
+      return;
+    }
 
     try{
       const res = await api("submit_request", data);
@@ -366,7 +377,7 @@
     }
   }
 
-  // ✅ Safari/WebView 修正：datetime-local 常不觸發 onchange
+  // Safari/WebView 修正：datetime-local 常不觸發 onchange
   (function bindRecalcEvents(){
     const startEl = document.getElementById("start");
     const endEl   = document.getElementById("end");

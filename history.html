@@ -37,9 +37,7 @@
       box-shadow: 0 2px 4px rgba(0,0,0,0.03);
       border-left: 5px solid transparent;
     }
-    .att-date {
-      width: 60px; text-align: center; border-right: 1px solid #eee; margin-right: 15px; padding-right: 15px;
-    }
+    .att-date { width: 60px; text-align: center; border-right: 1px solid #eee; margin-right: 15px; padding-right: 15px; }
     .d-num { font-size: 20px; font-weight: 800; color: #333; }
     .d-week { font-size: 12px; color: #999; margin-top: 2px; }
     .weekend .d-num, .weekend .d-week { color: #EF4444; }
@@ -60,9 +58,9 @@
     .cls-off { border-left-color: #E5E7EB; } .tag-off { background: #E5E7EB; color: #9CA3AF; }
 
     .req-card { background: var(--card); padding: 16px; border-radius: 16px; margin-bottom: 12px; border-left: 4px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
-    .req-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 10px; }
-    .req-title { font-weight: 800; font-size: 16px; display: flex; align-items: center; gap: 6px; }
-    .status-badge { padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .req-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .req-title { font-weight: 700; font-size: 16px; display: flex; align-items: center; gap: 6px; }
+    .status-badge { padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; }
     .status-PENDING { background: #FEF3C7; color: #92400E; }
     .status-APPROVED { background: #D1FAE5; color: #065F46; }
     .status-REJECTED { background: #FEE2E2; color: #991B1B; }
@@ -72,29 +70,26 @@
     .nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); padding: 12px 20px; padding-bottom: max(12px, env(safe-area-inset-bottom)); display: flex; justify-content: space-around; box-shadow: 0 -4px 20px rgba(0,0,0,0.05); border-top-left-radius: 24px; border-top-right-radius: 24px; z-index: 100; }
     .nav-item { text-decoration: none; color: #9CA3AF; display: flex; flex-direction: column; align-items: center; font-size: 10px; gap: 4px; }
     .nav-item.active { color: var(--primary); } .nav-icon { font-size: 22px; }
-
-    .ban { background:#FFF1F2; color:#9F1239; border:1px solid #FECDD3; padding:12px; border-radius:14px; margin: 0 0 12px 0; font-size: 13px; line-height: 1.6; }
   </style>
 </head>
 <body>
 
   <div class="header"><h2>📋 紀錄查詢</h2></div>
-  <div id="guard" class="ban" style="display:none;"></div>
 
   <div class="tabs">
-    <div class="tab active" data-tab="att">每日出勤</div>
-    <div class="tab" data-tab="req">申請單據</div>
+    <div class="tab active" onclick="switchTab('att', this)">每日出勤</div>
+    <div class="tab" onclick="switchTab('req', this)">申請單據</div>
   </div>
 
   <div class="filter-card">
     <div class="filter-group">
       <label>月份</label>
-      <select id="mSelect"></select>
+      <select id="mSelect" onchange="refresh()"></select>
     </div>
 
     <div class="filter-group" id="statusFilter" style="display:none;">
       <label>狀態</label>
-      <select id="sSelect">
+      <select id="sSelect" onchange="refresh()">
         <option value="">全部</option>
         <option value="PENDING">審核中</option>
         <option value="APPROVED">已通過</option>
@@ -121,73 +116,95 @@
 
 <script src="config.js"></script>
 <script>
-  // ✅ 兼容：empId / employeeId（你整套系統有混用）
   const uid = localStorage.getItem("empId") || localStorage.getItem("employeeId");
-
-  // ✅ 主管顯示：兼容 true/false 或字串
-  const isMgr = (localStorage.getItem("isManager") === "true");
+  const isMgr = localStorage.getItem("isManager") === "true";
   if(isMgr) document.getElementById("mgrBtn").style.display = 'flex';
 
-  // ---- 沒 uid 直接擋（避免一直空資料）
   if(!uid){
-    const g = document.getElementById("guard");
-    g.style.display = "block";
-    g.innerHTML = "找不到 employeeId / empId（請先回首頁重新登入）。";
+    alert("找不到 employeeId（請先登入或回首頁重新登入）");
   }
 
-  // =========================
-  // JSONP API（穩定版）
-  // =========================
-  function api(action, data = {}) {
+  // ✅ 時間格式：正確處理 UTC/Z -> 台北時間顯示
+  function toYMDHM_(v){
+    if(!v) return "";
+    if (v instanceof Date && !isNaN(v.getTime())) return fmt_(v);
+
+    const s = String(v).trim();
+    const looksISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s);
+    const hasTZ = /Z$|[+\-]\d{2}:\d{2}$/.test(s);
+
+    if (looksISO && hasTZ) {
+      const d = new Date(s);
+      if (!isNaN(d.getTime())) return fmt_(d);
+    }
+    return s.replace('T',' ').replace(/\.\d+Z$/,'').slice(0,16);
+
+    function fmt_(d){
+      const y=d.getFullYear();
+      const m=String(d.getMonth()+1).padStart(2,'0');
+      const dd=String(d.getDate()).padStart(2,'0');
+      const hh=String(d.getHours()).padStart(2,'0');
+      const mm=String(d.getMinutes()).padStart(2,'0');
+      return `${y}-${m}-${dd} ${hh}:${mm}`;
+    }
+  }
+
+  // 1) 初始化月份 (最近 6 個月)
+  const mSel = document.getElementById("mSelect");
+  const now = new Date();
+  for(let i=0; i<6; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    const v = `${d.getFullYear()}/${d.getMonth()+1}`;
+    const t = `${d.getFullYear()}年${String(d.getMonth()+1).padStart(2,'0')}月`;
+    mSel.add(new Option(t, v));
+  }
+
+  let currentTab = 'att';
+
+  function switchTab(tab, el) {
+    currentTab = tab;
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    if (el) el.classList.add('active');
+
+    document.querySelectorAll('.content-area').forEach(c => c.classList.remove('active'));
+    document.getElementById(`view-${tab}`).classList.add('active');
+
+    document.getElementById('statusFilter').style.display = (tab === 'req') ? 'flex' : 'none';
+    refresh();
+  }
+
+  function refresh() {
+    if (currentTab === 'att') loadAttendance();
+    else loadRequests();
+  }
+
+  // ✅ 穩定 JSONP + timeout + cache buster
+  function api(act, d={}) {
     return new Promise((resolve) => {
-      const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random()*100000);
+      const cbName = `cb_${Date.now()}_${Math.floor(Math.random()*100000)}`;
       const s = document.createElement("script");
-      const payload = encodeURIComponent(JSON.stringify({ ...data, userId: uid }));
+      const payloadStr = encodeURIComponent(JSON.stringify({...d, userId: uid}));
       const bust = Date.now();
 
-      const timer = setTimeout(() => {
-        cleanup();
-        resolve({ ok:false, message:"API timeout" });
-      }, 15000);
+      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${encodeURIComponent(act)}&payload=${payloadStr}&callback=${cbName}&_=${bust}`;
+
+      const timer = setTimeout(() => { cleanup(); resolve({ ok:false, message:"API timeout" }); }, 15000);
 
       function cleanup(){
         clearTimeout(timer);
-        try { delete window[cbName]; } catch(e){}
-        try { s.remove(); } catch(e){}
+        try { delete window[cbName]; } catch(_){}
+        if (s && s.parentNode) s.parentNode.removeChild(s);
       }
 
       window[cbName] = (res) => { cleanup(); resolve(res); };
       s.onerror = () => { cleanup(); resolve({ ok:false, message:"API load error" }); };
 
-      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${encodeURIComponent(action)}&payload=${payload}&callback=${cbName}&_=${bust}`;
       document.body.appendChild(s);
     });
   }
 
-  // =========================
-  // UI + 工具
-  // =========================
-  const mSel = document.getElementById("mSelect");
-  const sSel = document.getElementById("sSelect");
-  const tabs = document.querySelectorAll(".tab");
-
   function renderEmpty(el) {
     el.innerHTML = `<div style="text-align:center;padding:40px;color:#9CA3AF;">無相關資料</div>`;
-  }
-
-  function toYMDHM(v){
-    if(!v) return "";
-    if (v instanceof Date && !isNaN(v.getTime())) {
-      const y=v.getFullYear();
-      const m=String(v.getMonth()+1).padStart(2,'0');
-      const d=String(v.getDate()).padStart(2,'0');
-      const hh=String(v.getHours()).padStart(2,'0');
-      const mm=String(v.getMinutes()).padStart(2,'0');
-      return `${y}-${m}-${d} ${hh}:${mm}`;
-    }
-    const s = String(v);
-    // 兼容 "2026-02-12T10:00:00.000Z" / "2026/02/12 10:00"
-    return s.replace('T',' ').replace(/\.\d+Z$/,'').slice(0,16);
   }
 
   function getMonthKeyFromStart(v){
@@ -196,12 +213,12 @@
       return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}`;
     }
     const s = String(v);
-    // yyyy-MM
-    let m = s.match(/^(\d{4})-(\d{2})/);
+    const m = s.match(/^(\d{4})-(\d{2})/);
     if (m) return `${m[1]}-${m[2]}`;
-    // yyyy/MM
-    m = s.match(/^(\d{4})\/(\d{1,2})/);
-    if (m) return `${m[1]}-${String(m[2]).padStart(2,'0')}`;
+
+    // 可能是 ISO：2026-02-11T02:00:00.000Z
+    const m2 = s.match(/^(\d{4})-(\d{2})/);
+    if (m2) return `${m2[1]}-${m2[2]}`;
     return "";
   }
 
@@ -226,56 +243,14 @@
     return leaveType || "申請";
   }
 
-  // =========================
-  // Tabs
-  // =========================
-  let currentTab = "att";
-  function setTab(tab){
-    currentTab = tab;
-    tabs.forEach(t => t.classList.toggle("active", t.dataset.tab === tab));
-    document.getElementById("view-att").classList.toggle("active", tab === "att");
-    document.getElementById("view-req").classList.toggle("active", tab === "req");
-    document.getElementById("statusFilter").style.display = (tab === "req") ? "flex" : "none";
-    refresh();
-  }
-
-  tabs.forEach(t => t.addEventListener("click", () => setTab(t.dataset.tab)));
-
-  function refresh(){
-    if(!uid) return;
-    if(currentTab === "att") loadAttendance();
-    else loadRequests();
-  }
-
-  // =========================
-  // 初始化月份：最近 6 個月
-  // =========================
-  (function initMonths(){
-    const now = new Date();
-    for(let i=0; i<6; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
-      const v = `${d.getFullYear()}/${d.getMonth()+1}`;
-      const t = `${d.getFullYear()}年${String(d.getMonth()+1).padStart(2,'0')}月`;
-      mSel.add(new Option(t, v));
-    }
-  })();
-
-  mSel.addEventListener("change", refresh);
-  sSel.addEventListener("change", refresh);
-
-  // =========================
-  // 功能 1: 出勤
-  // =========================
   async function loadAttendance() {
     const listDiv = document.getElementById("list-att");
     listDiv.innerHTML = '<div style="text-align:center;color:#999;padding:40px;">載入出勤資料...</div>';
 
     const [y, m] = mSel.value.split('/');
-    const res = await api("get_dashboard", { year: Number(y), month: Number(m) });
-
-    if(!res || !res.ok || !Array.isArray(res.dailyData) || res.dailyData.length === 0) {
-      renderEmpty(listDiv);
-      return;
+    const res = await api("get_dashboard", {year: Number(y), month: Number(m)});
+    if(!res.ok || !res.dailyData || res.dailyData.length === 0) {
+      renderEmpty(listDiv); return;
     }
 
     let h = "";
@@ -287,8 +262,8 @@
       h += `
         <div class="att-card ${cls}">
           <div class="att-date ${isWk}">
-            <div class="d-num">${d.date ?? ''}</div>
-            <div class="d-week">${d.week ?? ''}</div>
+            <div class="d-num">${d.date}</div>
+            <div class="d-week">${d.week}</div>
           </div>
           <div class="att-info">
             <div class="time-row"><span class="time-label">上班</span> <b>${d.in || '--'}</b></div>
@@ -301,40 +276,34 @@
     listDiv.innerHTML = h;
   }
 
-  // =========================
-  // 功能 2: 申請單
-  // =========================
   async function loadRequests() {
     const listDiv = document.getElementById("list-req");
     listDiv.innerHTML = '<div style="text-align:center;color:#999;padding:40px;">載入申請資料...</div>';
 
-    const status = sSel.value;
+    const status = document.getElementById("sSelect").value;
     const [y, m] = mSel.value.split('/');
-    const targetMonth = `${y}-${String(m).padStart(2,'0')}`;
 
     const res = await api("list_requests", { filterStatus: status });
-    if(!res || !res.ok || !Array.isArray(res.list) || res.list.length === 0) {
-      renderEmpty(listDiv);
-      return;
+    if(!res.ok || !res.list || res.list.length === 0) {
+      renderEmpty(listDiv); return;
     }
 
+    const targetMonth = `${y}-${String(m).padStart(2,'0')}`;
     const filtered = res.list.filter(r => getMonthKeyFromStart(r.start) === targetMonth);
+
     if(filtered.length === 0) {
-      renderEmpty(listDiv);
-      return;
+      renderEmpty(listDiv); return;
     }
 
     let h = "";
     filtered.forEach(r => {
       const st = String(r.status || "PENDING").toUpperCase();
-
       let badge = "審核中";
       if(st === 'APPROVED') badge = "已通過";
       if(st === 'REJECTED') badge = "已駁回";
 
       const c = classifyByLeaveType(r.leaveType);
       const typeTxt = typeName(r.leaveType);
-
       const borderColor = (st==='PENDING') ? '#F59E0B' : (st==='APPROVED' ? '#10B981' : '#EF4444');
 
       h += `
@@ -343,7 +312,7 @@
             <div class="req-title"><span>${c.icon}</span> ${typeTxt}</div>
             <div class="status-badge status-${st}">${badge}</div>
           </div>
-          <div class="req-time">📅 ${toYMDHM(r.start)}（${Number(r.hours||0)}h）</div>
+          <div class="req-time">📅 ${toYMDHM_(r.start)} (${Number(r.hours||0)}h)</div>
           <div class="req-reason">${r.reason || '無備註'}</div>
         </div>`;
     });
@@ -351,7 +320,6 @@
     listDiv.innerHTML = h;
   }
 
-  // 啟動
   refresh();
 </script>
 </body>

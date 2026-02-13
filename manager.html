@@ -24,7 +24,7 @@
     .btn-approve { background: #10B981; color: white; }
     .btn-reject { background: #EF4444; color: white; }
     
-    /* 加入 disabled 樣式 */
+    /* 增加按鈕 Disabled 樣式 */
     .btn:disabled, .btn-all:disabled { opacity: 0.6; cursor: not-allowed; filter: grayscale(1); }
     .btn-all { background: var(--primary); color: white; border: none; padding: 6px 12px; border-radius: 20px; font-size: 12px; cursor: pointer; }
 
@@ -47,7 +47,7 @@
 
   <div class="section-title">
     待審核申請
-    <button id="btnApproveAll" class="btn-all" onclick="approveAll()">一鍵全准</button>
+    <button class="btn-all" onclick="approveAll()">一鍵全准</button>
   </div>
   <div id="pendingList">
     <div style="text-align:center;color:#999;padding:20px;">載入中...</div>
@@ -71,7 +71,7 @@
       const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
       const s = document.createElement("script");
       const payload = encodeURIComponent(JSON.stringify({ ...d, userId: uid }));
-      
+
       const timer = setTimeout(() => {
         cleanup();
         reject(new Error("Timeout: 請求逾時"));
@@ -83,8 +83,9 @@
         try { s.remove(); } catch(e){}
       }
 
-      // ★ Fix A: 加上 Cache Buster (&_=${Date.now()})
-      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${encodeURIComponent(act)}&payload=${payload}&callback=${cbName}&_=${Date.now()}`;
+      // ✅ 1) Cache Buster：避免 Safari/代理/弱網快取拿舊資料
+      const bust = Date.now();
+      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${encodeURIComponent(act)}&payload=${payload}&callback=${cbName}&_=${bust}`;
 
       window[cbName] = (res) => {
         cleanup();
@@ -101,147 +102,147 @@
   }
 
   async function loadStats() {
-      const el = document.getElementById("teamStats");
-      el.innerHTML = '<div style="text-align:center;color:#999;padding:20px;">更新中...</div>';
-      
-      try {
-        const res = await api("get_team_stats");
-        if(!res.ok) {
-            el.innerHTML = `<div style="text-align:center;color:red;">${res.message || '讀取失敗'}</div>`;
-            return;
-        }
+    const el = document.getElementById("teamStats");
+    el.innerHTML = '<div style="text-align:center;color:#999;padding:20px;">更新中...</div>';
 
-        // ★ Fix C: 資料防爆 (檢查 res.list 是否為陣列)
-        const list = Array.isArray(res.list) ? res.list : [];
-        
-        let h = "";
-        list.forEach(u => {
-            h += `
-            <div class="stat-row">
-                <div class="stat-name">${u.name}</div>
-                <div class="stat-val">特休:${u.annual}h / 補休:${u.comp}h</div>
-            </div>`;
-        });
-        el.innerHTML = h || '<div style="text-align:center;color:#999;">無資料</div>';
-      } catch (err) {
-        el.innerHTML = `<div style="text-align:center;color:red;">連線失敗</div>`;
+    try {
+      const res = await api("get_team_stats");
+      if(!res || !res.ok) {
+        el.innerHTML = `<div style="text-align:center;color:red;">${(res && res.message) || '讀取失敗'}</div>`;
+        return;
       }
+
+      // ✅ 2) 防呆：res.list 可能不存在
+      const list = Array.isArray(res.list) ? res.list : [];
+
+      let h = "";
+      list.forEach(u => {
+        h += `
+          <div class="stat-row">
+            <div class="stat-name">${u.name}</div>
+            <div class="stat-val">特休:${u.annual}h / 補休:${u.comp}h</div>
+          </div>`;
+      });
+      el.innerHTML = h || '<div style="text-align:center;color:#999;">無資料</div>';
+    } catch (err) {
+      el.innerHTML = `<div style="text-align:center;color:red;">連線失敗</div>`;
+    }
   }
 
   async function loadPending() {
-      const el = document.getElementById("pendingList");
-      el.innerHTML = '<div style="text-align:center;color:#999;padding:20px;">檢查中...</div>';
+    const el = document.getElementById("pendingList");
+    el.innerHTML = '<div style="text-align:center;color:#999;padding:20px;">檢查中...</div>';
 
-      try {
-        const res = await api("get_pending");
-        
-        if(!res.ok) {
-            el.innerHTML = `<div style="text-align:center;color:red;">${res.message || '讀取失敗'}</div>`;
-            return;
-        }
+    try {
+      const res = await api("get_pending");
 
-        // ★ Fix C: 資料防爆
-        const list = Array.isArray(res.list) ? res.list : [];
-
-        if(list.length === 0) {
-            el.innerHTML = `<div style="text-align:center;color:#999;padding:20px;">目前無待審核案件 ✅</div>`;
-            return;
-        }
-
-        let h = "";
-        list.forEach(r => {
-            let typeName = r.leaveType || r.category || '';
-            const t = String(typeName).toLowerCase();
-            
-            if(r.category === 'OUTING') typeName = '外出';
-            else if(r.category === 'CORRECTION') typeName = '補卡';
-            else if(r.category === 'OT') typeName = '加班';
-            else {
-                if(t.includes('annual')) typeName = '特休';
-                else if(t.includes('comp')) typeName = '補休';
-                else if(t.includes('sick')) typeName = '病假';
-                else if(t.includes('personal')) typeName = '事假';
-                else if(t.includes('official')) typeName = '公假';
-                else if(t.includes('marriage')) typeName = '婚假';
-                else if(t.includes('bereavement')) typeName = '喪假';
-                else if(t.includes('menstrual')) typeName = '生理假';
-                else if(t.includes('maternity')) typeName = '產假';
-                else if(t.includes('paternity')) typeName = '陪產假';
-                else if(t.includes('family')) typeName = '家庭照顧假';
-                else if(t.includes('birthday')) typeName = '生日假';
-            }
-
-            const displayName = r.empName || r.name || r.empId || r.id || '未知員工';
-            const dateStr = r.start ? r.start.replace('T', ' ').substring(0, 16) : '無日期';
-
-            h += `
-            <div class="req-item" id="card-${r.reqId}">
-                <div class="req-top">
-                <div class="req-user">${displayName}</div>
-                <div class="req-type">${typeName}</div>
-                </div>
-                <div class="req-info">
-                日期: ${dateStr}<br>
-                時數: ${r.hours}小時<br>
-                事由: ${r.reason || '無'}
-                </div>
-                <div class="req-actions">
-                <button class="btn btn-approve" onclick="decide('${r.reqId}', 'APPROVED')">核准</button>
-                <button class="btn btn-reject" onclick="decide('${r.reqId}', 'REJECTED')">駁回</button>
-                </div>
-            </div>`;
-        });
-        el.innerHTML = h;
-      } catch (err) {
-        el.innerHTML = `<div style="text-align:center;color:red;">連線失敗</div>`;
+      if(!res || !res.ok) {
+        el.innerHTML = `<div style="text-align:center;color:red;">${(res && res.message) || '讀取失敗'}</div>`;
+        return;
       }
+
+      // ✅ 3) 防呆：res.list 可能 undefined
+      const list = Array.isArray(res.list) ? res.list : [];
+
+      if(list.length === 0) {
+        el.innerHTML = `<div style="text-align:center;color:#999;padding:20px;">目前無待審核案件 ✅</div>`;
+        return;
+      }
+
+      let h = "";
+      list.forEach(r => {
+        let typeName = r.leaveType || r.category || '';
+        const t = String(typeName).toLowerCase();
+
+        if(r.category === 'OUTING') typeName = '外出';
+        else if(r.category === 'CORRECTION') typeName = '補卡';
+        else if(r.category === 'OT') typeName = '加班';
+        else {
+          if(t.includes('annual')) typeName = '特休';
+          else if(t.includes('comp')) typeName = '補休';
+          else if(t.includes('sick')) typeName = '病假';
+          else if(t.includes('personal')) typeName = '事假';
+          else if(t.includes('official')) typeName = '公假';
+          else if(t.includes('marriage')) typeName = '婚假';
+          else if(t.includes('bereavement')) typeName = '喪假';
+          else if(t.includes('menstrual')) typeName = '生理假';
+          else if(t.includes('maternity')) typeName = '產假';
+          else if(t.includes('paternity')) typeName = '陪產假';
+          else if(t.includes('family')) typeName = '家庭照顧假';
+          else if(t.includes('birthday')) typeName = '生日假';
+        }
+
+        const displayName = r.empName || r.name || r.empId || r.id || '未知員工';
+        const dateStr = r.start ? String(r.start).replace('T', ' ').substring(0, 16) : '無日期';
+
+        h += `
+          <div class="req-item" id="card-${r.reqId}">
+            <div class="req-top">
+              <div class="req-user">${displayName}</div>
+              <div class="req-type">${typeName}</div>
+            </div>
+            <div class="req-info">
+              日期: ${dateStr}<br>
+              時數: ${r.hours}小時<br>
+              事由: ${r.reason || '無'}
+            </div>
+            <div class="req-actions">
+              <button class="btn btn-approve" onclick="decide('${r.reqId}', 'APPROVED')">核准</button>
+              <button class="btn btn-reject" onclick="decide('${r.reqId}', 'REJECTED')">駁回</button>
+            </div>
+          </div>`;
+      });
+      el.innerHTML = h;
+    } catch (err) {
+      el.innerHTML = `<div style="text-align:center;color:red;">連線失敗</div>`;
+    }
   }
 
   async function decide(reqId, decision) {
-      if(!confirm(decision==='APPROVED'?'確定核准？':'確定駁回？')) return;
-      document.getElementById(`card-${reqId}`).style.opacity = '0.5';
-      
-      try {
-        const res = await api("review_request", { reqId, decision });
-        if(res.ok) {
-            document.getElementById(`card-${reqId}`).remove();
-            // 如果刪光了，顯示無案件
-            if(document.querySelectorAll('.req-item').length === 0) {
-                document.getElementById("pendingList").innerHTML = `<div style="text-align:center;color:#999;padding:20px;">已全部審核完畢 ✅</div>`;
-            }
-            // 成功後更新統計
-            if(decision === 'APPROVED') loadStats();
-        } else {
-            alert("操作失敗: " + (res.message || '未知錯誤'));
-            document.getElementById(`card-${reqId}`).style.opacity = '1';
+    if(!confirm(decision==='APPROVED'?'確定核准？':'確定駁回？')) return;
+
+    const card = document.getElementById(`card-${reqId}`);
+    if(card) card.style.opacity = '0.5';
+
+    try {
+      const res = await api("review_request", { reqId, decision });
+      if(res && res.ok) {
+        if(card) card.remove();
+        if(document.querySelectorAll('.req-item').length === 0) {
+          document.getElementById("pendingList").innerHTML =
+            `<div style="text-align:center;color:#999;padding:20px;">已全部審核完畢 ✅</div>`;
         }
-      } catch (err) {
-        alert("操作失敗: 網絡錯誤");
-        document.getElementById(`card-${reqId}`).style.opacity = '1';
+        // ✅ 核准/駁回後都更新統計
+        loadStats();
+      } else {
+        alert("操作失敗: " + ((res && res.message) || '未知錯誤'));
+        if(card) card.style.opacity = '1';
       }
+    } catch (err) {
+      alert("操作失敗: 網絡錯誤");
+      if(card) card.style.opacity = '1';
+    }
   }
 
   async function approveAll() {
-      if(!confirm("確定核准「本月所有」待審核單據？")) return;
-      
-      // ★ Fix B: 按鈕鎖定，防止連點
-      const btn = document.getElementById("btnApproveAll");
-      btn.disabled = true;
-      btn.innerText = "處理中...";
+    if(!confirm("確定核准「本月所有」待審核單據？")) return;
 
-      const now = new Date();
-      try {
-        const res = await api("approve_month_all", { year: now.getFullYear(), month: now.getMonth()+1 });
-        alert(res.ok ? `已核准 ${res.count} 筆單據` : "操作失敗");
-        loadPending();
-        loadStats(); 
-      } catch (err) {
-        alert("操作失敗: " + err.message);
-      } finally {
-        // 解鎖按鈕
-        btn.disabled = false;
-        btn.innerText = "一鍵全准";
-      }
+    // ✅ 4) 防連點：避免主管狂點造成重複入帳
+    const btns = document.querySelectorAll(".btn-all");
+    btns.forEach(b => b.disabled = true);
+
+    const now = new Date();
+    try {
+      const res = await api("approve_month_all", { year: now.getFullYear(), month: now.getMonth()+1 });
+      alert(res && res.ok ? `已核准 ${res.count} 筆單據` : ("操作失敗: " + ((res && res.message) || "")));
+
+      await loadPending();
+      await loadStats();
+    } catch (err) {
+      alert("操作失敗: 網絡錯誤");
+    } finally {
+      btns.forEach(b => b.disabled = false);
+    }
   }
 
   loadStats();

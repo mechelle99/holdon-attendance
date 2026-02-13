@@ -203,6 +203,37 @@
     }
     .nav-item.active{ color: var(--primary); }
     .nav-icon{ font-size: 22px; }
+
+    /* ===== Layout upgrade: desktop side-by-side, mobile stacked ===== */
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+    .panel{ background: transparent; }
+
+    @media (min-width: 980px){
+      body{
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+      .grid{
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        align-items:start;
+      }
+      .panel .section-title{ margin-top: 0; }
+      .panel .list{
+        max-height: calc(100vh - 330px);
+        overflow: auto;
+        padding-right: 6px;
+      }
+      .panel .list::-webkit-scrollbar{ width: 8px; }
+      .panel .list::-webkit-scrollbar-thumb{
+        background: rgba(17,24,39,.18);
+        border-radius: 999px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -227,17 +258,24 @@
     <button onclick="reload()">更新</button>
   </div>
 
-  <div class="section-title">
-    <h3>打卡紀錄（Attendance_Log）</h3>
-    <div class="small" id="attCount">0 筆</div>
-  </div>
-  <div class="list" id="attList"></div>
+  <!-- ✅ 桌機左右 / 手機上下 -->
+  <div class="grid">
+    <section class="panel">
+      <div class="section-title">
+        <h3>打卡紀錄（Attendance_Log）</h3>
+        <div class="small" id="attCount">0 筆</div>
+      </div>
+      <div class="list" id="attList"></div>
+    </section>
 
-  <div class="section-title">
-    <h3>申請單（Requests）</h3>
-    <div class="small" id="reqCount">0 筆</div>
+    <section class="panel">
+      <div class="section-title">
+        <h3>申請單（Requests）</h3>
+        <div class="small" id="reqCount">0 筆</div>
+      </div>
+      <div class="list" id="reqList"></div>
+    </section>
   </div>
-  <div class="list" id="reqList"></div>
 
   <nav class="nav">
     <a href="app.html" class="nav-item"><span class="nav-icon">🏠</span>首頁</a>
@@ -293,31 +331,20 @@
     // ✅ 同 manager：時間顯示統一，避免亂跳
     function formatDT(v){
       if(!v) return '無';
-      // string
       const s = String(v).trim();
 
-      // yyyy/MM/dd HH:mm:ss or yyyy-MM-dd HH:mm:ss
       let m = s.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})\s+(\d{2}):(\d{2})/);
       if(m) return `${m[1]}-${m[2]}-${m[3]} ${m[4]}:${m[5]}`;
 
-      // yyyy-MM-ddTHH:mm
       m = s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
       if(m) return `${m[1]}-${m[2]}-${m[3]} ${m[4]}:${m[5]}`;
 
-      // fallback: if already pretty
       return s;
-    }
-
-    function monthRange(year, month1to12){
-      const start = new Date(year, month1to12-1, 1, 0,0,0,0);
-      const end = new Date(year, month1to12, 0, 23,59,59,999);
-      return { start, end };
     }
 
     function inMonthByDateString(dateStr, year, month1to12){
       if(!dateStr) return false;
       const s = String(dateStr).trim();
-      // accept yyyy/MM/dd...
       const m1 = s.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})/);
       if(!m1) return false;
       const y = Number(m1[1]);
@@ -331,10 +358,8 @@
 
       if(outFlag.includes('CORRECTION')) return { label: '補卡寫入', cls:'warn' };
       if(outFlag.includes('OUTING')) return { label: '外出', cls:'warn' };
-
       if(io.includes('IN') || io.includes('上班')) return { label:'上班', cls:'ok' };
       if(io.includes('OUT') || io.includes('下班')) return { label:'下班', cls:'warn' };
-
       return { label: row.io || '打卡', cls:'ok' };
     }
 
@@ -381,12 +406,13 @@
           ? `｜距離 ${r.distOfficeM}m` : '';
 
         const reason = (r.reason && String(r.reason).trim()) ? String(r.reason).trim() : '—';
+        const hint = (String(r.io||'').includes('每日彙總')) ? `（每日彙總）` : '';
 
         return `
           <div class="item ${cls}">
             <div class="top">
               <div>
-                <p class="title">${when}</p>
+                <p class="title">${when} ${hint}</p>
                 <div class="meta">類型：${b.label}${dist}</div>
                 <div class="meta">備註：${reason}</div>
               </div>
@@ -416,7 +442,6 @@
         const created = r.createdAt ? formatDT(r.createdAt) : '—';
 
         let timeLine = `日期：${s}`;
-        // 補卡可能 end = start
         if(r.end && String(r.end).trim() && String(r.end).trim() !== String(r.start).trim()){
           timeLine = `開始：${s}<br>結束：${e}`;
         }
@@ -463,13 +488,6 @@
 
       document.getElementById("rangeTag").textContent = `篩選：${y}-${String(m).padStart(2,'0')}`;
 
-      // 1) Requests（你的後端有 list_requests）
-      // 2) Attendance_Log（你的後端沒有 list_attendance，所以我用 manager 的 get_dashboard 來補一個「每日彙總」不夠
-      //    ✅ 最穩的做法：後端再加 list_attendance
-      //    但你現在要「能用」：我這裡先直接讀 list_requests + get_dashboard（看曠職/缺卡用）
-      //    真正打卡明細要完整：請我下一步幫你後端加 list_attendance（我可以直接貼完整函式）
-
-      // 我這版：直接用 list_requests + （可選）額外抓 get_dashboard 當輔助
       const reqListEl = document.getElementById("reqList");
       const attListEl = document.getElementById("attList");
       reqListEl.innerHTML = `<div class="empty">載入中…</div>`;
@@ -481,13 +499,11 @@
         const allReq = (reqRes && reqRes.ok && Array.isArray(reqRes.list)) ? reqRes.list : [];
         const reqFiltered = allReq.filter(r => inMonthByDateString(r.start, y, m));
 
-        // Attendance_Log：你後端目前沒有 list_attendance，
-        // 所以我用「一個折衷」：直接從 get_dashboard 取每日 in/out 來顯示（不是每筆打卡 raw log）
+        // Attendance: 目前後端沒 list_attendance -> 用 get_dashboard 做「每日彙總」顯示
         const dashRes = await api("get_dashboard", { year:y, month:m });
         const daily = (dashRes && dashRes.ok && Array.isArray(dashRes.dailyData)) ? dashRes.dailyData : [];
 
         const attPseudo = daily.map(d => {
-          // d.date 是日（1..31），用組合字串顯示
           const mm = String(m).padStart(2,'0');
           const dd = String(d.date).padStart(2,'0');
           return {
@@ -500,7 +516,6 @@
           };
         });
 
-        // mode filter
         if(mode === 'req'){
           renderAtt([]);
           renderReq(reqFiltered);
@@ -512,9 +527,6 @@
           renderReq(reqFiltered);
         }
 
-        // 小提醒（不煩你，但要講真話）
-        // 你要看到「補卡核准後寫入 Attendance_Log 的那兩筆 IN/OUT」這種明細，
-        // 後端一定要加 list_attendance 才能完整顯示。
       }catch(e){
         toast("載入失敗（GAS）");
         renderAtt([]);
@@ -522,7 +534,6 @@
       }
     }
 
-    // init
     pickCurrentMonth();
     reload();
   </script>

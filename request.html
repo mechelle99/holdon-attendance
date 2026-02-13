@@ -28,7 +28,7 @@
 <body>
 
   <h2>📝 填寫申請單</h2>
-  <p class="hint">請假會用「工作日 × 8 小時」或「排班表」自動換算；加班/外出用實際區間並套用休息規則。</p>
+  <p class="hint">請假：依規則「週末/假日/OFF=0，其餘=8 小時」；加班/外出：用實際區間並扣午休。</p>
 
   <div class="form-group">
     <label>申請類型</label>
@@ -106,55 +106,7 @@
   const uid = localStorage.getItem("employeeId");
   if(!uid) location.href='index.html';
 
-  // ======== ✅ 修bug：穩健解析 datetime（Safari/不同格式都吃） ========
-  function parseLocalDateTime(str){
-    if (!str) return null;
-
-    // 1) 標準 datetime-local：YYYY-MM-DDTHH:mm
-    let m = str.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?$/);
-    if (m){
-      const y = +m[1], mo = +m[2], d = +m[3], h = +m[4], mi = +m[5], se = +(m[6]||0);
-      const dt = new Date(y, mo-1, d, h, mi, se, 0);
-      return isNaN(dt.getTime()) ? null : dt;
-    }
-
-    // 2) 斜線格式：YYYY/MM/DD HH:mm 或 YYYY/MM/DDTHH:mm
-    m = str.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})[T\s](\d{1,2}):(\d{2})$/);
-    if (m){
-      const y = +m[1], mo = +m[2], d = +m[3], h = +m[4], mi = +m[5];
-      const dt = new Date(y, mo-1, d, h, mi, 0, 0);
-      return isNaN(dt.getTime()) ? null : dt;
-    }
-
-    // 3) 中文上午/下午：YYYY/MM/DD 上午09:00
-    m = str.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})\s*(上午|下午)\s*(\d{1,2}):(\d{2})$/);
-    if (m){
-      const y = +m[1], mo = +m[2], d = +m[3];
-      const ap = m[4];
-      let h = +m[5];
-      const mi = +m[6];
-      if (ap === '下午' && h < 12) h += 12;
-      if (ap === '上午' && h === 12) h = 0;
-      const dt = new Date(y, mo-1, d, h, mi, 0, 0);
-      return isNaN(dt.getTime()) ? null : dt;
-    }
-
-    // 4) 最後保底：把 / 換成 - 再試一次
-    const safe = str.replace(/\//g,'-').replace('上午','').replace('下午','');
-    const dt = new Date(safe);
-    return isNaN(dt.getTime()) ? null : dt;
-  }
-
-  function toDatetimeLocalValue(d){
-    const y = d.getFullYear();
-    const m = String(d.getMonth()+1).padStart(2,'0');
-    const day = String(d.getDate()).padStart(2,'0');
-    const h = String(d.getHours()).padStart(2,'0');
-    const mi = String(d.getMinutes()).padStart(2,'0');
-    return `${y}-${m}-${day}T${h}:${mi}`;
-  }
-
-  // ======== JSONP API (含 timeout，避免「送出中卡住」) ========
+  // ======== JSONP API (含 timeout) ========
   function api(act, d={}) {
     return new Promise((resolve, reject) => {
       const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
@@ -180,28 +132,80 @@
     });
   }
 
-  // ======== 時數換算核心：規則資料快取 ========
-  let RULES = null; // { holidays:Set, scheduleMap:{'yyyy-mm-dd':'EARLY|LATE|OFF'} }
+  // ======== 日期工具（修 Safari 解析不穩） ========
+  function pad2(n){ return String(n).padStart(2,'0'); }
+
+  // input.value (datetime-local) => "YYYY-MM-DDTHH:mm"
+  function parseDTLocal(v){
+    if(!v) return null;
+    // 強制用我們自己 parse，避免 new Date(v) 在某些 Safari/語系爆炸
+    const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(v);
+    if(!m) return null;
+    const y = Number(m[1]), mo = Number(m[2])-1, d = Number(m[3]), hh = Number(m[4]), mm = Number(m[5]);
+    return new Date(y, mo, d, hh, mm, 0, 0);
+  }
+
+  function toYMD(d){
+    const y = d.getFullYear();
+    const m = pad2(d.getMonth()+1);
+    const day = pad2(d.getDate());
+    return `${y}-${m}-${day}`;
+  }
+
+  // 把任何日期字串 normalize 成 YYYY-MM-DD
+  function normYMD(s){
+    if(!s) return "";
+    const str = String(s).trim();
+    // 1) YYYY-MM-DD
+    let m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(str);
+    if(m) return `${m[1]}-${pad2(m[2])}-${pad2(m[3])}`;
+    // 2) YYYY/MM/DD
+    m = /^(\d{4})\/(\d{1,2})\/(\d{1,2})/.exec(str);
+    if(m) return `${m[1]}-${pad2(m[2])}-${pad2(m[3])}`;
+    // 3) Date 物件
+    try{
+      const d = new Date(str);
+      if(!isNaN(d)) return toYMD(d);
+    }catch(e){}
+    return "";
+  }
+
+  function isWeekend(d){ const w = d.getDay(); return w===0 || w===6; }
+
+  // ======== 規則資料快取 ========
+  let RULES = null; // { holidays:Set('yyyy-mm-dd'), scheduleMap:{'yyyy-mm-dd':'EARLY|LATE|OFF'} }
+
   async function ensureRules(){
     if (RULES) return RULES;
+
     const sVal = document.getElementById("start").value;
     const eVal = document.getElementById("end").value || sVal;
+
     const res = await api("get_rules", { start: sVal, end: eVal });
     if (!res || !res.ok) throw new Error(res && res.message ? res.message : "get_rules failed");
-    RULES = {
-      holidays: new Set(res.holidays || []),
-      scheduleMap: res.scheduleMap || {}
-    };
+
+    // normalize holidays
+    const holSet = new Set((res.holidays || []).map(normYMD).filter(Boolean));
+
+    // normalize scheduleMap keys
+    const sm = {};
+    const src = res.scheduleMap || {};
+    for (const k in src){
+      const nk = normYMD(k);
+      if(!nk) continue;
+      sm[nk] = String(src[k] ?? "").trim();
+    }
+
+    RULES = { holidays: holSet, scheduleMap: sm };
     return RULES;
   }
 
   // ======== 初始化時間：今天 09:00-18:00 ========
   (function initDefaultTime(){
     const now = new Date();
-    const s = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0, 0);
-    const e = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 18, 0, 0, 0);
-    document.getElementById("start").value = toDatetimeLocalValue(s);
-    document.getElementById("end").value   = toDatetimeLocalValue(e);
+    const ymd = toYMD(now);
+    document.getElementById("start").value = `${ymd}T09:00`;
+    document.getElementById("end").value   = `${ymd}T18:00`;
   })();
 
   // ======== UI toggle ========
@@ -212,7 +216,7 @@
     const endGroup = document.getElementById("endGroup");
     const extraGroup = document.getElementById("extraGroup");
 
-    RULES = null;
+    RULES = null; // reset cache
 
     if (cat === 'CORRECTION') {
       typeGroup.style.display = 'none';
@@ -247,35 +251,25 @@
     const sVal = document.getElementById("start").value;
     const eVal = document.getElementById("end").value;
 
-    const s = parseLocalDateTime(sVal);
-    const e = parseLocalDateTime(eVal);
-
-    if (s && e && e < s) {
-      document.getElementById("end").value = sVal;
+    if (sVal && eVal) {
+      const s = parseDTLocal(sVal);
+      const e = parseDTLocal(eVal);
+      if (s && e && e < s) document.getElementById("end").value = sVal;
     }
 
     RULES = null;
     calcHoursSmart();
   }
 
-  // ======== 工具：日期/區間 ========
-  function toYMD(d){
-    const y = d.getFullYear();
-    const m = String(d.getMonth()+1).padStart(2,'0');
-    const day = String(d.getDate()).padStart(2,'0');
-    return `${y}-${m}-${day}`;
-  }
-  function isWeekend(d){ const w = d.getDay(); return w===0 || w===6; }
-
-  // 扣午休：規則（你要改午休時段就改這裡）
+  // ======== 扣午休：固定 12:00-13:00 ========
   function breakDeductionHours(s, e){
-    const b1s = new Date(s); b1s.setHours(12,0,0,0);
-    const b1e = new Date(s); b1e.setHours(13,0,0,0);
-    const overlap = Math.max(0, Math.min(e, b1e) - Math.max(s, b1s));
+    const b1s = new Date(s.getFullYear(), s.getMonth(), s.getDate(), 12, 0, 0, 0);
+    const b1e = new Date(s.getFullYear(), s.getMonth(), s.getDate(), 13, 0, 0, 0);
+    const overlap = Math.max(0, Math.min(e.getTime(), b1e.getTime()) - Math.max(s.getTime(), b1s.getTime()));
     return overlap > 0 ? 1 : 0;
   }
 
-  // ======== 核心：智能算時數 ========
+  // ======== 核心：智能算時數（A規則版） ========
   async function calcHoursSmart(){
     const cat = document.getElementById("cat").value;
     if (cat === 'CORRECTION') return;
@@ -284,10 +278,9 @@
     const eVal = document.getElementById("end").value;
     if (!sVal || !eVal) return;
 
-    const s = parseLocalDateTime(sVal);
-    const e = parseLocalDateTime(eVal);
+    const s = parseDTLocal(sVal);
+    const e = parseDTLocal(eVal);
 
-    // ✅ 修bug：解析失敗就不要硬算，避免 0
     if (!s || !e){
       document.getElementById("hours").value = 0;
       return;
@@ -299,21 +292,26 @@
     }
 
     try{
+      // 請假（LEAVE）：A規則
       if (cat === 'LEAVE'){
         const rules = await ensureRules();
 
+        const startDay = new Date(s.getFullYear(), s.getMonth(), s.getDate(), 0,0,0,0);
+        const endDay   = new Date(e.getFullYear(), e.getMonth(), e.getDate(), 0,0,0,0);
+
         let total = 0;
-        const cur = new Date(s); cur.setHours(0,0,0,0);
-        const endDay = new Date(e); endDay.setHours(0,0,0,0);
+        const cur = new Date(startDay);
 
         while (cur <= endDay){
-          const ymd = toYMD(cur);
-          const isHol = rules.holidays.has(ymd);
-          const shift = (rules.scheduleMap[ymd] || "").toUpperCase();
-          const offBySch = (shift.includes("OFF") || shift.includes("休"));
-          const off = isHol || isWeekend(cur) || offBySch;
+          const ymdKey = toYMD(cur);
+          const isHol = rules.holidays.has(ymdKey);
 
-          if (!off) total += 8;
+          const raw = String(rules.scheduleMap[ymdKey] || "").toUpperCase().trim();
+          const isOff = raw.includes("OFF") || raw.includes("休");
+
+          if (!isWeekend(cur) && !isHol && !isOff){
+            total += 8;
+          }
 
           cur.setDate(cur.getDate()+1);
         }
@@ -322,6 +320,7 @@
         return;
       }
 
+      // 加班：實際區間 - 扣午休
       if (cat === 'OT'){
         let diff = (e - s) / (1000*60*60);
         diff -= breakDeductionHours(s, e);
@@ -331,6 +330,7 @@
         return;
       }
 
+      // 外出：實際區間 - 扣午休；最小 0.5；最多 8（出差除外）
       if (cat === 'OUTING'){
         const isTrip = document.getElementById("isTrip").checked;
         let diff = (e - s) / (1000*60*60);
@@ -343,10 +343,12 @@
         return;
       }
     }catch(err){
+      // fallback：請假用「只排除週末」(A規則保守版)
       if (cat === 'LEAVE'){
+        const startDay = new Date(s.getFullYear(), s.getMonth(), s.getDate(), 0,0,0,0);
+        const endDay   = new Date(e.getFullYear(), e.getMonth(), e.getDate(), 0,0,0,0);
         let total = 0;
-        const cur = new Date(s); cur.setHours(0,0,0,0);
-        const endDay = new Date(e); endDay.setHours(0,0,0,0);
+        const cur = new Date(startDay);
         while(cur <= endDay){
           if(!isWeekend(cur)) total += 8;
           cur.setDate(cur.getDate()+1);
@@ -384,8 +386,8 @@
       start, end,
       hours,
       reason: document.getElementById("reason").value || "",
-      autoClock: (cat === 'OUTING') ? (document.getElementById("autoClock").checked ? true : false) : false,
-      isTrip: (cat === 'OUTING') ? (document.getElementById("isTrip").checked ? true : false) : false
+      autoClock: (cat === 'OUTING') ? !!document.getElementById("autoClock").checked : false,
+      isTrip: (cat === 'OUTING') ? !!document.getElementById("isTrip").checked : false
     };
 
     try{

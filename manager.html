@@ -62,7 +62,7 @@
   const uid = localStorage.getItem("employeeId");
   if(!uid) location.href='index.html';
 
-  // ★ 穩定版 API 呼叫 (含 Timeout)
+  // API 呼叫函式 (含 Timeout)
   function api(act, d = {}) {
     return new Promise((resolve, reject) => {
       const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
@@ -71,7 +71,7 @@
       
       const timer = setTimeout(() => {
         cleanup();
-        reject(new Error("請求逾時 (Timeout)"));
+        reject(new Error("Timeout: 請求逾時"));
       }, 15000);
 
       function cleanup() {
@@ -89,7 +89,7 @@
 
       s.onerror = () => {
         cleanup();
-        reject(new Error("網路錯誤"));
+        reject(new Error("Network Error: 連線失敗"));
       };
 
       document.body.appendChild(s);
@@ -127,7 +127,7 @@
         const res = await api("get_pending");
         
         if(!res.ok) {
-            el.innerHTML = `<div style="text-align:center;color:red;">讀取失敗</div>`;
+            el.innerHTML = `<div style="text-align:center;color:red;">${res.message || '讀取失敗'}</div>`;
             return;
         }
 
@@ -138,20 +138,41 @@
 
         let h = "";
         res.list.forEach(r => {
+            // ★ 假別中文化 (完整對照表)
             let typeName = r.leaveType || r.category;
-            if(typeName==='annual') typeName='特休';
-            if(typeName==='comp') typeName='補休';
-            if(typeName==='OUTING') typeName='外出';
-            if(typeName==='CORRECTION') typeName='補卡';
+            const t = String(typeName).toLowerCase();
+            
+            if(r.category === 'OUTING') typeName = '外出';
+            else if(r.category === 'CORRECTION') typeName = '補卡';
+            else if(r.category === 'OT') typeName = '加班';
+            else {
+                if(t.includes('annual')) typeName = '特休';
+                else if(t.includes('comp')) typeName = '補休';
+                else if(t.includes('sick')) typeName = '病假';
+                else if(t.includes('personal')) typeName = '事假';
+                else if(t.includes('official')) typeName = '公假';
+                else if(t.includes('marriage')) typeName = '婚假';
+                else if(t.includes('bereavement')) typeName = '喪假';
+                else if(t.includes('menstrual')) typeName = '生理假';
+                else if(t.includes('maternity')) typeName = '產假';
+                else if(t.includes('paternity')) typeName = '陪產假';
+                else if(t.includes('family')) typeName = '家庭照顧假';
+            }
+
+            // ★ 顯示防呆：如果名字是空的，顯示 ID，如果 ID 也空，顯示「未知員工」
+            const displayName = r.empName || r.name || r.empId || r.id || '未知員工';
+            
+            // 時間格式美化
+            const dateStr = r.start ? r.start.replace('T', ' ').substring(0, 16) : '無日期';
 
             h += `
             <div class="req-item" id="card-${r.reqId}">
                 <div class="req-top">
-                <div class="req-user">${r.name || r.id}</div>
+                <div class="req-user">${displayName}</div>
                 <div class="req-type">${typeName}</div>
                 </div>
                 <div class="req-info">
-                日期: ${r.start.replace('T',' ')}<br>
+                日期: ${dateStr}<br>
                 時數: ${r.hours}小時<br>
                 事由: ${r.reason || '無'}
                 </div>
@@ -183,7 +204,7 @@
             document.getElementById(`card-${reqId}`).style.opacity = '1';
         }
       } catch (err) {
-        alert("網路錯誤");
+        alert("操作失敗: 網絡錯誤");
         document.getElementById(`card-${reqId}`).style.opacity = '1';
       }
   }
@@ -196,7 +217,7 @@
         alert(res.ok ? `已核准 ${res.count} 筆單據` : "操作失敗");
         loadPending();
       } catch (err) {
-        alert("網路錯誤");
+        alert("操作失敗: 網絡錯誤");
       }
   }
 

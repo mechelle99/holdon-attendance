@@ -38,17 +38,12 @@
       width:240px; height:240px;
       background: rgba(255,255,255,.12);
       border-radius: 999px;
-      filter: blur(0px);
-
-      /* ✅ 關鍵修復：不要擋點擊 */
       pointer-events: none;
       z-index: 0;
     }
     .hero-top{
       display:flex; align-items:center; justify-content:space-between;
       gap: 10px;
-
-      /* ✅ 關鍵修復：確保在裝飾圈上層 */
       position: relative;
       z-index: 1;
     }
@@ -90,9 +85,8 @@
       grid-template-columns: 1.2fr 1fr;
       gap: 14px;
       margin-top: 16px;
-
       position: relative;
-      z-index: 1; /* ✅ 同樣在上層 */
+      z-index: 1;
     }
     .bal{
       background: rgba(255,255,255,.16);
@@ -131,13 +125,13 @@
       cursor:pointer;
       user-select:none;
       border: 1px solid rgba(17,24,39,.05);
-      transition: transform .08s ease;
+      transition: transform .08s ease, opacity .08s ease;
       -webkit-tap-highlight-color: transparent;
     }
     .card:active{ transform: scale(.99); }
     .icon{ font-size: 34px; margin-bottom: 10px; }
     .title{ font-size: 20px; font-weight: 900; margin:0; }
-    .hint{ font-size: 12px; color: var(--muted); margin-top: 6px; }
+    .hint{ font-size: 12px; color: var(--muted); margin-top: 6px; text-align:center; }
     .title.in{ color: var(--ok); }
     .title.out{ color: #F59E0B; }
 
@@ -155,6 +149,7 @@
       z-index: 9999;
       font-size: 13px;
       line-height: 1.4;
+      white-space: pre-line;
     }
 
     /* Bottom nav */
@@ -189,6 +184,8 @@
       pointer-events:none;
       filter: grayscale(1);
     }
+
+    .hidden{ display:none !important; }
   </style>
 </head>
 
@@ -202,7 +199,6 @@
         <div class="sub" id="subline">載入中…</div>
       </div>
 
-      <!-- ✅ type="button" 避免任何 submit/怪行為 -->
       <button type="button" class="logout" id="btnLogout">
         <span class="dot"></span>登出
       </button>
@@ -238,8 +234,10 @@
     <a href="app.html" class="nav-item active"><span class="nav-icon">🏠</span>首頁</a>
     <a href="request.html" class="nav-item"><span class="nav-icon">📝</span>申請</a>
     <a href="history.html" class="nav-item"><span class="nav-icon">📋</span>紀錄</a>
-    <a href="schedule.html" class="nav-item"><span class="nav-icon">📅</span>排班</a>
-    <a href="manager.html" class="nav-item"><span class="nav-icon">👑</span>主管</a>
+
+    <!-- 這兩個會依權限自動隱藏/灰掉 -->
+    <a href="schedule.html" class="nav-item" id="navSchedule"><span class="nav-icon">📅</span>排班</a>
+    <a href="manager.html" class="nav-item" id="navManager"><span class="nav-icon">👑</span>主管</a>
   </nav>
 
   <!-- ✅ 你的 config.js -->
@@ -252,12 +250,15 @@
       location.href = "index.html";
     }
 
+    // ====== State ======
+    let __busy = false;
+
     function toast(msg){
       const el = document.getElementById("toast");
       el.textContent = msg;
       el.style.display = "block";
       clearTimeout(window.__toastTimer);
-      window.__toastTimer = setTimeout(()=> el.style.display="none", 2200);
+      window.__toastTimer = setTimeout(()=> el.style.display="none", 2400);
     }
 
     function assertConfig_(){
@@ -305,6 +306,36 @@
       });
     }
 
+    // ====== GPS ======
+    function getGeo_(){
+      return new Promise((resolve, reject)=>{
+        if(!navigator.geolocation){
+          reject(new Error("NO_GEO"));
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          (pos)=>{
+            const c = pos && pos.coords ? pos.coords : {};
+            resolve({
+              lat: c.latitude,
+              lng: c.longitude,
+              accuracy: c.accuracy,
+              timestamp: pos.timestamp || Date.now()
+            });
+          },
+          (err)=>{
+            reject(err || new Error("GEO_ERROR"));
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 12000,
+            maximumAge: 0
+          }
+        );
+      });
+    }
+
     async function loadMe(){
       try{
         const res = await api("get_me", {});
@@ -313,7 +344,9 @@
           return;
         }
 
-        const name = (res.empName || "").trim() || empId;
+        // 後端可能回 empName/name/displayName，這邊保守取最穩的
+        const name = (String(res.empName||res.name||res.displayName||"").trim()) || empId;
+
         document.getElementById("hello").textContent = `Hi, ${name}`;
         document.getElementById("subline").textContent =
           `員工編號：${res.empId || empId}` + (res.isManager ? "｜主管" : "");
@@ -326,29 +359,82 @@
         localStorage.setItem("empName", name);
         localStorage.setItem("isManager", res.isManager ? "true" : "false");
         localStorage.setItem("canSchedule", res.canSchedule ? "true" : "false");
+
+        // 權限導覽控制（讓系統像真的）
+        const navManager = document.getElementById("navManager");
+        const navSchedule = document.getElementById("navSchedule");
+
+        const isManager = !!res.isManager;
+        const canSchedule = !!res.canSchedule;
+
+        // 主管頁：非主管就直接隱藏
+        if(!isManager){
+          navManager.classList.add("hidden");
+        }
+
+        // 排班頁：主管或可排班才顯示；不行就灰掉（你也可以改成 hidden）
+        if(!(isManager || canSchedule)){
+          navSchedule.classList.add("disabled");
+          navSchedule.addEventListener("click", (e)=>{
+            e.preventDefault();
+            toast("你沒有排班權限");
+          }, {capture:true});
+        }
+
       }catch(e){
         toast("連線失敗（GAS）");
       }
     }
 
+    function setPunchDisabled_(v){
+      const a = document.getElementById("btnIn");
+      const b = document.getElementById("btnOut");
+      if(v){
+        a.classList.add("disabled");
+        b.classList.add("disabled");
+      }else{
+        a.classList.remove("disabled");
+        b.classList.remove("disabled");
+      }
+    }
+
     async function clock(act){
-      document.getElementById("btnIn").classList.add("disabled");
-      document.getElementById("btnOut").classList.add("disabled");
+      if(__busy) return;
+      __busy = true;
+      setPunchDisabled_(true);
 
       try{
-        const res = await api(act, { userAgent: navigator.userAgent || "" });
+        toast("定位中…");
+
+        const geo = await getGeo_();
+
+        const res = await api(act, {
+          lat: geo.lat,
+          lng: geo.lng,
+          accuracy: geo.accuracy,
+          ts: geo.timestamp,
+          userAgent: navigator.userAgent || ""
+        });
+
         if(res && res.ok){
           toast(res.message || "成功");
         }else{
           toast((res && res.message) ? res.message : "失敗");
         }
+
       }catch(e){
-        toast("連線失敗");
+        // 常見錯誤：使用者沒開定位、Safari 權限拒絕、timeout
+        const code = (e && e.code) ? e.code : "";
+        if(code === 1) toast("定位權限被拒絕：請到 Safari/LINE 開啟定位權限");
+        else if(code === 2) toast("無法取得位置：請確認 GPS/網路正常");
+        else if(code === 3) toast("定位逾時：請到窗邊或重試");
+        else toast("連線或定位失敗");
+
       }finally{
         setTimeout(()=>{
-          document.getElementById("btnIn").classList.remove("disabled");
-          document.getElementById("btnOut").classList.remove("disabled");
-        }, 600);
+          setPunchDisabled_(false);
+          __busy = false;
+        }, 650);
       }
     }
 
@@ -362,10 +448,10 @@
       location.href = "index.html";
     }
 
-    // ====== Bind events (比 inline onclick 更穩) ======
-    document.getElementById("btnLogout").addEventListener("click", logout);
-    document.getElementById("btnIn").addEventListener("click", ()=>clock("clock_in"));
-    document.getElementById("btnOut").addEventListener("click", ()=>clock("clock_out"));
+    // ====== Bind events (capture 防止被其他層吃掉) ======
+    document.getElementById("btnLogout").addEventListener("click", logout, {capture:true});
+    document.getElementById("btnIn").addEventListener("click", (e)=>{ e.preventDefault(); clock("clock_in"); }, {capture:true});
+    document.getElementById("btnOut").addEventListener("click", (e)=>{ e.preventDefault(); clock("clock_out"); }, {capture:true});
 
     // init
     loadMe();

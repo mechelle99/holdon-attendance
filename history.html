@@ -408,31 +408,26 @@
     function parseToDate(v){
       if(!v) return null;
 
-      // Date object (rare in JSONP)
       if(Object.prototype.toString.call(v) === '[object Date]' && !isNaN(v.getTime())) return v;
 
       const s = String(v).trim();
       if(!s) return null;
 
-      // ISO with Z (UTC) or timezone offset -> let Date parse & convert to local
       if(/[zZ]$/.test(s) || /[+\-]\d{2}:\d{2}$/.test(s)){
         const d = new Date(s);
         return isNaN(d.getTime()) ? null : d;
       }
 
-      // yyyy/MM/dd HH:mm:ss or yyyy-MM-dd HH:mm:ss
       let m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
       if(m){
         return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0), 0);
       }
 
-      // yyyy-MM-ddTHH:mm (no timezone) -> treat as local
       m = s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
       if(m){
         return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], 0, 0);
       }
 
-      // fallback
       const d = new Date(s);
       return isNaN(d.getTime()) ? null : d;
     }
@@ -491,65 +486,27 @@
       document.getElementById("attCountTop").textContent = `${list.length}`;
 
       if(list.length===0){
-        el.innerHTML = `<div class="empty">本範圍沒有打卡/出勤狀態</div>`;
+        el.innerHTML = `<div class="empty">本範圍沒有出勤狀態</div>`;
         return;
       }
 
       el.innerHTML = list.map(r=>{
-        // two possible shapes:
-        // A) raw attendance log row: {date, io, status, distOfficeM, reason, isOuting ...}
-        // B) dashboard daily summary: {dateKey, in, out, tag}
-        if(r.__type === 'DASH'){
-          const b = attStatusBadge(r.tag);
-          const title = `${r.dateKey} ${r.in || '--:--'} / ${r.out || '--:--'}`;
-          const note = r.note || `狀態：${r.tag || '—'}`;
-          return `
-            <div class="item ${b.cls}">
-              <div class="top">
-                <div>
-                  <p class="title">${title}</p>
-                  <div class="meta">類型：每日彙總</div>
-                  <div class="meta">備註：${note}</div>
-                </div>
-                <span class="badge ${b.cls}">${b.label}</span>
+        // 目前固定用 DASH（每日彙總），避免 Attendance_Log.status(PENDING) 造成整頁「待處理」
+        const b = attStatusBadge(r.tag);
+        const title = `${r.dateKey} ${r.in || '--:--'} / ${r.out || '--:--'}`;
+        const note = r.note || `狀態：${r.tag || '—'}`;
+        return `
+          <div class="item ${b.cls}">
+            <div class="top">
+              <div>
+                <p class="title">${title}</p>
+                <div class="meta">類型：每日彙總</div>
+                <div class="meta">備註：${note}</div>
               </div>
+              <span class="badge ${b.cls}">${b.label}</span>
             </div>
-          `;
-        }else{
-          // raw log
-          const when = formatDT(r.date);
-          const io = String(r.io || '打卡').trim();
-          const outFlag = String(r.isOuting||'').toUpperCase();
-          let typeLabel = io;
-
-          if(outFlag.includes('CORRECTION')) typeLabel = '補卡寫入';
-          else if(outFlag.includes('OUTING')) typeLabel = '外出';
-          else if(io.toUpperCase().includes('IN') || io.includes('上班')) typeLabel = '上班';
-          else if(io.toUpperCase().includes('OUT') || io.includes('下班')) typeLabel = '下班';
-
-          const st = String(r.status||'').toUpperCase();
-          const stBadge = (st==='APPROVED') ? {cls:'ok', label:'已寫入'} :
-                          (st==='REJECTED') ? {cls:'danger', label:'駁回'} :
-                          {cls:'warn', label: (st||'待處理')};
-
-          const dist = (r.distOfficeM!==undefined && r.distOfficeM!==null && String(r.distOfficeM)!=='')
-            ? `｜距離 ${r.distOfficeM}m` : '';
-
-          const reason = (r.reason && String(r.reason).trim()) ? String(r.reason).trim() : '—';
-
-          return `
-            <div class="item ${stBadge.cls}">
-              <div class="top">
-                <div>
-                  <p class="title">${when}</p>
-                  <div class="meta">類型：${typeLabel}${dist}</div>
-                  <div class="meta">備註：${reason}</div>
-                </div>
-                <span class="badge ${stBadge.cls}">${stBadge.label}</span>
-              </div>
-            </div>
-          `;
-        }
+          </div>
+        `;
       }).join("");
     }
 
@@ -630,34 +587,22 @@
         const allReq = (reqRes && reqRes.ok && Array.isArray(reqRes.list)) ? reqRes.list : [];
         const reqFiltered = allReq.filter(r => isInMonth(r.start, y, m));
 
-        // 2) 打卡：優先嘗試 list_attendance（如果你後端之後加了，這頁自動吃得到）
-        let attList = [];
-        try{
-          const attRes = await api("list_attendance", { year:y, month:m }); // optional API
-          if(attRes && attRes.ok && Array.isArray(attRes.list)){
-            // 直接用明細（含補卡 IN/OUT）
-            attList = attRes.list;
-          }
-        }catch(_){ /* ignore */ }
+        // ✅ 2) 出勤狀態：永遠以 get_dashboard 為主（才有 正常/缺卡/曠職/遲到/早退）
+        const dashRes = await api("get_dashboard", { year:y, month:m });
+        const daily = (dashRes && dashRes.ok && Array.isArray(dashRes.dailyData)) ? dashRes.dailyData : [];
 
-        // 3) 沒有明細就用 get_dashboard 的「出勤狀態」日彙總（狀態正確，不再 PENDING）
-        if(attList.length === 0){
-          const dashRes = await api("get_dashboard", { year:y, month:m });
-          const daily = (dashRes && dashRes.ok && Array.isArray(dashRes.dailyData)) ? dashRes.dailyData : [];
-
-          attList = daily.map(d => {
-            const mm = String(m).padStart(2,'0');
-            const dd = String(d.date).padStart(2,'0');
-            return {
-              __type: 'DASH',
-              dateKey: `${y}-${mm}-${dd}`,
-              in: d.in,
-              out: d.out,
-              tag: d.tag,
-              note: `狀態：${d.tag}`
-            };
-          });
-        }
+        const attList = daily.map(d => {
+          const mm = String(m).padStart(2,'0');
+          const dd = String(d.date).padStart(2,'0');
+          return {
+            __type: 'DASH',
+            dateKey: `${y}-${mm}-${dd}`,
+            in: d.in,
+            out: d.out,
+            tag: d.tag,
+            note: `狀態：${d.tag}`
+          };
+        });
 
         renderAtt(attList);
         renderReq(reqFiltered);

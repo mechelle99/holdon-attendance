@@ -287,14 +287,14 @@
 
   <div class="filters">
     <input type="month" id="monthPick"/>
-    <button onclick="reload()">更新</button>
+    <button type="button" id="btnReload">更新</button>
   </div>
 
   <div class="seg" role="tablist" aria-label="history tabs">
-    <button class="seg-btn active" id="tabAtt" onclick="showPanel('att')">
+    <button class="seg-btn active" id="tabAtt" type="button">
       打卡 <span class="count" id="attCountTop">0</span>
     </button>
-    <button class="seg-btn" id="tabReq" onclick="showPanel('req')">
+    <button class="seg-btn" id="tabReq" type="button">
       申請 <span class="count" id="reqCountTop">0</span>
     </button>
   </div>
@@ -327,12 +327,12 @@
 
   <script src="config.js"></script>
   <script>
-    // ========= login (match your current app.js keys) =========
-    const empId = localStorage.getItem("employeeId") || localStorage.getItem("empId") || "";
-    const empName = (localStorage.getItem("employeeName") || localStorage.getItem("empName") || "").trim();
+    // ========= login (跟 app.html 對齊) =========
+    const empId = localStorage.getItem("empId") || localStorage.getItem("employeeId") || "";
+    const empName = (localStorage.getItem("empName") || localStorage.getItem("employeeName") || "").trim();
 
     if(!empId){
-      location.href="login.html";
+      location.href="index.html";
     }
 
     document.getElementById("who").textContent = empName ? `${empName}（${empId}）` : `員工：${empId}`;
@@ -343,7 +343,7 @@
       el.textContent = msg;
       el.style.display = "block";
       clearTimeout(window.__toastTimer);
-      window.__toastTimer = setTimeout(()=> el.style.display="none", 2200);
+      window.__toastTimer = setTimeout(()=> el.style.display="none", 2400);
     }
 
     // ========= tabs =========
@@ -367,49 +367,76 @@
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
-    // ========= JSONP call (match app.js) =========
-    const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || window.GAS_ENDPOINT;
+    document.getElementById("tabAtt").addEventListener("click", ()=>showPanel("att"));
+    document.getElementById("tabReq").addEventListener("click", ()=>showPanel("req"));
 
-    function jsonpCall(payload){
+    // ========= JSONP call（✅修正：action 一定要放 query string） =========
+    function assertConfig_(){
+      if(!window.CONFIG || !window.CONFIG.GAS_ENDPOINT){
+        toast("CONFIG.GAS_ENDPOINT 未設定（config.js）");
+        return false;
+      }
+      return true;
+    }
+
+    function api(action, data={}){
       return new Promise((resolve, reject)=>{
-        if(!ENDPOINT) return reject(new Error("缺少 GAS_ENDPOINT"));
-
-        const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random() * 1e6);
-        const script = document.createElement("script");
-        let timer = null;
-
-        window[cbName] = (resp)=>{ cleanup(); resolve(resp); };
-
-        const cleanup = ()=>{
-          try{ delete window[cbName]; }catch(e){ window[cbName] = undefined; }
-          if(script && script.parentNode) script.parentNode.removeChild(script);
-          if(timer) clearTimeout(timer);
-        };
-
-        const qs = new URLSearchParams();
-        qs.set("callback", cbName);
-
-        // ✅ 若後端要 key，在 payload 裡附上
-        if(window.CONFIG?.WEBHOOK_KEY && payload.webhookKey == null){
-          payload.webhookKey = window.CONFIG.WEBHOOK_KEY;
+        if(!assertConfig_()){
+          reject(new Error("Missing CONFIG"));
+          return;
         }
 
-        qs.set("payload", JSON.stringify(payload));
+        const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random()*1000000);
+        const s = document.createElement("script");
 
-        script.src = ENDPOINT + "?" + qs.toString();
-        script.onerror = ()=>{ cleanup(); reject(new Error("網路連線失敗（JSONP）")); };
-        document.body.appendChild(script);
+        // ✅ 跟 app.html 同一套 payload：一定帶 empId
+        const payloadObj = Object.assign({}, data, { empId });
 
-        timer = setTimeout(()=>{
+        // ✅ 若後端有需要 key，就一起帶（不動後端）
+        if(window.CONFIG.WEBHOOK_KEY && payloadObj.webhookKey == null){
+          payloadObj.webhookKey = window.CONFIG.WEBHOOK_KEY;
+        }
+
+        const payload = encodeURIComponent(JSON.stringify(payloadObj));
+        const bust = Date.now();
+
+        const timer = setTimeout(()=>{
           cleanup();
-          reject(new Error("請求逾時（JSONP）"));
+          reject(new Error("Timeout"));
         }, 20000);
+
+        function cleanup(){
+          clearTimeout(timer);
+          try{ delete window[cbName]; }catch(e){}
+          try{ s.remove(); }catch(e){}
+        }
+
+        window[cbName] = (res)=>{ cleanup(); resolve(res); };
+        s.onerror = ()=>{ cleanup(); reject(new Error("NetworkError")); };
+
+        // ✅ 致命修正：action 進 query string
+        s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${encodeURIComponent(action)}&payload=${payload}&callback=${cbName}&_=${bust}`;
+        document.body.appendChild(s);
       });
     }
 
-    function callApi(payload){ return jsonpCall(payload); }
+    // ========= robust fetch（避免你後端 action 名稱小改就全死） =========
+    async function apiTry(actions, data){
+      let lastErr = null;
+      for(const act of actions){
+        try{
+          const r = await api(act, data);
+          if(r && r.ok) return r;
+          // 若回來有錯也算一次訊息
+          lastErr = new Error((r && r.message) ? r.message : "API not ok");
+        }catch(e){
+          lastErr = e;
+        }
+      }
+      throw lastErr || new Error("API failed");
+    }
 
-    // ========= time utils (keep your strategy) =========
+    // ========= time utils（保留你原本的策略） =========
     const TIME_SHIFT_HOURS = Number((window.CONFIG && window.CONFIG.TIME_SHIFT_HOURS)!=null ? window.CONFIG.TIME_SHIFT_HOURS : 8);
 
     function pad2(n){ return String(n).padStart(2,'0'); }
@@ -515,7 +542,6 @@
       if(cat==='CORRECTION' || lt.includes('correction') || lt.includes('補卡')) return '補卡';
       if(cat==='OUTING' || lt.includes('outing') || lt.includes('外出')) return '外出';
       if(cat==='OT' || lt==='ot' || lt.includes('加班')) return '加班';
-      // fallback
       return (row.leaveType || row.category || '申請') + "";
     }
 
@@ -574,24 +600,11 @@
         const hrs = (r.hours!==undefined && r.hours!==null && String(r.hours)!=='') ? Number(r.hours||0) : 0;
         const reason = (r.reason && String(r.reason).trim()) ? String(r.reason).trim() : '—';
 
-        // ✅ 送單時間：多欄位 fallback
         const createdRaw =
-          r.createdAt ??
-          r.created_at ??
-          r.created ??
-          r.submittedAt ??
-          r.submitted_at ??
-          r.submitAt ??
-          r.submit_at ??
-          r.submitTime ??
-          r.sentAt ??
-          r.sent_at ??
-          r.ts ??
-          r.timestamp ??
-          r.createdTime ??
-          r.created_time ??
-          (r.meta && (r.meta.createdAt ?? r.meta.created_at ?? r.meta.created)) ??
-          "";
+          r.createdAt ?? r.created_at ?? r.created ??
+          r.submittedAt ?? r.submitted_at ??
+          r.submitAt ?? r.submit_at ??
+          r.submitTime ?? r.ts ?? r.timestamp ?? "";
 
         const created = createdRaw ? formatDT(createdRaw) : "—";
 
@@ -653,33 +666,50 @@
       document.getElementById("attList").innerHTML = `<div class="empty">載入中…</div>`;
 
       try{
-        // 申請單
-        const reqRes = await callApi({ action: "list_requests", userId: empId, isManagerView:false });
-        const allReq = (reqRes && reqRes.ok && Array.isArray(reqRes.list)) ? reqRes.list : [];
-        const reqFiltered = allReq.filter(r => overlapsMonth(r.start || r.start_full || r.startAt, r.end || r.end_full || r.endAt, y, m));
+        // ✅ 申請單：優先 list_requests，失敗就嘗試相近 action
+        const reqRes = await apiTry(
+          ["list_requests","get_requests","LIST_REQUESTS","GET_REQUESTS"],
+          { isManagerView:false, year:y, month:m } // empId 會自動帶
+        );
 
-        // 出勤
-        const dashRes = await callApi({ action: "get_dashboard", userId: empId, year:y, month:m });
-        const daily = (dashRes && dashRes.ok && Array.isArray(dashRes.dailyData)) ? dashRes.dailyData : [];
+        const allReq =
+          (Array.isArray(reqRes.list) ? reqRes.list :
+           Array.isArray(reqRes.requests) ? reqRes.requests :
+           Array.isArray(reqRes.data) ? reqRes.data : []);
 
-        let attList = daily.map(d => {
+        const reqFiltered = allReq.filter(r =>
+          overlapsMonth(r.start || r.start_full || r.startAt, r.end || r.end_full || r.endAt, y, m)
+        );
+
+        // ✅ 出勤：優先 get_dashboard，失敗就 fallback
+        const dashRes = await apiTry(
+          ["get_dashboard","get_history","dashboard","GET_DASHBOARD","GET_HISTORY"],
+          { year:y, month:m } // empId 會自動帶
+        );
+
+        const daily =
+          (Array.isArray(dashRes.dailyData) ? dashRes.dailyData :
+           Array.isArray(dashRes.daily) ? dashRes.daily :
+           Array.isArray(dashRes.data) ? dashRes.data : []);
+
+        const attList = daily.map(d => {
           const dateKey = buildDateKeyFromDaily(d, y, m);
           const inStr = d.in ? shiftHHMMSmart(d.in) : '--:--';
           const outStr = d.out ? shiftHHMMSmart(d.out) : '--:--';
           return { dateKey, in: inStr, out: outStr, tag: normalizeDailyTag(d.tag) };
-        });
-
-        attList.sort((a,b)=> b.dateKey.localeCompare(a.dateKey));
+        }).sort((a,b)=> b.dateKey.localeCompare(a.dateKey));
 
         renderAtt(attList);
         renderReq(reqFiltered);
 
       }catch(e){
-        toast("載入失敗（GAS/CONFIG）");
+        toast("載入失敗（請確認 GAS_ENDPOINT / 後端 action 是否存在）");
         renderAtt([]);
         renderReq([]);
       }
     }
+
+    document.getElementById("btnReload").addEventListener("click", reload);
 
     pickCurrentMonth();
     reload();

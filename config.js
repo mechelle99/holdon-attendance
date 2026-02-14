@@ -3,7 +3,7 @@ window.CONFIG = window.CONFIG || {};
 
 // GAS Web App /exec
 window.CONFIG.GAS_ENDPOINT =
-  "https://script.google.com/macros/s/1HtFjN_I23Yoj5oZqqeXzqEHB52biuCb6pae3S96ILjw/exec";
+  "https://script.google.com/macros/s/AKfycbwPDqm4YawpB5vgOOG9qqPA51-u_vCb-bbfr-91k6EtjkN6ZDrjTlK9-xBpwxtmuVAQkA/exec";
 
 // 若後端有做簡單防護（Config sheet 的 WEBHOOK_KEY）
 window.CONFIG.WEBHOOK_KEY = "HOLDON2026";

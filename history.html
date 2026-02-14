@@ -146,17 +146,10 @@
       border: 2px solid rgba(79,70,229,.55);
     }
 
-    .grid{
-      display:block; /* mobile: one panel visible */
-    }
-    .panel{
-      display:none;
-    }
-    .panel.active{
-      display:block;
-    }
+    .grid{ display:block; }
+    .panel{ display:none; }
+    .panel.active{ display:block; }
 
-    /* desktop: two columns */
     @media (min-width: 900px){
       .seg{ display:none; }
       .grid{
@@ -165,9 +158,7 @@
         gap: 16px;
         align-items:start;
       }
-      .panel{
-        display:block;
-      }
+      .panel{ display:block; }
     }
 
     .section-title{
@@ -341,6 +332,7 @@
 
   <script src="config.js"></script>
   <script>
+    // ===== 基礎登入資料 =====
     const empId = localStorage.getItem("empId") || localStorage.getItem("employeeId");
     if(!empId) location.href="index.html";
 
@@ -376,6 +368,7 @@
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
+    // ===== JSONP API =====
     function api(action, data={}){
       return new Promise((resolve, reject)=>{
         const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random()*100000);
@@ -402,7 +395,7 @@
       });
     }
 
-    // ===== 時間解析：修正 UTC -> 台北時間 & Safari 解析問題 =====
+    // ===== 時間解析（Safari 友善） =====
     function pad2(n){ return String(n).padStart(2,'0'); }
 
     function parseToDate(v){
@@ -432,6 +425,11 @@
       return isNaN(d.getTime()) ? null : d;
     }
 
+    function hhmmFromDate(d){
+      if(!d || isNaN(d.getTime())) return null;
+      return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+    }
+
     function formatDT(v){
       const d = parseToDate(v);
       if(!d) return String(v||'無');
@@ -444,6 +442,7 @@
       return d.getFullYear() === y && (d.getMonth()+1) === m1to12;
     }
 
+    // ===== Requests badges =====
     function reqTypeBadge(row){
       const cat = String(row.category||'').toUpperCase();
       const lt = String(row.leaveType||'').toLowerCase();
@@ -468,33 +467,80 @@
       return { cls:'warn', label:'待審' };
     }
 
-    // 出勤狀態（來自 get_dashboard dailyData.tag）
+    // ===== Attendance badges (重點：看 tag，不看 PENDING) =====
     function attStatusBadge(tag){
       const t = String(tag||'').trim();
       if(!t) return { cls:'warn', label:'—' };
+
+      // 更精準一點的分類（你要的：正常/缺卡/曠職/休假...）
       if(t.includes('正常')) return { cls:'ok', label:t };
-      if(t.includes('休假')) return { cls:'warn', label:t };
+      if(t.includes('休假') || t.includes('請假') || t.includes('生日假') || t.includes('特休') || t.includes('補休')) return { cls:'warn', label:t };
       if(t.includes('加班')) return { cls:'ok', label:t };
-      if(t.includes('遲到') || t.includes('早退')) return { cls:'warn', label:t };
-      if(t.includes('曠職') || t.includes('缺卡')) return { cls:'danger', label:t };
+      if(t.includes('遲到') || t.includes('早退') || t.includes('異常')) return { cls:'warn', label:t };
+      if(t.includes('曠職') || t.includes('缺卡') || t.includes('缺勤') || t.includes('未打卡')) return { cls:'danger', label:t };
+
       return { cls:'warn', label:t };
     }
 
-    function renderAtt(list){
+    // ===== 將 list_attendance 明細彙總成每日 in/out（保證抓得到時間） =====
+    function normalizeIo(io){
+      const s = String(io||'').toUpperCase();
+      if(s.includes('IN') || s.includes('上班')) return 'IN';
+      if(s.includes('OUT') || s.includes('下班')) return 'OUT';
+      return '';
+    }
+
+    function dayKeyFromDate(d){
+      return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+    }
+
+    function buildDailyTimesFromLogs(logs){
+      const map = {}; // dayKey -> { in:"HH:MM", out:"HH:MM" }
+
+      (logs||[]).forEach(r=>{
+        const d = parseToDate(r.date || r.ts || r.time || r.createdAt);
+        if(!d) return;
+
+        const status = String(r.status||'').toUpperCase();
+        if(status === 'REJECTED') return; // 駁回的不算
+
+        const io = normalizeIo(r.io);
+        if(!io) return;
+
+        const key = dayKeyFromDate(d);
+        const t = hhmmFromDate(d);
+        if(!t) return;
+
+        if(!map[key]) map[key] = { in:null, out:null };
+
+        if(io === 'IN'){
+          // 最早 IN
+          if(!map[key].in || t < map[key].in) map[key].in = t;
+        }else if(io === 'OUT'){
+          // 最晚 OUT
+          if(!map[key].out || t > map[key].out) map[key].out = t;
+        }
+      });
+
+      return map;
+    }
+
+    // ===== 渲染 =====
+    function renderAttDaily(list){
       const el = document.getElementById("attList");
       document.getElementById("attCount").textContent = `${list.length} 筆`;
       document.getElementById("attCountTop").textContent = `${list.length}`;
 
       if(list.length===0){
-        el.innerHTML = `<div class="empty">本範圍沒有出勤狀態</div>`;
+        el.innerHTML = `<div class="empty">本範圍沒有出勤資料</div>`;
         return;
       }
 
       el.innerHTML = list.map(r=>{
-        // 目前固定用 DASH（每日彙總），避免 Attendance_Log.status(PENDING) 造成整頁「待處理」
         const b = attStatusBadge(r.tag);
         const title = `${r.dateKey} ${r.in || '--:--'} / ${r.out || '--:--'}`;
         const note = r.note || `狀態：${r.tag || '—'}`;
+
         return `
           <div class="item ${b.cls}">
             <div class="top">
@@ -559,6 +605,11 @@
       return { y, m };
     }
 
+    function lastDayOfMonth(y,m1to12){
+      return new Date(y, m1to12, 0).getDate();
+    }
+
+    // ===== 主要載入（關鍵：出勤用 dashboard tag + logs 彙總時間） =====
     async function reload(){
       const monthStr = document.getElementById("monthPick").value;
       let y, m;
@@ -572,7 +623,6 @@
       }
       document.getElementById("rangeTag").textContent = `篩選：${y}-${String(m).padStart(2,'0')}`;
 
-      // loading
       document.getElementById("reqList").innerHTML = `<div class="empty">載入中…</div>`;
       document.getElementById("attList").innerHTML = `<div class="empty">載入中…</div>`;
       document.getElementById("attCount").textContent = `0 筆`;
@@ -586,29 +636,76 @@
         const allReq = (reqRes && reqRes.ok && Array.isArray(reqRes.list)) ? reqRes.list : [];
         const reqFiltered = allReq.filter(r => isInMonth(r.start, y, m));
 
-        // ✅ 2) 出勤狀態：永遠以 get_dashboard 為主（才有 正常/缺卡/曠職/遲到/早退）
+        // 2) 出勤狀態：用 dashboard（你要的正常/缺卡/曠職/休假都在 tag 裡）
         const dashRes = await api("get_dashboard", { year:y, month:m });
         const daily = (dashRes && dashRes.ok && Array.isArray(dashRes.dailyData)) ? dashRes.dailyData : [];
 
-        const attList = daily.map(d => {
-          const mm = String(m).padStart(2,'0');
-          const dd = String(d.date).padStart(2,'0');
-          return {
-            __type: 'DASH',
-            dateKey: `${y}-${mm}-${dd}`,
-            in: d.in,
-            out: d.out,
-            tag: d.tag,
-            note: `狀態：${d.tag}`
-          };
+        // 3) 若有 list_attendance：拿來補齊每天 in/out（防止你遇到 --/--）
+        let logs = [];
+        try{
+          const attRes = await api("list_attendance", { year:y, month:m });
+          if(attRes && attRes.ok && Array.isArray(attRes.list)) logs = attRes.list;
+        }catch(_){ /* 沒有就算了 */ }
+
+        const timeMap = buildDailyTimesFromLogs(logs);
+
+        // 4) 組出當月每一天（避免 dashboard 少天數導致漏顯示）
+        const days = lastDayOfMonth(y,m);
+        const mm = pad2(m);
+        const dailyMapByDay = {}; // day(1..31)-> dashboard row
+        daily.forEach(d=>{
+          // d.date 可能是 12 或 "12" 或 "2026-02-12"
+          let dayNum = null;
+          if(typeof d.date === 'number') dayNum = d.date;
+          else{
+            const s = String(d.date||'').trim();
+            if(/^\d{1,2}$/.test(s)) dayNum = Number(s);
+            else{
+              const m2 = s.match(/(\d{4})-(\d{2})-(\d{2})/);
+              if(m2) dayNum = Number(m2[3]);
+            }
+          }
+          if(dayNum) dailyMapByDay[dayNum] = d;
         });
 
-        renderAtt(attList);
+        const attDaily = [];
+        for(let day=1; day<=days; day++){
+          const dd = pad2(day);
+          const dateKey = `${y}-${mm}-${dd}`;
+          const dashRow = dailyMapByDay[day] || {};
+
+          // 抓 tag（容錯）
+          const tag = dashRow.tag || dashRow.status || dashRow.note || dashRow.label || '';
+
+          // 抓 in/out（容錯 + logs 補齊）
+          const dashIn  = dashRow.in  || dashRow.inTime  || dashRow.clockIn  || dashRow.clock_in  || dashRow.start || '';
+          const dashOut = dashRow.out || dashRow.outTime || dashRow.clockOut || dashRow.clock_out || dashRow.end   || '';
+
+          const tm = timeMap[dateKey] || {};
+          const inFinal  = tm.in  || (typeof dashIn === 'string' ? dashIn : '') || '';
+          const outFinal = tm.out || (typeof dashOut === 'string' ? dashOut : '') || '';
+
+          // note
+          const note = tag ? `狀態：${tag}` : '狀態：—';
+
+          // 如果整天 dashboard 也沒有、logs 也沒有，就不要硬塞（避免一堆空卡片）
+          // 但如果你想「每天都顯示」可把這段註解掉。
+          const hasAny = (String(tag||'').trim() !== '') || (String(inFinal||'').trim() !== '') || (String(outFinal||'').trim() !== '');
+          if(!hasAny) continue;
+
+          attDaily.push({ dateKey, in: inFinal, out: outFinal, tag, note });
+        }
+
+        // 5) 排序（新到舊，符合你截圖）
+        attDaily.sort((a,b)=> (a.dateKey < b.dateKey ? 1 : -1));
+
+        renderAttDaily(attDaily);
         renderReq(reqFiltered);
 
       }catch(e){
+        console.error(e);
         toast("載入失敗（GAS）");
-        renderAtt([]);
+        renderAttDaily([]);
         renderReq([]);
       }
     }

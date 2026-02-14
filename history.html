@@ -26,7 +26,6 @@
       color:var(--text);
       padding: 18px 18px calc(90px + env(safe-area-inset-bottom)) 18px;
     }
-
     .toast{
       position: fixed;
       left: 16px; right: 16px;
@@ -41,7 +40,6 @@
       font-size: 13px;
       line-height: 1.4;
     }
-
     .hero{
       background: linear-gradient(135deg, #4F46E5, #7C3AED);
       border-radius: 26px;
@@ -274,7 +272,6 @@
   </style>
 </head>
 <body>
-
   <div class="toast" id="toast"></div>
 
   <section class="hero">
@@ -287,14 +284,14 @@
 
   <div class="filters">
     <input type="month" id="monthPick"/>
-    <button type="button" id="btnReload">更新</button>
+    <button type="button" onclick="reload()">更新</button>
   </div>
 
   <div class="seg" role="tablist" aria-label="history tabs">
-    <button class="seg-btn active" id="tabAtt" type="button">
+    <button class="seg-btn active" id="tabAtt" onclick="showPanel('att')">
       打卡 <span class="count" id="attCountTop">0</span>
     </button>
-    <button class="seg-btn" id="tabReq" type="button">
+    <button class="seg-btn" id="tabReq" onclick="showPanel('req')">
       申請 <span class="count" id="reqCountTop">0</span>
     </button>
   </div>
@@ -327,17 +324,14 @@
 
   <script src="config.js"></script>
   <script>
-    // ========= login (跟 app.html 對齊) =========
     const empId = localStorage.getItem("empId") || localStorage.getItem("employeeId") || "";
-    const empName = (localStorage.getItem("empName") || localStorage.getItem("employeeName") || "").trim();
+    const empName = (localStorage.getItem("empName") || "").trim();
 
     if(!empId){
       location.href="index.html";
     }
-
     document.getElementById("who").textContent = empName ? `${empName}（${empId}）` : `員工：${empId}`;
 
-    // ========= toast =========
     function toast(msg){
       const el = document.getElementById("toast");
       el.textContent = msg;
@@ -346,7 +340,6 @@
       window.__toastTimer = setTimeout(()=> el.style.display="none", 2400);
     }
 
-    // ========= tabs =========
     function showPanel(which){
       const tabAtt = document.getElementById("tabAtt");
       const tabReq = document.getElementById("tabReq");
@@ -367,42 +360,26 @@
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
-    document.getElementById("tabAtt").addEventListener("click", ()=>showPanel("att"));
-    document.getElementById("tabReq").addEventListener("click", ()=>showPanel("req"));
-
-    // ========= JSONP call（✅修正：action 一定要放 query string） =========
-    function assertConfig_(){
-      if(!window.CONFIG || !window.CONFIG.GAS_ENDPOINT){
-        toast("CONFIG.GAS_ENDPOINT 未設定（config.js）");
-        return false;
-      }
-      return true;
-    }
-
+    // ✅ 跟 app.html 同一套 JSONP：action 放 query param
     function api(action, data={}){
       return new Promise((resolve, reject)=>{
-        if(!assertConfig_()){
-          reject(new Error("Missing CONFIG"));
-          return;
-        }
+        const ENDPOINT = window.CONFIG && window.CONFIG.GAS_ENDPOINT;
+        if(!ENDPOINT) return reject(new Error("缺少 CONFIG.GAS_ENDPOINT"));
 
-        const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random()*1000000);
+        const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random()*1e6);
         const s = document.createElement("script");
 
-        // ✅ 跟 app.html 同一套 payload：一定帶 empId
-        const payloadObj = Object.assign({}, data, { empId });
-
-        // ✅ 若後端有需要 key，就一起帶（不動後端）
-        if(window.CONFIG.WEBHOOK_KEY && payloadObj.webhookKey == null){
-          payloadObj.webhookKey = window.CONFIG.WEBHOOK_KEY;
-        }
+        const payloadObj = Object.assign({}, data, {
+          empId,
+          webhookKey: window.CONFIG.WEBHOOK_KEY || ""
+        });
 
         const payload = encodeURIComponent(JSON.stringify(payloadObj));
         const bust = Date.now();
 
         const timer = setTimeout(()=>{
           cleanup();
-          reject(new Error("Timeout"));
+          reject(new Error("請求逾時"));
         }, 20000);
 
         function cleanup(){
@@ -412,43 +389,15 @@
         }
 
         window[cbName] = (res)=>{ cleanup(); resolve(res); };
-        s.onerror = ()=>{ cleanup(); reject(new Error("NetworkError")); };
+        s.onerror = ()=>{ cleanup(); reject(new Error("網路連線失敗")); };
 
-        // ✅ 致命修正：action 進 query string
-        s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${encodeURIComponent(action)}&payload=${payload}&callback=${cbName}&_=${bust}`;
+        s.src = `${ENDPOINT}?action=${encodeURIComponent(action)}&payload=${payload}&callback=${cbName}&_=${bust}`;
         document.body.appendChild(s);
       });
     }
 
-    // ========= robust fetch（避免你後端 action 名稱小改就全死） =========
-    async function apiTry(actions, data){
-      let lastErr = null;
-      for(const act of actions){
-        try{
-          const r = await api(act, data);
-          if(r && r.ok) return r;
-          // 若回來有錯也算一次訊息
-          lastErr = new Error((r && r.message) ? r.message : "API not ok");
-        }catch(e){
-          lastErr = e;
-        }
-      }
-      throw lastErr || new Error("API failed");
-    }
-
-    // ========= time utils（保留你原本的策略） =========
-    const TIME_SHIFT_HOURS = Number((window.CONFIG && window.CONFIG.TIME_SHIFT_HOURS)!=null ? window.CONFIG.TIME_SHIFT_HOURS : 8);
-
+    // ====== 時間：不再亂 +8（以本地時間解析）=====
     function pad2(n){ return String(n).padStart(2,'0'); }
-    function addHours(d, h){ return new Date(d.getTime() + h*3600*1000); }
-
-    function parseNoTZ_UTCThenShift(str){
-      const m = String(str).trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-      if(!m) return null;
-      const ms = Date.UTC(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0), 0);
-      const d = new Date(ms);
-      return TIME_SHIFT_HOURS ? addHours(d, TIME_SHIFT_HOURS) : d;
-    }
 
     function parseToDate(v){
       if(!v) return null;
@@ -457,22 +406,22 @@
       const s = String(v).trim();
       if(!s) return null;
 
+      // 有時區的就直接交給 Date
       if(/[zZ]$/.test(s) || /[+\-]\d{2}:\d{2}$/.test(s)){
         const d = new Date(s);
         return isNaN(d.getTime()) ? null : d;
       }
 
-      const d2 = parseNoTZ_UTCThenShift(s);
-      if(d2) return d2;
-
-      let m = s.match(/^(\d{4})[\/](\d{1,2})[\/](\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+      // 2026-02-14 02:00（當成本地時間，不要當 UTC）
+      let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
       if(m){
         return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0), 0);
       }
 
-      m = s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+      // 2026/02/14 02:00
+      m = s.match(/^(\d{4})[\/](\d{1,2})[\/](\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
       if(m){
-        return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], 0, 0);
+        return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0), 0);
       }
 
       const d = new Date(s);
@@ -492,21 +441,6 @@
       const monthStart = new Date(y, m-1, 1, 0,0,0,0);
       const monthEnd   = new Date(y, m,   0, 23,59,59,999);
       return e >= monthStart && s <= monthEnd;
-    }
-
-    function shiftHHMMSmart(t){
-      const s = String(t||'').trim();
-      const m = s.match(/^(\d{1,2}):(\d{2})$/);
-      if(!m) return s || '--:--';
-
-      let hh = +m[1], mm = +m[2];
-      if(isNaN(hh) || isNaN(mm)) return s || '--:--';
-
-      const looksLikeMinus8 = (TIME_SHIFT_HOURS === 8) && (hh >= 0 && hh <= 4);
-      if(looksLikeMinus8){
-        hh = (hh + 8) % 24;
-      }
-      return `${pad2(hh)}:${pad2(mm)}`;
     }
 
     function normalizeDailyTag(tag){
@@ -596,15 +530,13 @@
 
         const s = formatDT(r.start || r.start_full || r.startAt);
         const e = formatDT(r.end || r.end_full || r.endAt);
-
         const hrs = (r.hours!==undefined && r.hours!==null && String(r.hours)!=='') ? Number(r.hours||0) : 0;
         const reason = (r.reason && String(r.reason).trim()) ? String(r.reason).trim() : '—';
 
         const createdRaw =
-          r.createdAt ?? r.created_at ?? r.created ??
-          r.submittedAt ?? r.submitted_at ??
-          r.submitAt ?? r.submit_at ??
-          r.submitTime ?? r.ts ?? r.timestamp ?? "";
+          r.createdAt ?? r.created_at ?? r.created ?? r.submittedAt ?? r.submitted_at ??
+          r.submitAt ?? r.submit_at ?? r.submitTime ?? r.sentAt ?? r.sent_at ??
+          r.ts ?? r.timestamp ?? r.createdTime ?? r.created_time ?? "";
 
         const created = createdRaw ? formatDT(createdRaw) : "—";
 
@@ -666,50 +598,33 @@
       document.getElementById("attList").innerHTML = `<div class="empty">載入中…</div>`;
 
       try{
-        // ✅ 申請單：優先 list_requests，失敗就嘗試相近 action
-        const reqRes = await apiTry(
-          ["list_requests","get_requests","LIST_REQUESTS","GET_REQUESTS"],
-          { isManagerView:false, year:y, month:m } // empId 會自動帶
-        );
+        // ✅ 申請單：用同一套 action query
+        const reqRes = await api("list_requests", { isManagerView:false, year:y, month:m });
+        const allReq = (reqRes && reqRes.ok && Array.isArray(reqRes.list)) ? reqRes.list : [];
+        const reqFiltered = allReq.filter(r => overlapsMonth(r.start || r.start_full || r.startAt, r.end || r.end_full || r.endAt, y, m));
 
-        const allReq =
-          (Array.isArray(reqRes.list) ? reqRes.list :
-           Array.isArray(reqRes.requests) ? reqRes.requests :
-           Array.isArray(reqRes.data) ? reqRes.data : []);
+        // ✅ 出勤 dashboard
+        const dashRes = await api("get_dashboard", { year:y, month:m });
+        const daily = (dashRes && dashRes.ok && Array.isArray(dashRes.dailyData)) ? dashRes.dailyData : [];
 
-        const reqFiltered = allReq.filter(r =>
-          overlapsMonth(r.start || r.start_full || r.startAt, r.end || r.end_full || r.endAt, y, m)
-        );
-
-        // ✅ 出勤：優先 get_dashboard，失敗就 fallback
-        const dashRes = await apiTry(
-          ["get_dashboard","get_history","dashboard","GET_DASHBOARD","GET_HISTORY"],
-          { year:y, month:m } // empId 會自動帶
-        );
-
-        const daily =
-          (Array.isArray(dashRes.dailyData) ? dashRes.dailyData :
-           Array.isArray(dashRes.daily) ? dashRes.daily :
-           Array.isArray(dashRes.data) ? dashRes.data : []);
-
-        const attList = daily.map(d => {
+        let attList = daily.map(d => {
           const dateKey = buildDateKeyFromDaily(d, y, m);
-          const inStr = d.in ? shiftHHMMSmart(d.in) : '--:--';
-          const outStr = d.out ? shiftHHMMSmart(d.out) : '--:--';
+          const inStr = d.in ? String(d.in) : '--:--';
+          const outStr = d.out ? String(d.out) : '--:--';
           return { dateKey, in: inStr, out: outStr, tag: normalizeDailyTag(d.tag) };
-        }).sort((a,b)=> b.dateKey.localeCompare(a.dateKey));
+        });
+
+        attList.sort((a,b)=> b.dateKey.localeCompare(a.dateKey));
 
         renderAtt(attList);
         renderReq(reqFiltered);
 
       }catch(e){
-        toast("載入失敗（請確認 GAS_ENDPOINT / 後端 action 是否存在）");
+        toast((e && e.message) ? e.message : "載入失敗（GAS/CONFIG）");
         renderAtt([]);
         renderReq([]);
       }
     }
-
-    document.getElementById("btnReload").addEventListener("click", reload);
 
     pickCurrentMonth();
     reload();

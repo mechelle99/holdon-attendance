@@ -127,7 +127,6 @@
       align-items:center;
       gap:10px;
       color:#6B7280;
-      box-shadow: none;
     }
     .seg-btn .count{
       background:#EEF2FF;
@@ -328,26 +327,17 @@
 
   <script src="config.js"></script>
   <script>
-    // =========================================================
-    // ✅ 穩定版時間策略（不再漂移）
-    // - 有時區(ISO/Z/+08:00)：直接信任 JS 解析
-    // - 無時區 yyyy-MM-dd HH:mm(:ss)：視為 UTC → 加 TIME_SHIFT_HOURS（預設 8，可在 config.js 設 0）
-    // - get_dashboard 的 HH:mm：用啟發式，只有「明顯被少8」才補
-    // =========================================================
+    // ========= login (match your current app.js keys) =========
+    const empId = localStorage.getItem("employeeId") || localStorage.getItem("empId") || "";
+    const empName = (localStorage.getItem("employeeName") || localStorage.getItem("empName") || "").trim();
 
-    const empId = localStorage.getItem("empId") || localStorage.getItem("employeeId");
-    if(!empId) location.href="index.html";
+    if(!empId){
+      location.href="login.html";
+    }
 
-    const empNameLS = (localStorage.getItem("empName") || "").trim();
-    const meLabel = empNameLS ? `${empNameLS}（${empId}）` : `員工：${empId}`;
-    document.getElementById("who").textContent = meLabel;
+    document.getElementById("who").textContent = empName ? `${empName}（${empId}）` : `員工：${empId}`;
 
-    // 預設 8：只用於「無時區字串被當 UTC」的情境
-    // 如果你後端已經全面回 +08:00（ISO），把這個改 0 最穩
-    const TIME_SHIFT_HOURS = Number(
-      (window.CONFIG && window.CONFIG.TIME_SHIFT_HOURS)!=null ? window.CONFIG.TIME_SHIFT_HOURS : 8
-    );
-
+    // ========= toast =========
     function toast(msg){
       const el = document.getElementById("toast");
       el.textContent = msg;
@@ -356,6 +346,7 @@
       window.__toastTimer = setTimeout(()=> el.style.display="none", 2200);
     }
 
+    // ========= tabs =========
     function showPanel(which){
       const tabAtt = document.getElementById("tabAtt");
       const tabReq = document.getElementById("tabReq");
@@ -376,41 +367,54 @@
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
-    function api(action, data={}){
-      if(!window.CONFIG || !window.CONFIG.GAS_ENDPOINT){
-        toast("CONFIG.GAS_ENDPOINT 未設定");
-        return Promise.reject(new Error("Missing GAS_ENDPOINT"));
-      }
+    // ========= JSONP call (match app.js) =========
+    const ENDPOINT = window.CONFIG?.GAS_ENDPOINT || window.GAS_ENDPOINT;
 
+    function jsonpCall(payload){
       return new Promise((resolve, reject)=>{
-        const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random()*100000);
-        const s = document.createElement("script");
-        const payload = encodeURIComponent(JSON.stringify(Object.assign({}, data, { empId })));
-        const bust = Date.now();
+        if(!ENDPOINT) return reject(new Error("缺少 GAS_ENDPOINT"));
 
-        const timer = setTimeout(()=>{
-          cleanup();
-          reject(new Error("Timeout"));
-        }, 15000);
+        const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random() * 1e6);
+        const script = document.createElement("script");
+        let timer = null;
 
-        function cleanup(){
-          clearTimeout(timer);
-          try{ delete window[cbName]; }catch(e){}
-          try{ s.remove(); }catch(e){}
+        window[cbName] = (resp)=>{ cleanup(); resolve(resp); };
+
+        const cleanup = ()=>{
+          try{ delete window[cbName]; }catch(e){ window[cbName] = undefined; }
+          if(script && script.parentNode) script.parentNode.removeChild(script);
+          if(timer) clearTimeout(timer);
+        };
+
+        const qs = new URLSearchParams();
+        qs.set("callback", cbName);
+
+        // ✅ 若後端要 key，在 payload 裡附上
+        if(window.CONFIG?.WEBHOOK_KEY && payload.webhookKey == null){
+          payload.webhookKey = window.CONFIG.WEBHOOK_KEY;
         }
 
-        window[cbName] = (res)=>{ cleanup(); resolve(res); };
-        s.onerror = ()=>{ cleanup(); reject(new Error("NetworkError")); };
+        qs.set("payload", JSON.stringify(payload));
 
-        s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${encodeURIComponent(action)}&payload=${payload}&callback=${cbName}&_=${bust}`;
-        document.body.appendChild(s);
+        script.src = ENDPOINT + "?" + qs.toString();
+        script.onerror = ()=>{ cleanup(); reject(new Error("網路連線失敗（JSONP）")); };
+        document.body.appendChild(script);
+
+        timer = setTimeout(()=>{
+          cleanup();
+          reject(new Error("請求逾時（JSONP）"));
+        }, 20000);
       });
     }
+
+    function callApi(payload){ return jsonpCall(payload); }
+
+    // ========= time utils (keep your strategy) =========
+    const TIME_SHIFT_HOURS = Number((window.CONFIG && window.CONFIG.TIME_SHIFT_HOURS)!=null ? window.CONFIG.TIME_SHIFT_HOURS : 8);
 
     function pad2(n){ return String(n).padStart(2,'0'); }
     function addHours(d, h){ return new Date(d.getTime() + h*3600*1000); }
 
-    // yyyy-MM-dd HH:mm(:ss) => 視為 UTC，然後 + TIME_SHIFT_HOURS
     function parseNoTZ_UTCThenShift(str){
       const m = String(str).trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
       if(!m) return null;
@@ -419,32 +423,26 @@
       return TIME_SHIFT_HOURS ? addHours(d, TIME_SHIFT_HOURS) : d;
     }
 
-    // 解析日期：優先處理 ISO(含Z/offset)；再處理無時區 yyyy-MM-dd HH:mm(:ss)；最後 fallback
     function parseToDate(v){
       if(!v) return null;
-
       if(Object.prototype.toString.call(v) === '[object Date]' && !isNaN(v.getTime())) return v;
 
       const s = String(v).trim();
       if(!s) return null;
 
-      // ISO with Z/offset => 直接信任
       if(/[zZ]$/.test(s) || /[+\-]\d{2}:\d{2}$/.test(s)){
         const d = new Date(s);
         return isNaN(d.getTime()) ? null : d;
       }
 
-      // yyyy-MM-dd HH:mm(:ss) without tz => 視為 UTC 再 shift
       const d2 = parseNoTZ_UTCThenShift(s);
       if(d2) return d2;
 
-      // yyyy/MM/dd HH:mm:ss => 當本地
       let m = s.match(/^(\d{4})[\/](\d{1,2})[\/](\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
       if(m){
         return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0), 0);
       }
 
-      // yyyy-MM-ddTHH:mm => 當本地
       m = s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
       if(m){
         return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], 0, 0);
@@ -460,7 +458,6 @@
       return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
     }
 
-    // 跨月也要抓到：start/end 只要跟本月有交集就算
     function overlapsMonth(start, end, y, m){
       const s = parseToDate(start);
       const e = parseToDate(end) || s;
@@ -470,8 +467,6 @@
       return e >= monthStart && s <= monthEnd;
     }
 
-    // ---- get_dashboard in/out 啟發式校正 ----
-    // 情境：後端如果把 09:10 變 01:10（少8），那我們補回；否則不動
     function shiftHHMMSmart(t){
       const s = String(t||'').trim();
       const m = s.match(/^(\d{1,2}):(\d{2})$/);
@@ -480,8 +475,6 @@
       let hh = +m[1], mm = +m[2];
       if(isNaN(hh) || isNaN(mm)) return s || '--:--';
 
-      // 判斷是否「看起來像少8小時」：
-      // 常見班表 08~12 上班打卡；若 hh 落在 0~4 且 TIME_SHIFT_HOURS=8，視為被少8
       const looksLikeMinus8 = (TIME_SHIFT_HOURS === 8) && (hh >= 0 && hh <= 4);
       if(looksLikeMinus8){
         hh = (hh + 8) % 24;
@@ -489,42 +482,9 @@
       return `${pad2(hh)}:${pad2(mm)}`;
     }
 
-    function normalizeLeaveLabel(x){
-      const s = String(x||'').trim().toLowerCase();
-      if(!s) return '';
-      if(s==='annual') return '特休';
-      if(s==='sick') return '病假';
-      if(s==='personal') return '事假';
-      if(s==='birthday') return '生日假';
-      if(s==='comp') return '補休';
-      if(s==='ot') return '加班';
-      if(s==='outing') return '外出';
-      if(s==='correction') return '補卡';
-      return String(x);
-    }
-
-    function reqTypeBadge(row){
-      const cat = String(row.category||'').toUpperCase();
-      const lt = String(row.leaveType||'').toLowerCase();
-
-      if(cat==='CORRECTION' || lt.includes('correction') || lt.includes('補卡')) return '補卡';
-      if(cat==='OUTING' || lt.includes('outing') || lt.includes('外出')) return '外出';
-      if(cat==='OT' || lt==='ot' || lt.includes('加班')) return '加班';
-
-      return normalizeLeaveLabel(row.leaveType || row.category || '申請');
-    }
-
-    function reqStatusBadge(status){
-      const s = String(status||'').toUpperCase();
-      if(s==='APPROVED') return { cls:'ok', label:'核准' };
-      if(s==='REJECTED') return { cls:'danger', label:'駁回' };
-      return { cls:'warn', label:'待審' };
-    }
-
     function normalizeDailyTag(tag){
       const t = String(tag||'').trim();
       const low = t.toLowerCase();
-
       if(low==='annual') return '特休';
       if(low==='sick') return '病假';
       if(low==='personal') return '事假';
@@ -533,25 +493,37 @@
       if(low==='outing') return '外出';
       if(low==='ot') return '加班';
       if(low==='correction') return '補卡';
-
       return t || '—';
     }
 
     function attStatusBadge(tag){
       const t0 = normalizeDailyTag(tag);
       if(!t0 || t0==='—') return { cls:'warn', label:'—' };
-
       if(t0.includes('正常')) return { cls:'ok', label:t0 };
       if(t0.includes('休假') || t0.includes('特休') || t0.includes('病假') || t0.includes('事假') || t0.includes('生日假') || t0.includes('補休') || t0.includes('外出'))
         return { cls:'warn', label:t0 };
-
       if(t0.includes('加班')) return { cls:'ok', label:t0 };
       if(t0.includes('遲到') || t0.includes('早退')) return { cls:'warn', label:t0 };
-
       if(t0.includes('曠職') || t0.includes('缺卡') || t0.includes('缺勤') || t0.includes('未打卡'))
         return { cls:'danger', label:t0 };
-
       return { cls:'warn', label:t0 };
+    }
+
+    function reqTypeBadge(row){
+      const cat = String(row.category||'').toUpperCase();
+      const lt = String(row.leaveType||'').toLowerCase();
+      if(cat==='CORRECTION' || lt.includes('correction') || lt.includes('補卡')) return '補卡';
+      if(cat==='OUTING' || lt.includes('outing') || lt.includes('外出')) return '外出';
+      if(cat==='OT' || lt==='ot' || lt.includes('加班')) return '加班';
+      // fallback
+      return (row.leaveType || row.category || '申請') + "";
+    }
+
+    function reqStatusBadge(status){
+      const s = String(status||'').toUpperCase();
+      if(s==='APPROVED') return { cls:'ok', label:'核准' };
+      if(s==='REJECTED') return { cls:'danger', label:'駁回' };
+      return { cls:'warn', label:'待審' };
     }
 
     function renderAtt(list){
@@ -596,14 +568,37 @@
         const badge = reqTypeBadge(r);
         const sc = reqStatusBadge(r.status);
 
-        const s = formatDT(r.start);
-        const e = formatDT(r.end);
+        const s = formatDT(r.start || r.start_full || r.startAt);
+        const e = formatDT(r.end || r.end_full || r.endAt);
+
         const hrs = (r.hours!==undefined && r.hours!==null && String(r.hours)!=='') ? Number(r.hours||0) : 0;
         const reason = (r.reason && String(r.reason).trim()) ? String(r.reason).trim() : '—';
-        const created = r.createdAt ? formatDT(r.createdAt) : '—';
+
+        // ✅ 送單時間：多欄位 fallback
+        const createdRaw =
+          r.createdAt ??
+          r.created_at ??
+          r.created ??
+          r.submittedAt ??
+          r.submitted_at ??
+          r.submitAt ??
+          r.submit_at ??
+          r.submitTime ??
+          r.sentAt ??
+          r.sent_at ??
+          r.ts ??
+          r.timestamp ??
+          r.createdTime ??
+          r.created_time ??
+          (r.meta && (r.meta.createdAt ?? r.meta.created_at ?? r.meta.created)) ??
+          "";
+
+        const created = createdRaw ? formatDT(createdRaw) : "—";
 
         let timeLine = `日期：${s}`;
-        if(r.end && String(r.end).trim() && String(r.end).trim() !== String(r.start).trim()){
+        const endVal = (r.end || r.end_full || r.endAt || "");
+        const startVal = (r.start || r.start_full || r.startAt || "");
+        if(endVal && String(endVal).trim() && String(endVal).trim() !== String(startVal).trim()){
           timeLine = `開始：${s}<br>結束：${e}`;
         }
 
@@ -636,11 +631,7 @@
     function buildDateKeyFromDaily(d, y, m){
       const mm = String(m).padStart(2,'0');
       const ds = String(d.date||'').trim();
-
-      // 若後端已回 YYYY-MM-DD
       if(/^\d{4}-\d{2}-\d{2}$/.test(ds)) return ds;
-
-      // 否則視為 1~31
       const dd = String(d.date).padStart(2,'0');
       return `${y}-${mm}-${dd}`;
     }
@@ -660,34 +651,24 @@
 
       document.getElementById("reqList").innerHTML = `<div class="empty">載入中…</div>`;
       document.getElementById("attList").innerHTML = `<div class="empty">載入中…</div>`;
-      document.getElementById("attCount").textContent = `0 筆`;
-      document.getElementById("reqCount").textContent = `0 筆`;
-      document.getElementById("attCountTop").textContent = `0`;
-      document.getElementById("reqCountTop").textContent = `0`;
 
       try{
-        // 1) 申請單（跨月也要抓）
-        const reqRes = await api("list_requests", { isManagerView:false });
+        // 申請單
+        const reqRes = await callApi({ action: "list_requests", userId: empId, isManagerView:false });
         const allReq = (reqRes && reqRes.ok && Array.isArray(reqRes.list)) ? reqRes.list : [];
-        const reqFiltered = allReq.filter(r => overlapsMonth(r.start, r.end, y, m));
+        const reqFiltered = allReq.filter(r => overlapsMonth(r.start || r.start_full || r.startAt, r.end || r.end_full || r.endAt, y, m));
 
-        // 2) 打卡狀態：使用 get_dashboard.dailyData（正常/缺卡/曠職）
-        const dashRes = await api("get_dashboard", { year:y, month:m });
+        // 出勤
+        const dashRes = await callApi({ action: "get_dashboard", userId: empId, year:y, month:m });
         const daily = (dashRes && dashRes.ok && Array.isArray(dashRes.dailyData)) ? dashRes.dailyData : [];
 
         let attList = daily.map(d => {
           const dateKey = buildDateKeyFromDaily(d, y, m);
           const inStr = d.in ? shiftHHMMSmart(d.in) : '--:--';
           const outStr = d.out ? shiftHHMMSmart(d.out) : '--:--';
-          return {
-            dateKey,
-            in: inStr,
-            out: outStr,
-            tag: normalizeDailyTag(d.tag)
-          };
+          return { dateKey, in: inStr, out: outStr, tag: normalizeDailyTag(d.tag) };
         });
 
-        // ✅ 強制排序：最新在上
         attList.sort((a,b)=> b.dateKey.localeCompare(a.dateKey));
 
         renderAtt(attList);

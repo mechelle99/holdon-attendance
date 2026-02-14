@@ -100,7 +100,6 @@
     }
     .filters button:active{ transform: scale(.99); }
 
-    /* ===== Tabs (mobile-first) ===== */
     .seg{
       background:#fff;
       border-radius: 20px;
@@ -292,7 +291,6 @@
     <button onclick="reload()">更新</button>
   </div>
 
-  <!-- Mobile tabs -->
   <div class="seg" role="tablist" aria-label="history tabs">
     <button class="seg-btn active" id="tabAtt" onclick="showPanel('att')">
       打卡 <span class="count" id="attCountTop">0</span>
@@ -303,7 +301,6 @@
   </div>
 
   <div class="grid">
-    <!-- Attendance panel -->
     <section class="panel active" id="panelAtt">
       <div class="section-title">
         <h3>打卡紀錄</h3>
@@ -312,7 +309,6 @@
       <div class="list" id="attList"></div>
     </section>
 
-    <!-- Requests panel -->
     <section class="panel" id="panelReq">
       <div class="section-title">
         <h3>申請單</h3>
@@ -333,9 +329,10 @@
   <script src="config.js"></script>
   <script>
     // =========================================================
-    // ✅ 你這次的核心修正
-    // 1) history 打卡狀態一律吃 get_dashboard.dailyData.tag（正常/缺卡/曠職）
-    // 2) 時間全部做 +8 小時校正（可在 config.js 設 TIME_SHIFT_HOURS=0 關掉）
+    // ✅ 穩定版時間策略（不再漂移）
+    // - 有時區(ISO/Z/+08:00)：直接信任 JS 解析
+    // - 無時區 yyyy-MM-dd HH:mm(:ss)：視為 UTC → 加 TIME_SHIFT_HOURS（預設 8，可在 config.js 設 0）
+    // - get_dashboard 的 HH:mm：用啟發式，只有「明顯被少8」才補
     // =========================================================
 
     const empId = localStorage.getItem("empId") || localStorage.getItem("employeeId");
@@ -345,9 +342,11 @@
     const meLabel = empNameLS ? `${empNameLS}（${empId}）` : `員工：${empId}`;
     document.getElementById("who").textContent = meLabel;
 
-    // ⏱ 時差校正（預設 +8），你也可以在 config.js 放：
-    // window.CONFIG.TIME_SHIFT_HOURS = 0; // 若後端已經是台北時間
-    const TIME_SHIFT_HOURS = Number((window.CONFIG && window.CONFIG.TIME_SHIFT_HOURS)!=null ? window.CONFIG.TIME_SHIFT_HOURS : 8);
+    // 預設 8：只用於「無時區字串被當 UTC」的情境
+    // 如果你後端已經全面回 +08:00（ISO），把這個改 0 最穩
+    const TIME_SHIFT_HOURS = Number(
+      (window.CONFIG && window.CONFIG.TIME_SHIFT_HOURS)!=null ? window.CONFIG.TIME_SHIFT_HOURS : 8
+    );
 
     function toast(msg){
       const el = document.getElementById("toast");
@@ -378,6 +377,11 @@
     }
 
     function api(action, data={}){
+      if(!window.CONFIG || !window.CONFIG.GAS_ENDPOINT){
+        toast("CONFIG.GAS_ENDPOINT 未設定");
+        return Promise.reject(new Error("Missing GAS_ENDPOINT"));
+      }
+
       return new Promise((resolve, reject)=>{
         const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random()*100000);
         const s = document.createElement("script");
@@ -404,12 +408,10 @@
     }
 
     function pad2(n){ return String(n).padStart(2,'0'); }
-    function addHours(d, h){
-      return new Date(d.getTime() + h*3600*1000);
-    }
+    function addHours(d, h){ return new Date(d.getTime() + h*3600*1000); }
 
-    // ---- 解析 yyyy-MM-dd HH:mm[:ss] 這種「沒有時區」的字串：視為 UTC，再 +8 轉台北 ----
-    function parseUTCStringToLocalDate(str){
+    // yyyy-MM-dd HH:mm(:ss) => 視為 UTC，然後 + TIME_SHIFT_HOURS
+    function parseNoTZ_UTCThenShift(str){
       const m = String(str).trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
       if(!m) return null;
       const ms = Date.UTC(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0), 0);
@@ -417,7 +419,7 @@
       return TIME_SHIFT_HOURS ? addHours(d, TIME_SHIFT_HOURS) : d;
     }
 
-    // ---- 解析各種日期值：優先處理 ISO/Z，其次處理「無時區字串當 UTC」 ----
+    // 解析日期：優先處理 ISO(含Z/offset)；再處理無時區 yyyy-MM-dd HH:mm(:ss)；最後 fallback
     function parseToDate(v){
       if(!v) return null;
 
@@ -426,21 +428,23 @@
       const s = String(v).trim();
       if(!s) return null;
 
-      // ISO with Z / offset => JS 會自動轉本地
+      // ISO with Z/offset => 直接信任
       if(/[zZ]$/.test(s) || /[+\-]\d{2}:\d{2}$/.test(s)){
         const d = new Date(s);
         return isNaN(d.getTime()) ? null : d;
       }
 
-      // yyyy-MM-dd HH:mm(:ss) => 你的後端很可能用 GMT 格式化輸出，這裡要當 UTC 再 +8
-      const d2 = parseUTCStringToLocalDate(s);
+      // yyyy-MM-dd HH:mm(:ss) without tz => 視為 UTC 再 shift
+      const d2 = parseNoTZ_UTCThenShift(s);
       if(d2) return d2;
 
-      // yyyy/MM/dd HH:mm:ss or yyyy-MM-ddTHH:mm (當作本地)
+      // yyyy/MM/dd HH:mm:ss => 當本地
       let m = s.match(/^(\d{4})[\/](\d{1,2})[\/](\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
       if(m){
         return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0), 0);
       }
+
+      // yyyy-MM-ddTHH:mm => 當本地
       m = s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
       if(m){
         return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], 0, 0);
@@ -452,24 +456,37 @@
 
     function formatDT(v){
       const d = parseToDate(v);
-      if(!d) return String(v||'無');
+      if(!d) return String(v||'—');
       return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
     }
 
-    function isInMonth(v, y, m1to12){
-      const d = parseToDate(v);
-      if(!d) return false;
-      return d.getFullYear() === y && (d.getMonth()+1) === m1to12;
+    // 跨月也要抓到：start/end 只要跟本月有交集就算
+    function overlapsMonth(start, end, y, m){
+      const s = parseToDate(start);
+      const e = parseToDate(end) || s;
+      if(!s) return false;
+      const monthStart = new Date(y, m-1, 1, 0,0,0,0);
+      const monthEnd   = new Date(y, m,   0, 23,59,59,999);
+      return e >= monthStart && s <= monthEnd;
     }
 
-    // ---- HH:mm 類時間校正（後端常把 09:17 變 01:17）----
-    function shiftHHMM(t){
+    // ---- get_dashboard in/out 啟發式校正 ----
+    // 情境：後端如果把 09:10 變 01:10（少8），那我們補回；否則不動
+    function shiftHHMMSmart(t){
       const s = String(t||'').trim();
       const m = s.match(/^(\d{1,2}):(\d{2})$/);
       if(!m) return s || '--:--';
-      let hh = (+m[1] + (TIME_SHIFT_HOURS||0)) % 24;
-      if(hh < 0) hh += 24;
-      return `${pad2(hh)}:${m[2]}`;
+
+      let hh = +m[1], mm = +m[2];
+      if(isNaN(hh) || isNaN(mm)) return s || '--:--';
+
+      // 判斷是否「看起來像少8小時」：
+      // 常見班表 08~12 上班打卡；若 hh 落在 0~4 且 TIME_SHIFT_HOURS=8，視為被少8
+      const looksLikeMinus8 = (TIME_SHIFT_HOURS === 8) && (hh >= 0 && hh <= 4);
+      if(looksLikeMinus8){
+        hh = (hh + 8) % 24;
+      }
+      return `${pad2(hh)}:${pad2(mm)}`;
     }
 
     function normalizeLeaveLabel(x){
@@ -504,12 +521,10 @@
       return { cls:'warn', label:'待審' };
     }
 
-    // ✅ 後端 dailyData.tag 可能是中文或代碼：這裡統一轉中文
     function normalizeDailyTag(tag){
       const t = String(tag||'').trim();
       const low = t.toLowerCase();
 
-      // 常見代碼
       if(low==='annual') return '特休';
       if(low==='sick') return '病假';
       if(low==='personal') return '事假';
@@ -531,13 +546,11 @@
         return { cls:'warn', label:t0 };
 
       if(t0.includes('加班')) return { cls:'ok', label:t0 };
-
       if(t0.includes('遲到') || t0.includes('早退')) return { cls:'warn', label:t0 };
 
       if(t0.includes('曠職') || t0.includes('缺卡') || t0.includes('缺勤') || t0.includes('未打卡'))
         return { cls:'danger', label:t0 };
 
-      // fallback
       return { cls:'warn', label:t0 };
     }
 
@@ -583,10 +596,8 @@
         const badge = reqTypeBadge(r);
         const sc = reqStatusBadge(r.status);
 
-        // ✅ 申請單時間也做 UTC->+8 的修正（因為你 manager 截圖就是少 8 小時）
         const s = formatDT(r.start);
         const e = formatDT(r.end);
-
         const hrs = (r.hours!==undefined && r.hours!==null && String(r.hours)!=='') ? Number(r.hours||0) : 0;
         const reason = (r.reason && String(r.reason).trim()) ? String(r.reason).trim() : '—';
         const created = r.createdAt ? formatDT(r.createdAt) : '—';
@@ -622,6 +633,18 @@
       return { y, m };
     }
 
+    function buildDateKeyFromDaily(d, y, m){
+      const mm = String(m).padStart(2,'0');
+      const ds = String(d.date||'').trim();
+
+      // 若後端已回 YYYY-MM-DD
+      if(/^\d{4}-\d{2}-\d{2}$/.test(ds)) return ds;
+
+      // 否則視為 1~31
+      const dd = String(d.date).padStart(2,'0');
+      return `${y}-${mm}-${dd}`;
+    }
+
     async function reload(){
       const monthStr = document.getElementById("monthPick").value;
       let y, m;
@@ -643,36 +666,35 @@
       document.getElementById("reqCountTop").textContent = `0`;
 
       try{
-        // 1) 申請單
+        // 1) 申請單（跨月也要抓）
         const reqRes = await api("list_requests", { isManagerView:false });
         const allReq = (reqRes && reqRes.ok && Array.isArray(reqRes.list)) ? reqRes.list : [];
-        const reqFiltered = allReq.filter(r => isInMonth(r.start, y, m));
+        const reqFiltered = allReq.filter(r => overlapsMonth(r.start, r.end, y, m));
 
-        // 2) ✅ 打卡/狀態：一律使用 get_dashboard.dailyData（這裡才有 正常/缺卡/曠職）
+        // 2) 打卡狀態：使用 get_dashboard.dailyData（正常/缺卡/曠職）
         const dashRes = await api("get_dashboard", { year:y, month:m });
         const daily = (dashRes && dashRes.ok && Array.isArray(dashRes.dailyData)) ? dashRes.dailyData : [];
 
-        const mm = String(m).padStart(2,'0');
-        const attList = daily.map(d => {
-          const dd = String(d.date).padStart(2,'0');
-
-          // ⏱ in/out 如果是 "01:17" 這種，做 +8 校正
-          const inStr = d.in ? shiftHHMM(d.in) : '--:--';
-          const outStr = d.out ? shiftHHMM(d.out) : '--:--';
-
+        let attList = daily.map(d => {
+          const dateKey = buildDateKeyFromDaily(d, y, m);
+          const inStr = d.in ? shiftHHMMSmart(d.in) : '--:--';
+          const outStr = d.out ? shiftHHMMSmart(d.out) : '--:--';
           return {
-            dateKey: `${y}-${mm}-${dd}`,
+            dateKey,
             in: inStr,
             out: outStr,
             tag: normalizeDailyTag(d.tag)
           };
         });
 
+        // ✅ 強制排序：最新在上
+        attList.sort((a,b)=> b.dateKey.localeCompare(a.dateKey));
+
         renderAtt(attList);
         renderReq(reqFiltered);
 
       }catch(e){
-        toast("載入失敗（GAS）");
+        toast("載入失敗（GAS/CONFIG）");
         renderAtt([]);
         renderReq([]);
       }

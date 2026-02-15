@@ -154,6 +154,15 @@
     return s;
   }
 
+  // ✅ 送單時間：容錯抓欄位（有就顯示）
+  function getSubmitDT(r){
+    return formatDT(
+      r.submitStr || r.submittedAtStr || r.createdStr || r.createdAtStr ||
+      r.submitAt  || r.submittedAt    || r.createdAt  || r.created ||
+      r.ts || r.timestamp || r.createdTime
+    );
+  }
+
   async function loadStats() {
     const el = document.getElementById("teamStats");
     el.innerHTML = '<div style="text-align:center;color:#999;padding:20px;">更新中...</div>';
@@ -202,8 +211,12 @@
         const typeName = typeLabel_(r);
         const displayName = (r.empName || r.name || "").trim() || (r.empId || r.id || "未知員工");
 
+        // ✅ 台北時間顯示：Str > Iso > 原欄位
         const startShow = formatDT(r.startStr || r.startIso || r.start);
         const endShow   = formatDT(r.endStr   || r.endIso   || r.end);
+
+        // ✅ 送單時間（新增）
+        const submitShow = getSubmitDT(r);
 
         const cat = String(r.category || '').toUpperCase();
         const lt  = String(r.leaveType || '').toLowerCase();
@@ -211,18 +224,40 @@
         const reqId = String(r.reqId || r.id || '');
         const safeId = encodeURIComponent(reqId);
 
+        // ✅ 備註/事由欄位容錯：reason 在你目前資料看起來是「備註」
+        const note = (r.note || r.remark || r.memo || r.reason || '').toString().trim();
+
+        // ✅ 顯示組合
+        let kindLine = `類型: ${typeName}<br>`;
         let timeLine = '';
-        if (cat === 'OUTING' || cat === 'LEAVE' || lt.includes('annual') || lt.includes('comp') || lt.includes('sick') || lt.includes('personal') || lt.includes('birthday')) {
+        let hoursLine = '';
+        let extraLine = '';
+
+        if (cat === 'CORRECTION') {
+          const clockLabel = (r.clockTypeLabel || r.correctionTypeLabel || r.correctionType || r.clockType || '').toString().trim();
+          extraLine += `補卡類型: ${clockLabel || '（未填）'}<br>`;
+          timeLine = `補卡時間: ${startShow}${(endShow && endShow !== '無' && endShow !== startShow) ? ` ～ ${endShow}` : ''}<br>`;
+          hoursLine = ''; // 補卡不顯示 0 小時，避免像 bug
+        } else if (cat === 'OUTING') {
           timeLine = `時間: ${startShow} ～ ${endShow}<br>`;
+          hoursLine = (Number(r.hours||0) > 0) ? `時數: ${Number(r.hours||0)} 小時<br>` : '';
+        } else if (cat === 'OT') {
+          timeLine = `時間: ${startShow} ～ ${endShow}<br>`;
+          hoursLine = (Number(r.hours||0) > 0) ? `時數: ${Number(r.hours||0)} 小時<br>` : '';
+        } else if (
+          cat === 'LEAVE'
+          || lt.includes('annual') || lt.includes('comp') || lt.includes('sick')
+          || lt.includes('personal') || lt.includes('birthday')
+        ) {
+          timeLine = `時間: ${startShow} ～ ${endShow}<br>`;
+          hoursLine = (Number(r.hours||0) > 0) ? `時數: ${Number(r.hours||0)} 小時<br>` : `時數: ${Number(r.hours||0)} 小時<br>`;
         } else {
           timeLine = `日期: ${startShow}<br>`;
+          hoursLine = (Number(r.hours||0) > 0) ? `時數: ${Number(r.hours||0)} 小時<br>` : '';
         }
 
-        let extraLine = '';
-        if (cat === 'CORRECTION') {
-          const label = r.clockTypeLabel || r.correctionType || '';
-          extraLine = label ? `補卡類型: ${label}<br>` : '';
-        }
+        const noteLine = `備註: ${note || '無'}<br>`;
+        const submitLine = (submitShow && submitShow !== '無') ? `送單: ${submitShow}<br>` : '';
 
         h += `
           <div class="req-item" id="card-${safeId}">
@@ -231,10 +266,12 @@
               <div class="req-type">${typeName}</div>
             </div>
             <div class="req-info">
+              ${kindLine}
               ${timeLine}
+              ${hoursLine}
               ${extraLine}
-              時數: ${Number(r.hours||0)} 小時<br>
-              事由: ${r.reason || '無'}
+              ${noteLine}
+              ${submitLine}
             </div>
             <div class="req-actions">
               <button class="btn btn-approve" onclick="decide('${safeId}', '${reqId}', 'APPROVED')">核准</button>
@@ -314,3 +351,4 @@
 </script>
 </body>
 </html>
+

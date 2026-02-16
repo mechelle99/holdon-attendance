@@ -288,7 +288,6 @@
 
   <div class="filters">
     <input type="month" id="monthPick"/>
-    <!-- ✅ 新增：申請單狀態篩選 -->
     <select id="reqStatusFilter" title="申請單狀態">
       <option value="ALL">全部狀態</option>
       <option value="PENDING">待審</option>
@@ -459,13 +458,17 @@
       if(low==='outing') return '外出';
       if(low==='ot') return '加班';
       if(low==='correction') return '補卡';
+      // 👇 讓後端回 IN/OUT 也不會亂顯示
+      if(low==='in') return '上班中';
+      if(low==='out') return '已下班';
       return t || '—';
     }
 
     function attStatusBadge(tag){
       const t0 = normalizeDailyTag(tag);
       if(!t0 || t0==='—') return { cls:'warn', label:'—' };
-      if(t0.includes('正常')) return { cls:'ok', label:t0 };
+      if(t0.includes('上班中')) return { cls:'ok', label:t0 };
+      if(t0.includes('正常') || t0.includes('已下班')) return { cls:'ok', label:t0 };
       if(t0.includes('休假') || t0.includes('特休') || t0.includes('病假') || t0.includes('事假') || t0.includes('生日假') || t0.includes('補休') || t0.includes('外出'))
         return { cls:'warn', label:t0 };
       if(t0.includes('加班')) return { cls:'ok', label:t0 };
@@ -473,6 +476,23 @@
       if(t0.includes('曠職') || t0.includes('缺卡') || t0.includes('缺勤') || t0.includes('未打卡'))
         return { cls:'danger', label:t0 };
       return { cls:'warn', label:t0 };
+    }
+
+    // ✅ 前端最終裁決：避免「只有 IN 沒 OUT」被顯示成加班
+    function deriveAttTag(row){
+      const inStr = String(row.in||'').trim();
+      const outStr = String(row.out||'').trim();
+      const hasIn = !!inStr && inStr !== '--:--';
+      const hasOut = !!outStr && outStr !== '--:--';
+
+      // 1) 有上班、沒下班 → 一律上班中
+      if(hasIn && !hasOut) return '上班中';
+
+      // 2) 沒上班、有下班 → 缺卡（缺上班）
+      if(!hasIn && hasOut) return '缺卡（缺上班）';
+
+      // 3) 其它照後端 tag（但仍 normalize）
+      return normalizeDailyTag(row.tag);
     }
 
     function reqTypeBadge(row){
@@ -491,7 +511,6 @@
       return { cls:'warn', label:'待審' };
     }
 
-    // ✅ 狀態正規化：後端不管給 approved/APPROVED/核准 都能對上
     function normalizeReqStatus(status){
       const raw = String(status||'').trim();
       const s = raw.toUpperCase();
@@ -499,7 +518,6 @@
       if(s === "APPROVED" || raw.includes("核准")) return "APPROVED";
       if(s === "REJECTED" || raw.includes("駁回")) return "REJECTED";
       if(s === "PENDING" || raw.includes("待審") || raw.includes("審核中")) return "PENDING";
-      // 其它未知狀態，當待審處理比較符合操作直覺
       return "PENDING";
     }
 
@@ -514,9 +532,9 @@
       }
 
       el.innerHTML = list.map(r=>{
-        const b = attStatusBadge(r.tag);
+        const finalTag = deriveAttTag(r);          // ✅ 這裡改成前端裁決
+        const b = attStatusBadge(finalTag);
         const title = `${r.dateKey} ${r.in || '--:--'} / ${r.out || '--:--'}`;
-        const note = `狀態：${normalizeDailyTag(r.tag)}`;
         return `
           <div class="item ${b.cls}">
             <div class="top">
@@ -599,17 +617,14 @@
       return `${y}-${mm}-${dd}`;
     }
 
-    // ====== 快取：避免你只是切狀態就狂打後端 ======
     let __cacheReqAll = null;
     let __cacheReqYM = { y:null, m:null };
 
     function applyReqFilters(allReq, y, m){
-      // 1) 月份篩選（先照日期）
       const monthReq = allReq.filter(r =>
         overlapsMonth(r.start || r.start_full || r.startAt, r.end || r.end_full || r.endAt, y, m)
       );
 
-      // 2) 狀態篩選（再照狀態）
       const f = document.getElementById("reqStatusFilter").value;
       if(f === "ALL") return monthReq;
 
@@ -647,19 +662,21 @@
       document.getElementById("attList").innerHTML = `<div class="empty">載入中…</div>`;
 
       try{
-        // 出勤（每次按更新都抓最新）
         const dashRes = await api("get_dashboard", { year:y, month:m });
         const daily = (dashRes && dashRes.ok && Array.isArray(dashRes.dailyData)) ? dashRes.dailyData : [];
+
         let attList = daily.map(d => {
           const dateKey = buildDateKeyFromDaily(d, y, m);
           const inStr = d.in ? String(d.in) : '--:--';
           const outStr = d.out ? String(d.out) : '--:--';
-          return { dateKey, in: inStr, out: outStr, tag: normalizeDailyTag(d.tag) };
+          // ✅ 保留原始 tag，不要先 normalize（前端要做裁決）
+          const rawTag = (d.tag !== undefined && d.tag !== null) ? String(d.tag) : '';
+          return { dateKey, in: inStr, out: outStr, tag: rawTag };
         });
+
         attList.sort((a,b)=> b.dateKey.localeCompare(a.dateKey));
         renderAtt(attList);
 
-        // 申請單：如果只是切狀態，不用重抓
         const needFetch = forceFetch || !__cacheReqAll || __cacheReqYM.y !== y || __cacheReqYM.m !== m;
         if(needFetch){
           const reqRes = await api("list_requests", { isManagerView:false });
@@ -677,11 +694,8 @@
       }
     }
 
-    // ====== 綁事件：切狀態立即套用（不重打後端）=====
     document.getElementById("reqStatusFilter").addEventListener("change", ()=>{
-      // 只重新套 filter，不強迫抓後端
       reload(false);
-      // 使用者在切狀態時通常想看申請單
       showPanel('req');
     });
 

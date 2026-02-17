@@ -130,7 +130,10 @@
       background:#F9FAFB;
     }
 
-    .dayHead{ line-height:1.15; font-weight: 900; }
+    .dayHead{
+      line-height:1.15;
+      font-weight: 900;
+    }
     .dayHead small{
       display:block;
       margin-top: 4px;
@@ -303,7 +306,12 @@
     /* ==============================
      * 0) 身份 & 小工具
      * ============================== */
+
+    // ✅ 你 Employees 表用的是 LineUserId，所以 uid 必須優先吃 lineUserId
     const uid =
+      localStorage.getItem("lineUserId") ||
+      localStorage.getItem("LineUserId") ||
+      localStorage.getItem("userId") ||
       localStorage.getItem("empId") ||
       localStorage.getItem("employeeId") ||
       "";
@@ -317,10 +325,7 @@
       clearTimeout(window.__toastTimer);
       window.__toastTimer = setTimeout(()=> el.style.display="none", 2400);
     }
-
     function pad2(n){ return String(n).padStart(2,'0'); }
-
-    function safeStr(v){ return String(v==null ? "" : v).trim(); }
 
     /* ==============================
      * 1) JSONP API（統一 action + payload）
@@ -334,12 +339,9 @@
         const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random()*1e6);
         const s = document.createElement("script");
 
-        // ★ 後端常見吃法：userId / empId 都一起送，避免你被版本差異搞死
-        const payloadObj = Object.assign({}, data, {
-          userId: uid,
-          empId: uid
-        });
+        const payloadObj = Object.assign({}, data, { userId: uid });
 
+        // 若你後端有啟用 webhookKey 驗證，這裡會自動補上
         if(window.CONFIG.WEBHOOK_KEY && payloadObj.webhookKey == null){
           payloadObj.webhookKey = window.CONFIG.WEBHOOK_KEY;
         }
@@ -383,37 +385,25 @@
     /* ==============================
      * 3) Shift/Leave 呈現統一
      * ============================== */
-    function normalizeShiftValue(v){
-      const raw = safeStr(v);
-      const low = raw.toLowerCase();
-
-      // 常見縮寫/英文/單字
-      if(raw === "早") return "早班";
-      if(raw === "午") return "午班";
-      if(raw === "休") return "休假";
-      if(low === "early") return "早班";
-      if(low === "late")  return "午班";
-      if(low === "off")   return "休假";
-
-      return raw; // 其他保留
-    }
-
     function classifyShift(v){
-      const raw0 = safeStr(v);
-      const raw = normalizeShiftValue(raw0);
+      const raw = String(v||'').trim();
       const low = raw.toLowerCase();
+
+      // ✅ 封死打卡字樣，不讓 IN/OUT 汙染排班
+      if(low === 'in' || low === 'out') return { label:'-', cls:'badge-off', value:'' };
 
       if(!raw || raw==='-') return { label:'-', cls:'badge-off', value:'' };
 
-      if(raw==='早班' || low==='early') return { label:'早', cls:'badge-early', value:'早班' };
-      if(raw==='午班' || low==='late')  return { label:'午', cls:'badge-late',  value:'午班' };
-      if(raw==='休假' || low==='off')   return { label:'休', cls:'badge-off',   value:'休假' };
+      if(raw==='早班' || low==='early' || raw==='早') return { label:'早', cls:'badge-early', value:'早班' };
+      if(raw==='午班' || low==='late'  || raw==='午') return { label:'午', cls:'badge-late',  value:'午班' };
+      if(raw==='休假' || low==='off'   || raw==='休') return { label:'休', cls:'badge-off',   value:'休假' };
 
+      // 未知：保留顯示但當 off 色
       return { label: raw, cls:'badge-off', value: raw };
     }
 
     /* ==============================
-     * 4) 鎖定邏輯（沿用你原本的規則）
+     * 4) 鎖定邏輯（後端 isManager 為準）
      * ============================== */
     function computeLock(res, targetY, targetM){
       const today = new Date();
@@ -421,52 +411,15 @@
 
       const currentVal = today.getFullYear()*12 + (today.getMonth()+1);
       const targetVal  = targetY*12 + targetM;
-
       const isNextMonth = (targetVal === currentVal + 1);
 
-      // 後端回 res.isManager 才是真正權限
+      // ✅ 後端回 res.isManager 才可信（不要只信 localStorage）
       const isManager = !!res.isManager;
 
       // 非主管：只能排「下個月」且在 lockDay 之前
       const isLocked = (!isManager) && (!isNextMonth || (isNextMonth && today.getDate() > lockDay));
 
       return { isManager, isLocked, lockDay, isNextMonth };
-    }
-
-    /* ==============================
-     * 4.5) 讀 cell：吃三種 roster key
-     * ============================== */
-    function getCell_(roster, empId, dayNum, dateStr){
-      const r = roster && roster[empId] ? roster[empId] : null;
-      if(!r) return null;
-
-      // 1) number day
-      if(r[dayNum] != null) return r[dayNum];
-
-      // 2) "01".."31"
-      const d2 = pad2(dayNum);
-      if(r[d2] != null) return r[d2];
-
-      // 3) "YYYY-MM-DD"
-      if(r[dateStr] != null) return r[dateStr];
-
-      return null;
-    }
-
-    function isLeaveCell_(cell){
-      if(!cell) return false;
-      const t = safeStr(cell.type).toUpperCase();
-      const k = safeStr(cell.kind).toUpperCase();
-      if(t === "LEAVE" || k === "LEAVE") return true;
-      if(cell.isLeave === true) return true;
-      // 有些後端會直接 value 帶 "特休" "事假" 但不標 type
-      // 這種我不強猜，避免誤判（你要我也可以加規則）
-      return false;
-    }
-
-    function leaveText_(cell){
-      const v = safeStr(cell.value || cell.leaveType || cell.name || "leave");
-      return v || "leave";
     }
 
     /* ==============================
@@ -507,6 +460,7 @@
           lockTag.textContent = isLocked ? `🔒 已鎖定（每月${lockDay}號截止）` : `🟢 開放排班中（每月${lockDay}號截止）`;
         }
 
+        // ✅ 主管按鈕顯示以後端判定為準
         document.getElementById("mgrBtn").style.display = isManager ? "flex" : "none";
 
         const days = new Date(y, m, 0).getDate();
@@ -531,32 +485,29 @@
 
         let rows = "";
         employees.forEach(e=>{
-          const empId = safeStr(e.empId || e.id || "");
-          const empName = safeStr(e.empName || e.name || empId || "—");
-
+          const empId = e.empId || e.id || "";
+          const empName = e.empName || e.name || empId || "—";
           let tds = `<td>${empName}</td>`;
 
           for(let d=1; d<=days; d++){
             const dateStr = `${y}-${pad2(m)}-${pad2(d)}`;
-            const cell = getCell_(roster, empId, d, dateStr) || {};
+            const cell = (roster[empId] && roster[empId][d]) ? roster[empId][d] : {};
 
-            // 1) Leave 顯示（永遠 badge）
-            if(isLeaveCell_(cell)){
-              const leaveText = leaveText_(cell);
+            // Leave 永遠 badge
+            if(cell && cell.type === 'LEAVE'){
+              const leaveText = String(cell.value || '').trim() || 'leave';
               tds += `<td><span class="badge badge-leave">${leaveText}</span></td>`;
               continue;
             }
 
-            // 2) Shift 顯示
-            const shiftInfo = classifyShift(cell.value);
+            const shiftInfo = classifyShift(cell && cell.value);
 
-            if(isManager && !isLocked){
-              const originalVal = shiftInfo.value; // 用於失敗回復
+            // ✅ 主管可編輯：只要 isManager=true 就可改（不受 isLocked 限制）
+            if(isManager){
               tds += `
                 <td>
                   <select class="shift-sel ${shiftInfo.cls}"
-                          data-orig="${originalVal}"
-                          onchange="upd('${empId}','${dateStr}',${y},${m},${d},this)">
+                          onchange="upd('${empId}','${dateStr}',this)">
                     <option value="">-</option>
                     <option value="早班" ${shiftInfo.value==='早班'?'selected':''}>早</option>
                     <option value="午班" ${shiftInfo.value==='午班'?'selected':''}>午</option>
@@ -584,57 +535,30 @@
     /* ==============================
      * 6) 更新排班（主管編輯）
      * ============================== */
-    function repaintSelect_(el, val){
+    function upd(targetEmpId, dateStr, el){
       el.classList.remove('badge-early','badge-late','badge-off');
+
+      const val = String(el.value||'').trim();
       const info = classifyShift(val);
+
       el.classList.add(info.cls);
-      return info;
+
+      api("update_schedule", { targetEmpId, date: dateStr, shift: val })
+        .then(res=>{
+          if(!res || !res.ok){
+            toast(res && res.message ? res.message : "更新失敗");
+            el.value = "";
+            el.classList.remove('badge-early','badge-late','badge-off');
+            el.classList.add('badge-off');
+          }else{
+            toast("✅ 已更新");
+          }
+        })
+        .catch(()=>{
+          toast("更新失敗：網路或伺服器逾時");
+        });
     }
 
-    function upd(targetEmpId, dateStr, y, m, d, el){
-      const newValRaw = safeStr(el.value);
-      const newVal = normalizeShiftValue(newValRaw);
-
-      // 記住原值（給失敗回復用）
-      const orig = safeStr(el.getAttribute("data-orig"));
-
-      // 先上色（樂觀更新）
-      repaintSelect_(el, newVal);
-
-      // 同時送 dateStr + y/m/d，後端吃哪種都行
-      api("update_schedule", {
-        targetEmpId,
-        date: dateStr,
-        year: y,
-        month: m,
-        day: d,
-        shift: newVal
-      })
-      .then(res=>{
-        if(!res || !res.ok){
-          toast(res && res.message ? res.message : "更新失敗");
-
-          // 回復原狀
-          el.value = orig || "";
-          repaintSelect_(el, orig || "");
-        }else{
-          // 成功後把 data-orig 更新，避免下一次失敗回錯
-          el.setAttribute("data-orig", newVal);
-          toast("✅ 已更新");
-        }
-      })
-      .catch(()=>{
-        toast("更新失敗：網路或伺服器逾時");
-
-        // 回復原狀
-        el.value = orig || "";
-        repaintSelect_(el, orig || "");
-      });
-    }
-
-    /* ==============================
-     * 7) 綁事件 & 初始化
-     * ============================== */
     document.getElementById("btnLoad").addEventListener("click", load);
     load();
   </script>

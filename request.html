@@ -137,8 +137,6 @@
 
   <script src="config.js"></script>
   <script>
-    'use strict';
-
     /* ==============================
      * 0) 身份
      * ============================== */
@@ -155,7 +153,6 @@
 
     const uid = empId || userId || "";
 
-    // 主管按鈕：先用 localStorage（後端你也會回 isManager，但這頁不強依賴）
     const isMgr = (localStorage.getItem("isManager") === "true") || !!localStorage.getItem("managerId");
     if (isMgr) document.getElementById("mgrBtn").style.display = "flex";
     if (!uid) location.href = "index.html";
@@ -205,8 +202,7 @@
     }
 
     /* ==============================
-     * 2) 時間工具（✅修正：不再用 new Date("YYYY-MM-DDTHH:mm")）
-     *    這是造成「上午變下午/時間漂移」的元兇（Safari/某些環境會當 UTC）
+     * 2) 時間工具（✅ 修正：datetime-local 一律手動解析，避免 UTC/時區炸裂）
      * ============================== */
     function pad2(n) { return String(n).padStart(2, '0'); }
 
@@ -214,9 +210,10 @@
       return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
     }
 
+    // ✅ 핵심修正：不要 new Date('YYYY-MM-DDTHH:mm')
     function parseLocalInput(v){
-      // v: "YYYY-MM-DDTHH:mm" -> 以「本地時間」手動解析
       if(!v) return null;
+      // v: "2026-02-19T10:00"
       const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
       if(!m) return null;
       const y = Number(m[1]), mo = Number(m[2]), d = Number(m[3]), hh = Number(m[4]), mm = Number(m[5]);
@@ -230,13 +227,13 @@
           && a.getDate() === b.getDate();
     }
 
-    // ✅ 送後端一律用這個格式，避免後端被 datetime-local 字串搞亂
+    // Date -> "yyyy/MM/dd HH:mm" 給後端（不含時區，後端照制度算）
     function toServerDateTimeStr_(d){
       return `${d.getFullYear()}/${pad2(d.getMonth()+1)}/${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
     }
 
     /* ==============================
-     * 3) 前台提示（簡短人話）
+     * 3) 前台提示
      * ============================== */
     const noteBox = document.getElementById("noteBox");
     function setNote(extraText){
@@ -326,17 +323,7 @@
       return 'EARLY';
     }
 
-    function pickShiftValue(cell){
-      if(cell == null) return "";
-      if(typeof cell === "string") return cell;
-      if(typeof cell.value === "string") return cell.value;
-      if(typeof cell.shift === "string") return cell.shift;
-      if(typeof cell.v === "string") return cell.v;
-      return "";
-    }
-
     function setTimeByShiftForDate(dateObj, shiftKey){
-      // 固定制度：早班 10-18 / 午班 12-21（午班才有午休，時數由後端算）
       const def = (shiftKey === 'LATE')
         ? { start:'12:00', end:'21:00' }
         : { start:'10:00', end:'18:00' };
@@ -370,9 +357,9 @@
         if(res && res.ok){
           const roster = res.roster || {};
           const myId = empId || "";
-          const cell = (myId && roster[myId]) ? (roster[myId][d] ?? roster[myId][`${y}-${pad2(m)}-${pad2(d)}`]) : null;
-          const shiftVal = pickShiftValue(cell);
-          if(shiftVal) shiftKey = normalizeShiftValue(shiftVal);
+          const cell = myId && roster[myId] ? roster[myId][d] : null;
+          const val = (cell && typeof cell === 'object') ? (cell.value || cell.shift || cell.v) : cell;
+          if(val) shiftKey = normalizeShiftValue(val);
         }
       }catch(e){
         shiftKey = 'EARLY';
@@ -383,7 +370,7 @@
     }
 
     /* ==============================
-     * 6) 時數計算：後端 calc_hours（權威來源）
+     * 6) 時數計算：後端 calc_hours（權威）
      * ============================== */
     let __calcTimer = null;
 
@@ -406,7 +393,6 @@
         return;
       }
 
-      // 生日假不可跨日
       const leaveType = document.getElementById("type")?.value || "";
       if(cat === "LEAVE" && leaveType === "birthday" && !sameDay_(s, e)) {
         document.getElementById("end").value = sVal;
@@ -423,7 +409,6 @@
         if(res && res.ok){
           let h = Number(res.hours || 0);
 
-          // 外出：非出差最多 8 小時
           if(cat === "OUTING"){
             const isTrip = !!document.getElementById("isTrip").checked;
             if(!isTrip) h = Math.min(8, h);
@@ -440,7 +425,7 @@
           }
         }else{
           document.getElementById("hours").value = "0.0";
-          setNote("時數計算失敗：請確認開始/結束時間是否同一天，或稍後重試。");
+          setNote("時數計算失敗：請確認開始/結束時間，或稍後重試。");
         }
       }catch(e){
         document.getElementById("hours").value = "0.0";
@@ -454,7 +439,7 @@
     }
 
     /* ==============================
-     * 7) 送出申請（✅修正：送後端用伺服器格式，不送 datetime-local 原字串）
+     * 7) 送出申請（✅ 一併帶 startServer/endServer，避免後端時區誤差）
      * ============================== */
     async function submitReq() {
       const btn = document.getElementById("submitBtn");
@@ -463,10 +448,10 @@
       btn.disabled = true;
       btn.innerText = "送出中...";
 
-      const startLocal = document.getElementById("start").value;
-      let endLocal = document.getElementById("end").value;
+      const start = document.getElementById("start").value;
+      let end = document.getElementById("end").value;
 
-      if (!startLocal) {
+      if (!start) {
         alert("請先選擇開始時間");
         btn.disabled = false;
         btn.innerText = "送出申請";
@@ -474,9 +459,9 @@
       }
 
       if (cat === "CORRECTION") {
-        endLocal = startLocal;
+        end = start;
       } else {
-        if (!endLocal) {
+        if (!end) {
           alert("請先選擇結束時間");
           btn.disabled = false;
           btn.innerText = "送出申請";
@@ -484,9 +469,9 @@
         }
       }
 
-      const s = parseLocalInput(startLocal);
-      const e = parseLocalInput(endLocal);
-      if(!s || !e){
+      const sObj = parseLocalInput(start);
+      const eObj = parseLocalInput(end);
+      if(!sObj || !eObj){
         alert("時間格式不正確，請重新選擇");
         btn.disabled = false;
         btn.innerText = "送出申請";
@@ -511,13 +496,13 @@
         category: cat,
         leaveType,
 
-        // ✅ 後端吃這個：不會再上午下午亂跳
-        start: toServerDateTimeStr_(s),
-        end: toServerDateTimeStr_(e),
+        // 原本欄位（兼容後端既有）
+        start: start,
+        end: end,
 
-        // （可選）保留原本 input 值給你除錯用，不影響後端計算
-        startLocal,
-        endLocal,
+        // ✅ 新增：後端建議直接用這兩個算，完全避開時區問題
+        startServer: toServerDateTimeStr_(sObj),
+        endServer: toServerDateTimeStr_(eObj),
 
         hours,
         reason: document.getElementById("reason").value || "",
@@ -526,7 +511,7 @@
       };
 
       if (cat === "CORRECTION") {
-        data.correctionType = document.getElementById("correctionType").value; // IN / OUT
+        data.correctionType = document.getElementById("correctionType").value;
       }
 
       try {

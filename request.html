@@ -137,6 +137,8 @@
 
   <script src="config.js"></script>
   <script>
+    'use strict';
+
     /* ==============================
      * 0) 身份
      * ============================== */
@@ -203,21 +205,34 @@
     }
 
     /* ==============================
-     * 2) 時間工具
+     * 2) 時間工具（✅修正：不再用 new Date("YYYY-MM-DDTHH:mm")）
+     *    這是造成「上午變下午/時間漂移」的元兇（Safari/某些環境會當 UTC）
      * ============================== */
     function pad2(n) { return String(n).padStart(2, '0'); }
+
     function toLocalInputValue(d) {
       return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
     }
+
     function parseLocalInput(v){
+      // v: "YYYY-MM-DDTHH:mm" -> 以「本地時間」手動解析
       if(!v) return null;
-      const d = new Date(v);
-      return isNaN(d.getTime()) ? null : d;
+      const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+      if(!m) return null;
+      const y = Number(m[1]), mo = Number(m[2]), d = Number(m[3]), hh = Number(m[4]), mm = Number(m[5]);
+      const dt = new Date(y, mo-1, d, hh, mm, 0, 0);
+      return isNaN(dt.getTime()) ? null : dt;
     }
+
     function sameDay_(a, b) {
       return a.getFullYear() === b.getFullYear()
           && a.getMonth() === b.getMonth()
           && a.getDate() === b.getDate();
+    }
+
+    // ✅ 送後端一律用這個格式，避免後端被 datetime-local 字串搞亂
+    function toServerDateTimeStr_(d){
+      return `${d.getFullYear()}/${pad2(d.getMonth()+1)}/${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
     }
 
     /* ==============================
@@ -303,14 +318,21 @@
 
     /* ==============================
      * 5) 請假：依排班自動帶入班表時間
-     *    - 找得到排班：依 shift 帶入（早班/午班）
-     *    - 找不到：預設 10:00-18:00
      * ============================== */
     function normalizeShiftValue(v){
       const s = String(v||'').trim().toLowerCase();
       if(s.includes('午') || s.includes('late')) return 'LATE';
       if(s.includes('早') || s.includes('early')) return 'EARLY';
       return 'EARLY';
+    }
+
+    function pickShiftValue(cell){
+      if(cell == null) return "";
+      if(typeof cell === "string") return cell;
+      if(typeof cell.value === "string") return cell.value;
+      if(typeof cell.shift === "string") return cell.shift;
+      if(typeof cell.v === "string") return cell.v;
+      return "";
     }
 
     function setTimeByShiftForDate(dateObj, shiftKey){
@@ -348,11 +370,9 @@
         if(res && res.ok){
           const roster = res.roster || {};
           const myId = empId || "";
-          if(myId && roster[myId] && roster[myId][d] && roster[myId][d].value){
-            shiftKey = normalizeShiftValue(roster[myId][d].value);
-          }else{
-            shiftKey = 'EARLY';
-          }
+          const cell = (myId && roster[myId]) ? (roster[myId][d] ?? roster[myId][`${y}-${pad2(m)}-${pad2(d)}`]) : null;
+          const shiftVal = pickShiftValue(cell);
+          if(shiftVal) shiftKey = normalizeShiftValue(shiftVal);
         }
       }catch(e){
         shiftKey = 'EARLY';
@@ -363,7 +383,7 @@
     }
 
     /* ==============================
-     * 6) 時數計算：改成後端 calc_hours（權威來源）
+     * 6) 時數計算：後端 calc_hours（權威來源）
      * ============================== */
     let __calcTimer = null;
 
@@ -380,12 +400,13 @@
 
       const s = parseLocalInput(sVal);
       const e = parseLocalInput(eVal);
+
       if(!s || !e || e <= s){
         document.getElementById("hours").value = "0.0";
         return;
       }
 
-      // 生日假不可跨日（你原本規則保留）
+      // 生日假不可跨日
       const leaveType = document.getElementById("type")?.value || "";
       if(cat === "LEAVE" && leaveType === "birthday" && !sameDay_(s, e)) {
         document.getElementById("end").value = sVal;
@@ -393,7 +414,6 @@
         return;
       }
 
-      // 用後端算（早班不扣午休 / 午班扣午休）
       try{
         const res = await api("calc_hours", {
           start: toServerDateTimeStr_(s),
@@ -403,7 +423,7 @@
         if(res && res.ok){
           let h = Number(res.hours || 0);
 
-          // 外出：非出差最多 8 小時（這是你 UI 規則，不是制度工時）
+          // 外出：非出差最多 8 小時
           if(cat === "OUTING"){
             const isTrip = !!document.getElementById("isTrip").checked;
             if(!isTrip) h = Math.min(8, h);
@@ -411,7 +431,6 @@
 
           document.getElementById("hours").value = Number(h).toFixed(1);
 
-          // 顯示提示（可選）
           if(cat === "LEAVE"){
             const shiftText = res.inferredShift ? `系統判定：${res.inferredShift}` : "";
             const lunchText = (res.lunchApplied === true) ? "（午班已扣午休）" : "（早班不扣午休）";
@@ -420,7 +439,6 @@
             setNote();
           }
         }else{
-          // 失敗就不要亂算，避免你又被 7.0 搞到爆炸
           document.getElementById("hours").value = "0.0";
           setNote("時數計算失敗：請確認開始/結束時間是否同一天，或稍後重試。");
         }
@@ -435,13 +453,8 @@
       __calcTimer = setTimeout(()=>{ calcHoursByServer(); }, 220);
     }
 
-    // 把 Date 轉成後端吃得懂的 "yyyy/MM/dd HH:mm"
-    function toServerDateTimeStr_(d){
-      return `${d.getFullYear()}/${pad2(d.getMonth()+1)}/${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-    }
-
     /* ==============================
-     * 7) 送出申請（後端會再次用 start/end 自算 hours）
+     * 7) 送出申請（✅修正：送後端用伺服器格式，不送 datetime-local 原字串）
      * ============================== */
     async function submitReq() {
       const btn = document.getElementById("submitBtn");
@@ -450,10 +463,10 @@
       btn.disabled = true;
       btn.innerText = "送出中...";
 
-      const start = document.getElementById("start").value;
-      let end = document.getElementById("end").value;
+      const startLocal = document.getElementById("start").value;
+      let endLocal = document.getElementById("end").value;
 
-      if (!start) {
+      if (!startLocal) {
         alert("請先選擇開始時間");
         btn.disabled = false;
         btn.innerText = "送出申請";
@@ -461,14 +474,23 @@
       }
 
       if (cat === "CORRECTION") {
-        end = start;
+        endLocal = startLocal;
       } else {
-        if (!end) {
+        if (!endLocal) {
           alert("請先選擇結束時間");
           btn.disabled = false;
           btn.innerText = "送出申請";
           return;
         }
+      }
+
+      const s = parseLocalInput(startLocal);
+      const e = parseLocalInput(endLocal);
+      if(!s || !e){
+        alert("時間格式不正確，請重新選擇");
+        btn.disabled = false;
+        btn.innerText = "送出申請";
+        return;
       }
 
       const hours = (cat === "CORRECTION") ? 0 : Number(document.getElementById("hours").value || 0);
@@ -488,9 +510,16 @@
       const data = {
         category: cat,
         leaveType,
-        start: start, // datetime-local
-        end: end,     // datetime-local
-        hours,        // display value (server will recompute anyway)
+
+        // ✅ 後端吃這個：不會再上午下午亂跳
+        start: toServerDateTimeStr_(s),
+        end: toServerDateTimeStr_(e),
+
+        // （可選）保留原本 input 值給你除錯用，不影響後端計算
+        startLocal,
+        endLocal,
+
+        hours,
         reason: document.getElementById("reason").value || "",
         autoClock: (cat === "OUTING") ? !!document.getElementById("autoClock").checked : false,
         isTrip: (cat === "OUTING") ? !!document.getElementById("isTrip").checked : false

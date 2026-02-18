@@ -236,6 +236,7 @@
       color: var(--muted);
       line-height: 1.6;
       font-weight: 800;
+      word-break: break-word;
     }
 
     .empty{
@@ -334,6 +335,7 @@
 
   <script src="config.js"></script>
   <script>
+    // ====== 基本身分 ======
     const empId = localStorage.getItem("empId") || localStorage.getItem("employeeId") || "";
     const empName = (localStorage.getItem("empName") || "").trim();
 
@@ -341,6 +343,9 @@
       location.href="index.html";
     }
     document.getElementById("who").textContent = empName ? `${empName}（${empId}）` : `員工：${empId}`;
+
+    // ====== 時區固定（避免飄時） ======
+    const TZ = "Asia/Taipei";
 
     function toast(msg){
       const el = document.getElementById("toast");
@@ -370,9 +375,10 @@
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
+    // ====== JSONP API（你原本那套，補更完整 cleanup） ======
     function api(action, data={}){
       return new Promise((resolve, reject)=>{
-        const ENDPOINT = window.CONFIG && window.CONFIG.GAS_ENDPOINT;
+        const ENDPOINT = window.CONFIG && (window.CONFIG.GAS_ENDPOINT || window.CONFIG.API_BASE || window.CONFIG.API_URL);
         if(!ENDPOINT) return reject(new Error("缺少 CONFIG.GAS_ENDPOINT"));
 
         const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random()*1e6);
@@ -380,7 +386,7 @@
 
         const payloadObj = Object.assign({}, data, {
           empId,
-          webhookKey: window.CONFIG.WEBHOOK_KEY || ""
+          webhookKey: (window.CONFIG && window.CONFIG.WEBHOOK_KEY) ? window.CONFIG.WEBHOOK_KEY : ""
         });
 
         const payload = encodeURIComponent(JSON.stringify(payloadObj));
@@ -400,42 +406,67 @@
         window[cbName] = (res)=>{ cleanup(); resolve(res); };
         s.onerror = ()=>{ cleanup(); reject(new Error("網路連線失敗")); };
 
-        s.src = `${ENDPOINT}?action=${encodeURIComponent(action)}&payload=${payload}&callback=${cbName}&_=${bust}`;
+        const sep = ENDPOINT.includes("?") ? "&" : "?";
+        s.src = `${ENDPOINT}${sep}action=${encodeURIComponent(action)}&payload=${payload}&callback=${cbName}&_=${bust}`;
         document.body.appendChild(s);
       });
     }
 
     function pad2(n){ return String(n).padStart(2,'0'); }
 
+    // ✅ parse：若 ISO 沒時區，補 +08:00，避免被當 UTC
     function parseToDate(v){
       if(!v) return null;
       if(Object.prototype.toString.call(v) === '[object Date]' && !isNaN(v.getTime())) return v;
-      const s = String(v).trim();
-      if(!s) return null;
+      const s0 = String(v).trim();
+      if(!s0) return null;
 
-      if(/[zZ]$/.test(s) || /[+\-]\d{2}:\d{2}$/.test(s)){
-        const d = new Date(s);
+      // epoch 秒/毫秒
+      if(/^\d{10,13}$/.test(s0)){
+        const n = Number(s0);
+        const d = new Date(s0.length===10 ? n*1000 : n);
         return isNaN(d.getTime()) ? null : d;
       }
 
-      let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+      // ISO 有 Z 或 +xx:xx
+      if(/[zZ]$/.test(s0) || /[+\-]\d{2}:\d{2}$/.test(s0)){
+        const d = new Date(s0);
+        return isNaN(d.getTime()) ? null : d;
+      }
+
+      // ISO 沒時區
+      if(/^\d{4}-\d{2}-\d{2}T/.test(s0)){
+        const d = new Date(s0 + "+08:00");
+        return isNaN(d.getTime()) ? null : d;
+      }
+
+      // 2026-02-18 10:20(:30)
+      let m = s0.match(/^(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
       if(m){
         return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0), 0);
       }
 
-      m = s.match(/^(\d{4})[\/](\d{1,2})[\/](\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+      // 2026/02/18 10:20(:30)
+      m = s0.match(/^(\d{4})[\/](\d{1,2})[\/](\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
       if(m){
         return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0), 0);
       }
 
-      const d = new Date(s);
+      const d = new Date(s0);
       return isNaN(d.getTime()) ? null : d;
     }
 
+    // ✅ format：固定 Asia/Taipei（你之前飄到下午，通常就是 UTC 解析 + 本地顯示混亂）
     function formatDT(v){
       const d = parseToDate(v);
       if(!d) return String(v||'—');
-      return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+      const fmt = new Intl.DateTimeFormat('zh-TW', {
+        timeZone: TZ,
+        year:'numeric', month:'2-digit', day:'2-digit',
+        hour:'2-digit', minute:'2-digit',
+        hour12:false
+      });
+      return fmt.format(d).replace(/\//g,'-');
     }
 
     function overlapsMonth(start, end, y, m){
@@ -458,9 +489,11 @@
       if(low==='outing') return '外出';
       if(low==='ot') return '加班';
       if(low==='correction') return '補卡';
-      // 👇 讓後端回 IN/OUT 也不會亂顯示
+
+      // ✅ 讓後端回 IN/OUT 也不亂顯示：一律當作狀態文字，不當作類別
       if(low==='in') return '上班中';
       if(low==='out') return '已下班';
+
       return t || '—';
     }
 
@@ -478,7 +511,7 @@
       return { cls:'warn', label:t0 };
     }
 
-    // ✅ 前端最終裁決：避免「只有 IN 沒 OUT」被顯示成加班
+    // ✅ 前端最終裁決：避免「只有 IN 沒 OUT」被顯示成加班（或別的怪狀態）
     function deriveAttTag(row){
       const inStr = String(row.in||'').trim();
       const outStr = String(row.out||'').trim();
@@ -532,8 +565,10 @@
       }
 
       el.innerHTML = list.map(r=>{
-        const finalTag = deriveAttTag(r);          // ✅ 這裡改成前端裁決
+        const finalTag = deriveAttTag(r);
         const b = attStatusBadge(finalTag);
+
+        // ✅ 顯示打卡（in/out 時刻）但「狀態」完全不依賴 IN/OUT
         const title = `${r.dateKey} ${r.in || '--:--'} / ${r.out || '--:--'}`;
         return `
           <div class="item ${b.cls}">
@@ -563,8 +598,11 @@
         const statusNorm = normalizeReqStatus(r.status);
         const sc = reqStatusBadge(statusNorm);
 
-        const s = formatDT(r.start || r.start_full || r.startAt);
-        const e = formatDT(r.end || r.end_full || r.endAt);
+        const startVal = r.start ?? r.start_full ?? r.startAt ?? r.from ?? "";
+        const endVal   = r.end   ?? r.end_full   ?? r.endAt   ?? r.to   ?? "";
+
+        const s = formatDT(startVal);
+        const e = formatDT(endVal);
 
         const hrs = (r.hours!==undefined && r.hours!==null && String(r.hours)!=='') ? Number(r.hours||0) : 0;
         const reason = (r.reason && String(r.reason).trim()) ? String(r.reason).trim() : '—';
@@ -577,8 +615,6 @@
         const created = createdRaw ? formatDT(createdRaw) : "—";
 
         let timeLine = `日期：${s}`;
-        const endVal = (r.end || r.end_full || r.endAt || "");
-        const startVal = (r.start || r.start_full || r.startAt || "");
         if(endVal && String(endVal).trim() && String(endVal).trim() !== String(startVal).trim()){
           timeLine = `開始：${s}<br>結束：${e}`;
         }
@@ -622,7 +658,11 @@
 
     function applyReqFilters(allReq, y, m){
       const monthReq = allReq.filter(r =>
-        overlapsMonth(r.start || r.start_full || r.startAt, r.end || r.end_full || r.endAt, y, m)
+        overlapsMonth(
+          r.start ?? r.start_full ?? r.startAt ?? r.from,
+          r.end   ?? r.end_full   ?? r.endAt   ?? r.to,
+          y, m
+        )
       );
 
       const f = document.getElementById("reqStatusFilter").value;
@@ -662,25 +702,44 @@
       document.getElementById("attList").innerHTML = `<div class="empty">載入中…</div>`;
 
       try{
+        // --- 1) 打卡 ---
         const dashRes = await api("get_dashboard", { year:y, month:m });
-        const daily = (dashRes && dashRes.ok && Array.isArray(dashRes.dailyData)) ? dashRes.dailyData : [];
+
+        // 兼容：dailyData / data
+        const daily = (dashRes && dashRes.ok && Array.isArray(dashRes.dailyData))
+          ? dashRes.dailyData
+          : (dashRes && dashRes.ok && Array.isArray(dashRes.data) ? dashRes.data : []);
 
         let attList = daily.map(d => {
           const dateKey = buildDateKeyFromDaily(d, y, m);
-          const inStr = d.in ? String(d.in) : '--:--';
-          const outStr = d.out ? String(d.out) : '--:--';
-          // ✅ 保留原始 tag，不要先 normalize（前端要做裁決）
-          const rawTag = (d.tag !== undefined && d.tag !== null) ? String(d.tag) : '';
+
+          // 兼容：in/out 或 inTime/outTime
+          const inStr  = (d.in ?? d.inTime ?? d.clockIn  ?? d.tsIn)  ? String(d.in ?? d.inTime ?? d.clockIn ?? d.tsIn) : '--:--';
+          const outStr = (d.out?? d.outTime?? d.clockOut ?? d.tsOut) ? String(d.out?? d.outTime?? d.clockOut?? d.tsOut): '--:--';
+
+          // ✅ 保留 raw tag，讓前端裁決
+          const rawTag = (d.tag !== undefined && d.tag !== null) ? String(d.tag) : (d.status ?? d.state ?? '');
+
           return { dateKey, in: inStr, out: outStr, tag: rawTag };
         });
 
         attList.sort((a,b)=> b.dateKey.localeCompare(a.dateKey));
         renderAtt(attList);
 
+        // --- 2) 申請單 ---
         const needFetch = forceFetch || !__cacheReqAll || __cacheReqYM.y !== y || __cacheReqYM.m !== m;
         if(needFetch){
-          const reqRes = await api("list_requests", { isManagerView:false });
-          __cacheReqAll = (reqRes && reqRes.ok && Array.isArray(reqRes.list)) ? reqRes.list : [];
+          // 兼容：有些後端需要 year/month，有些不用
+          let reqRes;
+          try{
+            reqRes = await api("list_requests", { isManagerView:false, year:y, month:m });
+          }catch(e){
+            reqRes = await api("list_requests", { isManagerView:false });
+          }
+
+          __cacheReqAll = (reqRes && reqRes.ok && Array.isArray(reqRes.list))
+            ? reqRes.list
+            : (reqRes && reqRes.ok && Array.isArray(reqRes.data) ? reqRes.data : []);
           __cacheReqYM = { y, m };
         }
 

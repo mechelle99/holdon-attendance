@@ -184,7 +184,7 @@
     }
 
     .shift-sel{
-      width: 64px;
+      width: 74px;
       padding: 8px 10px;
       border-radius: 14px;
       border: 1px solid rgba(17,24,39,.10);
@@ -309,8 +309,6 @@
 
   <script src="config.js"></script>
   <script>
-    'use strict';
-
     /* ==============================
      * 0) 身份 & 小工具
      * ============================== */
@@ -338,15 +336,6 @@
       return String(s ?? "").replace(/[&<>"']/g, (c)=>({
         "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
       }[c]));
-    }
-
-    // JS inline handler 安全字串（防止 empId 裡有引號時炸掉）
-    function jsStringLiteral_(s){
-      return String(s ?? "")
-        .replace(/\\/g, "\\\\")
-        .replace(/'/g, "\\'")
-        .replace(/\r/g, "\\r")
-        .replace(/\n/g, "\\n");
     }
 
     /* ==============================
@@ -410,14 +399,17 @@
     }
 
     /* ==============================
-     * 3) Shift/Leave 呈現統一
+     * 3) Shift/Leave 呈現統一（✅ IN/OUT 不再被吃掉）
      * ============================== */
     function classifyShift(v){
       const raw = String(v||'').trim();
       const low = raw.toLowerCase();
 
-      // 封死打卡字樣，不讓 IN/OUT 汙染排班
-      if(low === 'in' || low === 'out') return { label:'-', cls:'badge-off', value:'' };
+      // ✅ 以前你把 IN/OUT 直接封死成 '-'，主管改不了、還會回復錯
+      // 現在改成：保留 IN/OUT 顯示與 prev，但一樣歸類成 badge-off
+      if(low === 'in' || low === 'out'){
+        return { label: raw.toUpperCase(), cls:'badge-off', value: raw.toUpperCase() };
+      }
 
       if(!raw || raw==='-') return { label:'-', cls:'badge-off', value:'' };
 
@@ -438,7 +430,6 @@
       return "";
     }
 
-    // roster 的 shift 值兼容：可能在 value / shift / v / 直接字串
     function pickShiftValue(cell){
       if(cell == null) return "";
       if(typeof cell === "string") return cell;
@@ -560,16 +551,18 @@
             const shiftInfo = classifyShift(shiftVal);
 
             if(isManager){
-              const empLit = jsStringLiteral_(empId);
+              // ✅ 主管：IN/OUT 也能改（並保留 prev 以便回復）
               tds += `
                 <td>
                   <select class="shift-sel ${shiftInfo.cls}"
                           data-prev="${escapeHtml(shiftInfo.value||'')}"
-                          onchange="upd('${empLit}','${dateStr}',this)">
-                    <option value="">-</option>
+                          onchange="upd('${String(empId).replace(/'/g,"\\'")}','${dateStr}',this)">
+                    <option value="" ${shiftInfo.value===''?'selected':''}>-</option>
                     <option value="早班" ${shiftInfo.value==='早班'?'selected':''}>早</option>
                     <option value="午班" ${shiftInfo.value==='午班'?'selected':''}>午</option>
                     <option value="休假" ${shiftInfo.value==='休假'?'selected':''}>休</option>
+                    <option value="IN" ${shiftInfo.value==='IN'?'selected':''}>IN</option>
+                    <option value="OUT" ${shiftInfo.value==='OUT'?'selected':''}>OUT</option>
                   </select>
                 </td>`;
             }else{
@@ -597,7 +590,6 @@
       const prev = el.getAttribute("data-prev") || "";
       const next = String(el.value||"").trim();
 
-      // 先清掉所有 badge class 再加，避免殘留
       el.classList.remove('badge-early','badge-late','badge-off');
       const info = classifyShift(next);
       el.classList.add(info.cls);

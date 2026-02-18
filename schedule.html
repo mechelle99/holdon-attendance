@@ -313,7 +313,6 @@
      * 0) 身份 & 小工具
      * ============================== */
 
-    // ✅ 你 Employees 表用的是 LineUserId，所以 uid 必須優先吃 lineUserId
     const uid =
       localStorage.getItem("lineUserId") ||
       localStorage.getItem("LineUserId") ||
@@ -333,6 +332,12 @@
     }
     function pad2(n){ return String(n).padStart(2,'0'); }
 
+    function escapeHtml(s){
+      return String(s ?? "").replace(/[&<>"']/g, (c)=>({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+      }[c]));
+    }
+
     /* ==============================
      * 1) JSONP API（統一 action + payload）
      * ============================== */
@@ -349,7 +354,6 @@
 
         const payloadObj = Object.assign({}, data, { userId: uid });
 
-        // 若你後端有啟用 webhookKey 驗證，這裡會自動補上
         if(window.CONFIG && window.CONFIG.WEBHOOK_KEY && payloadObj.webhookKey == null){
           payloadObj.webhookKey = window.CONFIG.WEBHOOK_KEY;
         }
@@ -401,7 +405,7 @@
       const raw = String(v||'').trim();
       const low = raw.toLowerCase();
 
-      // ✅ 封死打卡字樣，不讓 IN/OUT 汙染排班
+      // 封死打卡字樣，不讓 IN/OUT 汙染排班
       if(low === 'in' || low === 'out') return { label:'-', cls:'badge-off', value:'' };
 
       if(!raw || raw==='-') return { label:'-', cls:'badge-off', value:'' };
@@ -410,15 +414,26 @@
       if(raw==='午班' || low==='late'  || raw==='午') return { label:'午', cls:'badge-late',  value:'午班' };
       if(raw==='休假' || low==='off'   || raw==='休') return { label:'休', cls:'badge-off',   value:'休假' };
 
-      // 未知：保留顯示但當 off 色
       return { label: raw, cls:'badge-off', value: raw };
     }
 
     function getLeaveText(cell){
       if(!cell) return "";
+      if(typeof cell === "string") return ""; // string 當 shift 用，不當 leave
       if(cell.type === "LEAVE") return String(cell.value||"").trim();
       if(cell.isLeave) return String(cell.leaveText || cell.value || cell.leaveType || "").trim();
       if(cell.leaveType) return String(cell.leaveType).trim();
+      if(cell.leaveText) return String(cell.leaveText).trim();
+      return "";
+    }
+
+    // ✅ roster 的 shift 值兼容：可能在 value / shift / v / 直接字串
+    function pickShiftValue(cell){
+      if(cell == null) return "";
+      if(typeof cell === "string") return cell;
+      if(typeof cell.value === "string") return cell.value;
+      if(typeof cell.shift === "string") return cell.shift;
+      if(typeof cell.v === "string") return cell.v;
       return "";
     }
 
@@ -433,10 +448,8 @@
       const targetVal  = targetY*12 + targetM;
       const isNextMonth = (targetVal === currentVal + 1);
 
-      // ✅ 後端回 res.isManager 才可信（不要只信 localStorage）
       const isManager = !!res.isManager;
 
-      // 非主管：只能排「下個月」且在 lockDay 之前
       const isLocked = (!isManager) && (!isNextMonth || (isNextMonth && today.getDate() > lockDay));
 
       return { isManager, isLocked, lockDay, isNextMonth };
@@ -450,11 +463,8 @@
       const byEmp = roster[empId];
       if(!byEmp) return null;
 
-      // 常見：roster[empId][d]
-      if(byEmp[d]) return byEmp[d];
-
-      // 另一種：roster[empId][dateStr]
-      if(byEmp[dateStr]) return byEmp[dateStr];
+      if(byEmp[d] != null) return byEmp[d];
+      if(byEmp[dateStr] != null) return byEmp[dateStr];
 
       return null;
     }
@@ -462,8 +472,6 @@
     /* ==============================
      * 6) 主流程：load
      * ============================== */
-    let __lastRoster = null; // 用來回復 select 失敗時的原始值
-
     async function load(){
       const y = Number(yS.value);
       const m = Number(mS.value);
@@ -499,7 +507,6 @@
           lockTag.textContent = isLocked ? `🔒 已鎖定（每月${lockDay}號截止）` : `🟢 開放排班中（每月${lockDay}號截止）`;
         }
 
-        // ✅ 主管按鈕顯示以後端判定為準
         document.getElementById("mgrBtn").style.display = isManager ? "flex" : "none";
 
         const days = new Date(y, m, 0).getDate();
@@ -516,8 +523,6 @@
         const employees = Array.isArray(res.employees) ? res.employees : [];
         const roster = res.roster || {};
 
-        __lastRoster = roster;
-
         if(employees.length === 0){
           document.getElementById("tbRow").innerHTML =
             `<tr><td class="empty" colspan="${days+1}">沒有可排班的人員</td></tr>`;
@@ -528,30 +533,29 @@
         employees.forEach(e=>{
           const empId = e.empId || e.id || e.employeeId || "";
           const empName = e.empName || e.name || empId || "—";
-          let tds = `<td>${empName}</td>`;
+          let tds = `<td>${escapeHtml(empName)}</td>`;
 
           for(let d=1; d<=days; d++){
             const dateStr = `${y}-${pad2(m)}-${pad2(d)}`;
-            const cell = getCell(roster, empId, d, dateStr) || {};
+            const cell = getCell(roster, empId, d, dateStr);
 
-            // Leave 永遠 badge（多種欄位格式都吃）
             const leaveText = getLeaveText(cell);
             if(leaveText){
-              tds += `<td><span class="badge badge-leave">${leaveText}</span></td>`;
+              tds += `<td><span class="badge badge-leave">${escapeHtml(leaveText)}</span></td>`;
               continue;
             }
 
-            const shiftInfo = classifyShift(cell.value);
+            const shiftVal = pickShiftValue(cell);
+            const shiftInfo = classifyShift(shiftVal);
 
-            // ✅ 主管可編輯：只要 isManager=true 就可改（不受 isLocked 限制）
             if(isManager){
               tds += `
                 <td>
                   <select class="shift-sel ${shiftInfo.cls}"
-                          data-emp="${empId}"
-                          data-date="${dateStr}"
-                          data-prev="${shiftInfo.value||''}"
-                          onchange="upd('${empId}','${dateStr}',this)">
+                          data-emp="${escapeHtml(empId)}"
+                          data-date="${escapeHtml(dateStr)}"
+                          data-prev="${escapeHtml(shiftInfo.value||'')}"
+                          onchange="upd('${String(empId).replace(/'/g,"\\'")}','${dateStr}',this)">
                     <option value="">-</option>
                     <option value="早班" ${shiftInfo.value==='早班'?'selected':''}>早</option>
                     <option value="午班" ${shiftInfo.value==='午班'?'selected':''}>午</option>
@@ -559,7 +563,7 @@
                   </select>
                 </td>`;
             }else{
-              tds += `<td><span class="badge ${shiftInfo.cls}">${shiftInfo.label}</span></td>`;
+              tds += `<td><span class="badge ${shiftInfo.cls}">${escapeHtml(shiftInfo.label)}</span></td>`;
             }
           }
 
@@ -580,36 +584,30 @@
      * 7) 更新排班（主管編輯）
      * ============================== */
     function upd(targetEmpId, dateStr, el){
-      // 先記住舊值（失敗要還原）
       const prev = el.getAttribute("data-prev") || "";
       const next = String(el.value||"").trim();
 
-      // 先套樣式
       el.classList.remove('badge-early','badge-late','badge-off');
       const info = classifyShift(next);
       el.classList.add(info.cls);
 
-      // 送後端
       api("update_schedule", { targetEmpId, date: dateStr, shift: next })
         .then(res=>{
           if(!res || !res.ok){
             toast(res && res.message ? res.message : "更新失敗");
 
-            // ✅ 失敗：回復原本值與樣式
             el.value = prev;
             el.classList.remove('badge-early','badge-late','badge-off');
             const back = classifyShift(prev);
             el.classList.add(back.cls);
           }else{
             toast("✅ 已更新");
-            // ✅ 成功：更新 prev
             el.setAttribute("data-prev", next);
           }
         })
         .catch(()=>{
           toast("更新失敗：網路或伺服器逾時");
 
-          // ✅ 逾時：也回復
           el.value = prev;
           el.classList.remove('badge-early','badge-late','badge-off');
           const back = classifyShift(prev);

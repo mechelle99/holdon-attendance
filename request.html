@@ -202,7 +202,7 @@
     }
 
     /* ==============================
-     * 2) 時間工具（✅ 修正：datetime-local 一律手動解析，避免 Safari/時區炸裂）
+     * 2) 時間工具（datetime-local 一律手動解析）
      * ============================== */
     function pad2(n) { return String(n).padStart(2, '0'); }
 
@@ -210,7 +210,6 @@
       return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
     }
 
-    // ✅ 更寬鬆：允許 1~2 位（少數環境可能吐出 2026-2-9T8:05）
     function parseLocalInput(v){
       if(!v) return null;
       const m = String(v).match(/^(\d{4})-(\d{1,2})-(\d{1,2})T(\d{1,2}):(\d{2})$/);
@@ -231,7 +230,7 @@
       return `${d.getFullYear()}/${pad2(d.getMonth()+1)}/${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
     }
 
-    // ✅ 前端備援：0.5 小時單位（當後端 calc_hours 掛掉時至少不會顯示 0）
+    // 前端備援：0.5 小時單位
     function calcHoursLocalHalf_(s, e){
       const diffH = (e - s) / 36e5;
       if (!(diffH > 0)) return 0;
@@ -372,21 +371,69 @@
       }
 
       setTimeByShiftForDate(s, shiftKey);
-      await calcHoursByServer();
+      // ✅ LEAVE 走 smart 計算，不再打 calc_hours
+      await calcHoursSmart_();
     }
 
     /* ==============================
-     * 6) 時數計算：後端 calc_hours（權威）
-     * ✅ 修正重點：
-     *   1) calc_hours 也一起送 startServer/endServer（跟 submit_request 一樣）
-     *   2) 也帶 category/leaveType（很多後端要用這個判午休/班別）
-     *   3) 後端失敗時，用前端備援計算，不讓你看到 0.0 + 失敗訊息一直卡
+     * 6) 時數計算（Smart）
+     * - LEAVE：前端用工作日工時計（跨天不再變 56）
+     * - OT/OUTING：走後端 calc_hours（權威）
+     * - 加序號防競速覆蓋
      * ============================== */
     let __calcTimer = null;
+    let __calcSeq = 0;
 
-    async function calcHoursByServer(){
+    function roundHalf_(h){ return Math.round(h * 2) / 2; }
+
+    // ✅ 請假：跨天用「每一天=8 小時」為主；同一天則用差值（0.5 進位）
+    function calcLeaveHoursByWorkdays_(s, e){
+      if(!s || !e || e <= s) return 0;
+
+      // 同一天：用差值（有半天請假時也合理）
+      if(sameDay_(s, e)){
+        const h = (e - s) / 36e5;
+        return roundHalf_(Math.max(0, h));
+      }
+
+      // 跨天：以「工作日」為概念，避免變 elapsed hours
+      // - 首尾日若不是完整 10-18 / 12-21，可按差值算
+      // - 中間整天：8 小時
+      let total = 0;
+
+      const day0 = new Date(s.getFullYear(), s.getMonth(), s.getDate(), 0,0,0,0);
+      const dayN = new Date(e.getFullYear(), e.getMonth(), e.getDate(), 0,0,0,0);
+
+      for(let cur = new Date(day0); cur <= dayN; cur.setDate(cur.getDate()+1)){
+        const isFirst = sameDay_(cur, s);
+        const isLast  = sameDay_(cur, e);
+
+        if(!isFirst && !isLast){
+          total += 8;
+          continue;
+        }
+
+        const segStart = isFirst ? s : new Date(cur.getFullYear(), cur.getMonth(), cur.getDate(), 10,0,0,0);
+        const segEnd   = isLast  ? e : new Date(cur.getFullYear(), cur.getMonth(), cur.getDate(), 18,0,0,0);
+
+        let h = (segEnd - segStart) / 36e5;
+        if(h < 0) h = 0;
+
+        // 如果首/尾日剛好是完整一天（10-18），當 8 小時
+        const looksFull =
+          segStart.getHours()===10 && segStart.getMinutes()===0 &&
+          segEnd.getHours()===18 && segEnd.getMinutes()===0;
+
+        total += looksFull ? 8 : h;
+      }
+
+      return roundHalf_(Math.max(0, total));
+    }
+
+    async function calcHoursByServer_(){
+      const mySeq = ++__calcSeq;
+
       const cat = document.getElementById("cat").value;
-
       if(cat === "CORRECTION"){
         document.getElementById("hours").value = "0.0";
         return;
@@ -414,7 +461,7 @@
         return;
       }
 
-      // ✅ 先算本機備援（後端掛了也不會 0）
+      // fallback
       let fallbackH = calcHoursLocalHalf_(s, e);
       if(cat === "OUTING"){
         const isTrip = !!document.getElementById("isTrip").checked;
@@ -423,22 +470,18 @@
 
       try{
         const res = await api("calc_hours", {
-          // 兼容舊後端
           start: toServerDateTimeStr_(s),
           end: toServerDateTimeStr_(e),
-
-          // ✅ 強力建議後端用這兩個（完全避開時區/瀏覽器 Date parse 差異）
           startServer: toServerDateTimeStr_(s),
           endServer: toServerDateTimeStr_(e),
-
-          // ✅ 後端若需要判規則（午休/班別/假別）
           category: cat,
           leaveType: leaveType,
-
-          // ✅ 若後端想拿原始 input（datetime-local）
           startRaw: sVal,
           endRaw: eVal
         });
+
+        // ✅ 序號防競速：不是最新的回覆就丟掉
+        if (mySeq !== __calcSeq) return;
 
         if(res && res.ok){
           let h = Number(res.hours || 0);
@@ -449,33 +492,63 @@
           }
 
           document.getElementById("hours").value = Number(h).toFixed(1);
-
-          if(cat === "LEAVE"){
-            const shiftText = res.inferredShift ? `系統判定：${res.inferredShift}` : "";
-            const lunchText = (res.lunchApplied === true) ? "（午班已扣午休）" : "（早班不扣午休）";
-            setNote(`請假：${shiftText}${shiftText? " " : ""}${lunchText}，時數以系統計算為準。`);
-          }else{
-            setNote();
-          }
+          setNote();
         }else{
-          // ✅ 後端回 ok:false：改成用備援顯示，不要卡 0 + 失敗訊息
           document.getElementById("hours").value = Number(fallbackH).toFixed(1);
           setNote("系統時數計算暫時不可用（已用本機備援計算）。若為請假時數，最終仍以系統審核為準。");
         }
       }catch(e){
-        // ✅ 逾時/網路：同樣用備援
+        if (mySeq !== __calcSeq) return;
         document.getElementById("hours").value = Number(fallbackH).toFixed(1);
         setNote("系統時數計算逾時（已用本機備援計算）。若為請假時數，最終仍以系統審核為準。");
       }
     }
 
+    async function calcHoursSmart_(){
+      const cat = document.getElementById("cat").value;
+
+      if(cat === "CORRECTION"){
+        document.getElementById("hours").value = "0.0";
+        return;
+      }
+
+      const sVal = document.getElementById("start").value;
+      const eVal = document.getElementById("end").value;
+      if(!sVal || !eVal) return;
+
+      const s = parseLocalInput(sVal);
+      const e = parseLocalInput(eVal);
+      if(!s || !e || e <= s){
+        document.getElementById("hours").value = "0.0";
+        return;
+      }
+
+      // ✅ LEAVE：用工作日工時（跨天不會 56）
+      if(cat === "LEAVE"){
+        const leaveType = document.getElementById("type")?.value || "";
+        if(leaveType === "birthday" && !sameDay_(s, e)){
+          document.getElementById("end").value = sVal;
+          document.getElementById("hours").value = "0.0";
+          return;
+        }
+        const h = calcLeaveHoursByWorkdays_(s, e);
+        document.getElementById("hours").value = Number(h).toFixed(1);
+        setNote("請假：採工作日工時計算（跨天不使用純時間差）。最終仍以系統審核規則為準。");
+        return;
+      }
+
+      // OT / OUTING：走後端
+      await calcHoursByServer_();
+    }
+
     function debounceCalc(){
       clearTimeout(__calcTimer);
-      __calcTimer = setTimeout(()=>{ calcHoursByServer(); }, 220);
+      // ✅ 拉長 debounce + 避免 iOS input 連環
+      __calcTimer = setTimeout(()=>{ calcHoursSmart_(); }, 500);
     }
 
     /* ==============================
-     * 7) 送出申請（✅ 一併帶 startServer/endServer，避免後端時區誤差）
+     * 7) 送出申請（帶 startServer/endServer）
      * ============================== */
     async function submitReq() {
       const btn = document.getElementById("submitBtn");
@@ -532,11 +605,9 @@
         category: cat,
         leaveType,
 
-        // 原本欄位（兼容後端既有）
         start: start,
         end: end,
 
-        // ✅ 新增：後端建議直接用這兩個算，完全避開時區問題
         startServer: toServerDateTimeStr_(sObj),
         endServer: toServerDateTimeStr_(eObj),
 
@@ -568,7 +639,7 @@
     }
 
     /* ==============================
-     * 8) 綁定事件
+     * 8) 綁定事件（✅ 不再用 input/blur 狂打 API）
      * ============================== */
     (function bindAll() {
       const startEl = document.getElementById("start");
@@ -584,9 +655,8 @@
 
       [startEl, endEl].forEach(el => {
         if (!el) return;
-        el.addEventListener("input", safeRecalc);
+        // ✅ 只用 change：datetime-local 在 iOS input 會連發，會慢到爆
         el.addEventListener("change", safeRecalc);
-        el.addEventListener("blur", safeRecalc);
       });
 
       catEl.addEventListener("change", async () => {
@@ -610,7 +680,7 @@
     })();
 
     /* ==============================
-     * 9) 初始化：預設今天 10:00-18:00 + 後端算時數
+     * 9) 初始化：預設今天 10:00-18:00 + 計算
      * ============================== */
     (function initDefaultTime() {
       const now = new Date();
@@ -622,7 +692,7 @@
 
     toggleType();
     setNote();
-    calcHoursByServer();
+    calcHoursSmart_();
   </script>
 </body>
 </html>

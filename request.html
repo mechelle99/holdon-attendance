@@ -253,7 +253,7 @@
       }
 
       if(cat === "LEAVE"){
-        noteBox.textContent = extraText || "請假：系統會依排班/班別規則自動計算時數（早班不扣午休、午班才扣午休）。";
+        noteBox.textContent = extraText || "請假：以「請假∩班別」扣除「休息重疊」計算（午班 16:00–17:00 會自動扣除）。";
         return;
       }
 
@@ -319,30 +319,48 @@
     }
 
     /* ==============================
-     * 5) 請假：依排班自動帶入班表時間
+     * 5) roster 前端快取 + 班別規則（EARLY/LATE/OFF）
      * ============================== */
+
+    // ✅ 記憶體快取：同一個 yyyy-mm 只抓一次
+    const __rosterCache = new Map(); // key = "2026-02" , val = roster object
+
+    function ymKey_(y, m){ return `${y}-${pad2(m)}`; }
+
     function normalizeShiftValue(v){
       const s = String(v||'').trim().toLowerCase();
-      if(s.includes('午') || s.includes('late')) return 'LATE';
-      if(s.includes('早') || s.includes('early')) return 'EARLY';
+      if(!s) return 'EARLY';
+      if (s.includes('休') || s.includes('off')) return 'OFF';
+      if (s.includes('午') || s.includes('late')) return 'LATE';
+      if (s.includes('早') || s.includes('early')) return 'EARLY';
       return 'EARLY';
     }
 
-    function setTimeByShiftForDate(dateObj, shiftKey){
-      const def = (shiftKey === 'LATE')
-        ? { start:'12:00', end:'21:00' }
-        : { start:'10:00', end:'18:00' };
-
-      const [sh, sm] = def.start.split(':').map(Number);
-      const [eh, em] = def.end.split(':').map(Number);
-
-      const s = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), sh, sm, 0, 0);
-      const e = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), eh, em, 0, 0);
-
-      document.getElementById("start").value = toLocalInputValue(s);
-      document.getElementById("end").value = toLocalInputValue(e);
+    // ✅ 你口徑：早班 10-18（無休）；午班 12-21（休 16-17）；休假 OFF
+    function getShiftRuleByKey_(shiftKey){
+      if(shiftKey === 'OFF') return { off:true, name:'休' };
+      if(shiftKey === 'LATE') return { inH:12, inM:0, outH:21, outM:0, breakStartH:16, breakStartM:0, breakEndH:17, breakEndM:0, name:'午' };
+      return { inH:10, inM:0, outH:18, outM:0, breakStartH:0, breakStartM:0, breakEndH:0, breakEndM:0, name:'早' };
     }
 
+    async function getRosterMonth_(y, m){
+      const key = ymKey_(y, m);
+      if(__rosterCache.has(key)) return __rosterCache.get(key);
+
+      const res = await api("get_roster_data", { year:y, month:m });
+      const roster = (res && res.ok && res.roster) ? res.roster : {};
+      __rosterCache.set(key, roster);
+      return roster;
+    }
+
+    function getMyShiftKeyForDay_(roster, day){
+      const myId = empId || "";
+      const cell = myId && roster[myId] ? roster[myId][day] : null;
+      const val = (cell && typeof cell === 'object') ? (cell.value || cell.shift || cell.v) : cell;
+      return normalizeShiftValue(val);
+    }
+
+    // ✅ 只負責「帶入該日班表時間」
     async function applyLeaveAutoTimeByRoster(){
       const cat = document.getElementById("cat").value;
       if(cat !== "LEAVE") return;
@@ -356,79 +374,36 @@
       const d = s.getDate();
 
       let shiftKey = 'EARLY';
-
       try{
-        const res = await api("get_roster_data", { year:y, month:m });
-        if(res && res.ok){
-          const roster = res.roster || {};
-          const myId = empId || "";
-          const cell = myId && roster[myId] ? roster[myId][d] : null;
-          const val = (cell && typeof cell === 'object') ? (cell.value || cell.shift || cell.v) : cell;
-          if(val) shiftKey = normalizeShiftValue(val);
-        }
+        const roster = await getRosterMonth_(y, m);
+        shiftKey = getMyShiftKeyForDay_(roster, d);
       }catch(e){
         shiftKey = 'EARLY';
       }
 
-      setTimeByShiftForDate(s, shiftKey);
-      // ✅ LEAVE 走 smart 計算，不再打 calc_hours
+      const rule = getShiftRuleByKey_(shiftKey);
+
+      // OFF：帶入一個可視時間，但最後 hours 會算 0 並擋送出
+      const startH = rule.off ? 10 : rule.inH;
+      const startM = rule.off ? 0  : (rule.inM||0);
+      const endH   = rule.off ? 18 : rule.outH;
+      const endM   = rule.off ? 0  : (rule.outM||0);
+
+      const ss = new Date(y, m-1, d, startH, startM, 0, 0);
+      const ee = new Date(y, m-1, d, endH, endM, 0, 0);
+      document.getElementById("start").value = toLocalInputValue(ss);
+      document.getElementById("end").value   = toLocalInputValue(ee);
+
+      // ✅ 帶完再算一次就好
       await calcHoursSmart_();
     }
 
     /* ==============================
-     * 6) 時數計算（Smart）
-     * - LEAVE：前端用工作日工時計（跨天不再變 56）
-     * - OT/OUTING：走後端 calc_hours（權威）
+     * 6) OT/OUTING：走後端 calc_hours（若後端沒有會 fallback）
      * - 加序號防競速覆蓋
      * ============================== */
     let __calcTimer = null;
     let __calcSeq = 0;
-
-    function roundHalf_(h){ return Math.round(h * 2) / 2; }
-
-    // ✅ 請假：跨天用「每一天=8 小時」為主；同一天則用差值（0.5 進位）
-    function calcLeaveHoursByWorkdays_(s, e){
-      if(!s || !e || e <= s) return 0;
-
-      // 同一天：用差值（有半天請假時也合理）
-      if(sameDay_(s, e)){
-        const h = (e - s) / 36e5;
-        return roundHalf_(Math.max(0, h));
-      }
-
-      // 跨天：以「工作日」為概念，避免變 elapsed hours
-      // - 首尾日若不是完整 10-18 / 12-21，可按差值算
-      // - 中間整天：8 小時
-      let total = 0;
-
-      const day0 = new Date(s.getFullYear(), s.getMonth(), s.getDate(), 0,0,0,0);
-      const dayN = new Date(e.getFullYear(), e.getMonth(), e.getDate(), 0,0,0,0);
-
-      for(let cur = new Date(day0); cur <= dayN; cur.setDate(cur.getDate()+1)){
-        const isFirst = sameDay_(cur, s);
-        const isLast  = sameDay_(cur, e);
-
-        if(!isFirst && !isLast){
-          total += 8;
-          continue;
-        }
-
-        const segStart = isFirst ? s : new Date(cur.getFullYear(), cur.getMonth(), cur.getDate(), 10,0,0,0);
-        const segEnd   = isLast  ? e : new Date(cur.getFullYear(), cur.getMonth(), cur.getDate(), 18,0,0,0);
-
-        let h = (segEnd - segStart) / 36e5;
-        if(h < 0) h = 0;
-
-        // 如果首/尾日剛好是完整一天（10-18），當 8 小時
-        const looksFull =
-          segStart.getHours()===10 && segStart.getMinutes()===0 &&
-          segEnd.getHours()===18 && segEnd.getMinutes()===0;
-
-        total += looksFull ? 8 : h;
-      }
-
-      return roundHalf_(Math.max(0, total));
-    }
 
     async function calcHoursByServer_(){
       const mySeq = ++__calcSeq;
@@ -480,7 +455,6 @@
           endRaw: eVal
         });
 
-        // ✅ 序號防競速：不是最新的回覆就丟掉
         if (mySeq !== __calcSeq) return;
 
         if(res && res.ok){
@@ -495,15 +469,96 @@
           setNote();
         }else{
           document.getElementById("hours").value = Number(fallbackH).toFixed(1);
-          setNote("系統時數計算暫時不可用（已用本機備援計算）。若為請假時數，最終仍以系統審核為準。");
+          setNote("系統時數計算暫時不可用（已用本機備援計算）。最終仍以系統審核規則為準。");
         }
       }catch(e){
         if (mySeq !== __calcSeq) return;
         document.getElementById("hours").value = Number(fallbackH).toFixed(1);
-        setNote("系統時數計算逾時（已用本機備援計算）。若為請假時數，最終仍以系統審核為準。");
+        setNote("系統時數計算逾時（已用本機備援計算）。最終仍以系統審核規則為準。");
       }
     }
 
+    /* ==============================
+     * 7) 標準 HR overlap 計算（LEAVE 專用，含午班休息 16-17）
+     * ============================== */
+    function overlapMs_(aStart, aEnd, bStart, bEnd){
+      const s = Math.max(aStart, bStart);
+      const e = Math.min(aEnd, bEnd);
+      return Math.max(0, e - s);
+    }
+
+    function dayStart_(d){ return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0,0,0,0); }
+
+    function addDays_(d, n){
+      const x = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0,0,0,0);
+      x.setDate(x.getDate() + n);
+      return x;
+    }
+
+    function calcLeaveHoursOneDay_(dateYMD, leaveStart, leaveEnd, rule){
+      if(rule.off) return 0;
+
+      const y = dateYMD.getFullYear();
+      const m = dateYMD.getMonth();
+      const d = dateYMD.getDate();
+
+      const shiftStart = new Date(y, m, d, rule.inH,  rule.inM||0,  0, 0).getTime();
+      const shiftEnd   = new Date(y, m, d, rule.outH, rule.outM||0, 0, 0).getTime();
+
+      const reqStart = leaveStart.getTime();
+      const reqEnd   = leaveEnd.getTime();
+
+      const workMs = overlapMs_(reqStart, reqEnd, shiftStart, shiftEnd);
+      if(workMs <= 0) return 0;
+
+      let ms = workMs;
+
+      if(rule.breakStartH || rule.breakEndH){
+        const bStart = new Date(y, m, d, rule.breakStartH||0, rule.breakStartM||0, 0, 0).getTime();
+        const bEnd   = new Date(y, m, d, rule.breakEndH||0,   rule.breakEndM||0,   0, 0).getTime();
+        if(bEnd > bStart){
+          const breakMs = overlapMs_(reqStart, reqEnd, bStart, bEnd);
+          ms -= breakMs;
+        }
+      }
+
+      const h = ms / 36e5;
+      return Math.max(0, Math.round(h * 2) / 2);
+    }
+
+    async function calcLeaveHoursByRoster_(s, e){
+      if(!s || !e || e <= s) return 0;
+
+      let total = 0;
+
+      const startDay = dayStart_(s);
+      const endDay   = dayStart_(e);
+
+      for(let cur = new Date(startDay); cur <= endDay; cur = addDays_(cur, 1)){
+        const dayS = cur.getTime();
+        const dayE = addDays_(cur, 1).getTime();
+
+        const segStart = new Date(Math.max(s.getTime(), dayS));
+        const segEnd   = new Date(Math.min(e.getTime(), dayE));
+        if(segEnd <= segStart) continue;
+
+        const y = cur.getFullYear();
+        const m = cur.getMonth()+1;
+        const d = cur.getDate();
+
+        const roster = await getRosterMonth_(y, m);
+        const shiftKey = getMyShiftKeyForDay_(roster, d);
+        const rule = getShiftRuleByKey_(shiftKey);
+
+        total += calcLeaveHoursOneDay_(cur, segStart, segEnd, rule);
+      }
+
+      return Math.max(0, Math.round(total * 2) / 2);
+    }
+
+    /* ==============================
+     * 8) Smart 計算：LEAVE 走 overlap；OT/OUTING 走後端
+     * ============================== */
     async function calcHoursSmart_(){
       const cat = document.getElementById("cat").value;
 
@@ -523,32 +578,49 @@
         return;
       }
 
-      // ✅ LEAVE：用工作日工時（跨天不會 56）
       if(cat === "LEAVE"){
         const leaveType = document.getElementById("type")?.value || "";
+
         if(leaveType === "birthday" && !sameDay_(s, e)){
           document.getElementById("end").value = sVal;
           document.getElementById("hours").value = "0.0";
           return;
         }
-        const h = calcLeaveHoursByWorkdays_(s, e);
-        document.getElementById("hours").value = Number(h).toFixed(1);
-        setNote("請假：採工作日工時計算（跨天不使用純時間差）。最終仍以系統審核規則為準。");
+
+        try{
+          const h = await calcLeaveHoursByRoster_(s, e);
+          document.getElementById("hours").value = Number(h).toFixed(1);
+          setNote("請假：以「請假∩班別」扣除「休息重疊」計算（午班 16:00–17:00 會自動扣除）。");
+        }catch(err){
+          // ✅ fallback：逐日用早班 overlap（不會再出現 56）
+          const rule = getShiftRuleByKey_('EARLY');
+          let h = 0;
+
+          for(let cur = dayStart_(s); cur <= dayStart_(e); cur = addDays_(cur,1)){
+            const dayS = cur.getTime(), dayE = addDays_(cur,1).getTime();
+            const segStart = new Date(Math.max(s.getTime(), dayS));
+            const segEnd   = new Date(Math.min(e.getTime(), dayE));
+            if(segEnd > segStart) h += calcLeaveHoursOneDay_(cur, segStart, segEnd, rule);
+          }
+
+          h = Math.round(h*2)/2;
+          document.getElementById("hours").value = Number(h).toFixed(1);
+          setNote("班表讀取失敗：暫用早班規則估算。最終仍以審核規則為準。");
+        }
         return;
       }
 
-      // OT / OUTING：走後端
+      // OT / OUTING：走後端（若後端沒有 calc_hours 會 fallback）
       await calcHoursByServer_();
     }
 
     function debounceCalc(){
       clearTimeout(__calcTimer);
-      // ✅ 拉長 debounce + 避免 iOS input 連環
       __calcTimer = setTimeout(()=>{ calcHoursSmart_(); }, 500);
     }
 
     /* ==============================
-     * 7) 送出申請（帶 startServer/endServer）
+     * 9) 送出申請（帶 startServer/endServer）
      * ============================== */
     async function submitReq() {
       const btn = document.getElementById("submitBtn");
@@ -590,7 +662,7 @@
       const hours = (cat === "CORRECTION") ? 0 : Number(document.getElementById("hours").value || 0);
 
       if (cat !== "CORRECTION" && hours <= 0) {
-        alert("時數不正確：請確認開始/結束時間");
+        alert("時數不正確：請確認開始/結束時間（若剛好落在休息時間，會算 0 並禁止送出）");
         btn.disabled = false;
         btn.innerText = "送出申請";
         return;
@@ -639,7 +711,7 @@
     }
 
     /* ==============================
-     * 8) 綁定事件（✅ 不再用 input/blur 狂打 API）
+     * 10) 綁定事件（避免狂打 API）
      * ============================== */
     (function bindAll() {
       const startEl = document.getElementById("start");
@@ -655,14 +727,17 @@
 
       [startEl, endEl].forEach(el => {
         if (!el) return;
-        // ✅ 只用 change：datetime-local 在 iOS input 會連發，會慢到爆
         el.addEventListener("change", safeRecalc);
       });
 
+      // ✅ 重點：切到 LEAVE 時，不先 debounceCalc()，避免重算一次
       catEl.addEventListener("change", async () => {
         toggleType();
-        debounceCalc();
-        await applyLeaveAutoTimeByRoster();
+        if (document.getElementById("cat").value === "LEAVE") {
+          await applyLeaveAutoTimeByRoster(); // 內含 calcHoursSmart_
+        } else {
+          debounceCalc();
+        }
       });
 
       if(typeEl){
@@ -680,7 +755,7 @@
     })();
 
     /* ==============================
-     * 9) 初始化：預設今天 10:00-18:00 + 計算
+     * 11) 初始化：預設今天 10:00-18:00 + 計算
      * ============================== */
     (function initDefaultTime() {
       const now = new Date();

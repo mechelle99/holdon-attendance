@@ -92,6 +92,7 @@
       padding: 16px;
       color:#fff;
       min-height: 86px;
+      transition: opacity 0.3s ease;
     }
     .bal .num{
       font-size: 30px;
@@ -187,7 +188,7 @@
     <div class="hero-top">
       <div>
         <h1 class="hello" id="hello">Hi, ...</h1>
-        <div class="sub" id="subline">載入中…</div>
+        <div class="sub" id="subline">資料更新中…</div>
       </div>
 
       <button type="button" class="logout" id="btnLogout">
@@ -301,48 +302,64 @@
       });
     }
 
-    async function loadMe(){
-      try{
-        const res = await api("get_me", {});
-        if(!res || !res.ok){
-          toast("讀取失敗，請重新登入");
-          return;
-        }
+    // ✅ 將渲染邏輯獨立出來，給快取和 API 共同使用
+    function renderMeData(res) {
+      const name = (res.empName || "").trim() || empId;
+      document.getElementById("hello").textContent = `Hi, ${name}`;
+      document.getElementById("subline").textContent =
+        `員工編號：${res.empId || empId}` + (res.isManager ? "｜主管" : "");
 
-        const name = (res.empName || "").trim() || empId;
-        document.getElementById("hello").textContent = `Hi, ${name}`;
-        document.getElementById("subline").textContent =
-          `員工編號：${res.empId || empId}` + (res.isManager ? "｜主管" : "");
-
-        // ✅ 兼容新版與舊版的 Balances 回傳結構
-        let annual = 0;
-        let comp = 0;
-        if (res.balances) {
-          if (res.balances.annualLeaveHoursLeft !== undefined) {
-            annual = Number(res.balances.annualLeaveHoursLeft || 0);
-            comp = Number(res.balances.otCompHoursLeft || 0);
-          } else {
-            annual = res.balances.annual ? Number(res.balances.annual.left || 0) : 0;
-            comp = res.balances.comp ? Number(res.balances.comp.left || 0) : 0;
-          }
-        }
-        
-        document.getElementById("annualLeft").textContent = String(Math.max(0, annual));
-        document.getElementById("compLeft").textContent = String(Math.max(0, comp));
-
-        localStorage.setItem("empName", name);
-        localStorage.setItem("isManager", res.isManager ? "true" : "false");
-        localStorage.setItem("canSchedule", res.canSchedule ? "true" : "false");
-
-        // 重新確認主管選單是否顯示
-        if (res.isManager) {
-          document.getElementById("mgrBtn").style.display = "flex";
+      // 相容餘額結構
+      let annual = 0, comp = 0;
+      if (res.balances) {
+        if (res.balances.annualLeaveHoursLeft !== undefined) {
+          annual = Number(res.balances.annualLeaveHoursLeft || 0);
+          comp = Number(res.balances.otCompHoursLeft || 0);
         } else {
-          document.getElementById("mgrBtn").style.display = "none";
+          annual = res.balances.annual ? Number(res.balances.annual.left || 0) : 0;
+          comp = res.balances.comp ? Number(res.balances.comp.left || 0) : 0;
         }
+      }
+      
+      document.getElementById("annualLeft").textContent = String(Math.max(0, annual));
+      document.getElementById("compLeft").textContent = String(Math.max(0, comp));
 
-      }catch(e){
-        toast("連線失敗（GAS）");
+      // 儲存常用狀態，供其他分頁使用
+      localStorage.setItem("empName", name);
+      localStorage.setItem("isManager", res.isManager ? "true" : "false");
+      localStorage.setItem("canSchedule", res.canSchedule ? "true" : "false");
+
+      if (res.isManager) {
+        document.getElementById("mgrBtn").style.display = "flex";
+      } else {
+        document.getElementById("mgrBtn").style.display = "none";
+      }
+    }
+
+    // ✅ SWR 核心機制：先讀快取，再偷偷背景更新
+    async function loadMe(){
+      const cacheKey = `me_cache_${empId}`;
+      const cached = localStorage.getItem(cacheKey);
+
+      // 1. 瞬間顯示上次的記憶
+      if (cached) {
+        try {
+          renderMeData(JSON.parse(cached));
+        } catch(e) {}
+      }
+
+      // 2. 背景偷偷向 Google 要最新資料
+      try {
+        const res = await api("get_me", {});
+        if(res && res.ok){
+          // 拿到最新資料，存入快取並覆蓋畫面
+          localStorage.setItem(cacheKey, JSON.stringify(res));
+          renderMeData(res);
+        } else if (!cached) {
+          toast("讀取失敗，請重新登入");
+        }
+      } catch(e) {
+        if (!cached) toast("連線失敗（GAS）");
       }
     }
 
@@ -419,6 +436,8 @@
       localStorage.removeItem("empName");
       localStorage.removeItem("isManager");
       localStorage.removeItem("canSchedule");
+      // 同時清除快取，避免登入別的帳號看到舊數字
+      localStorage.removeItem(`me_cache_${empId}`);
       location.href = "index.html";
     }
 
@@ -426,6 +445,7 @@
     document.getElementById("btnIn").addEventListener("click", ()=>clock("clock_in"));
     document.getElementById("btnOut").addEventListener("click", ()=>clock("clock_out"));
 
+    // 啟動載入
     loadMe();
   </script>
 </body>

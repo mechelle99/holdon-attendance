@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-  <title>登入</title>
+  <title>登入 - HR Portal</title>
   <style>
     body { font-family: -apple-system, sans-serif; background: #F3F4F6; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; color: #1F2937; }
     .card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); width: 100%; max-width: 320px; }
@@ -16,6 +16,7 @@
     
     button { width: 100%; background: #4F46E5; color: white; padding: 14px; border: none; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer; transition: background 0.2s; margin-top: 10px; }
     button:active { background: #4338CA; transform: scale(0.98); }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
     
     .link { text-align: center; margin-top: 16px; font-size: 13px; color: #6B7280; cursor: pointer; text-decoration: underline; }
     .hidden { display: none; }
@@ -33,7 +34,7 @@
       <label>密碼</label>
       <input type="password" id="pwd" placeholder="輸入密碼">
     </div>
-    <button onclick="login()">登入</button>
+    <button id="btnLogin" onclick="login()">登入</button>
     <div class="link" onclick="showForgot()">忘記密碼？</div>
   </div>
 
@@ -47,7 +48,7 @@
       <label>註冊信箱</label>
       <input type="email" id="f_email" placeholder="輸入 Email">
     </div>
-    <button onclick="sendToken()">寄送驗證碼</button>
+    <button id="btnForgot" onclick="sendToken()">寄送驗證碼</button>
     <div class="link" onclick="showLogin()">返回登入</div>
   </div>
 
@@ -61,7 +62,7 @@
       <label>新密碼</label>
       <input type="password" id="r_newPwd" placeholder="輸入新密碼">
     </div>
-    <button onclick="doReset()">確認修改</button>
+    <button id="btnReset" onclick="doReset()">確認修改</button>
     <div class="link" onclick="showLogin()">取消</div>
   </div>
 
@@ -73,62 +74,125 @@
   function showReset() { hideAll(); document.getElementById('resetForm').classList.remove('hidden'); }
   function hideAll() { document.querySelectorAll('.card').forEach(c => c.classList.add('hidden')); }
 
-  function api(act, data={}) {
-    return new Promise(r => {
+  // 檢查是否已登入，若已登入直接跳轉
+  if (localStorage.getItem("empId")) {
+    location.href = "app.html";
+  }
+
+  // ✅ 更安全的 API 呼叫 (包含 Timeout 與防重複 callback)
+  function api(action, data={}) {
+    return new Promise((resolve, reject) => {
+      if(!window.CONFIG || !window.CONFIG.GAS_ENDPOINT){
+        alert("系統設定錯誤：找不到 CONFIG.GAS_ENDPOINT");
+        return reject("No Config");
+      }
+
+      const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random()*100000);
       const s = document.createElement("script");
-      s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${act}&payload=${encodeURIComponent(JSON.stringify(data))}&callback=cb${Date.now()}`;
-      window[`cb${Date.now()}`] = (res) => { r(res); s.remove(); };
+      const payload = encodeURIComponent(JSON.stringify(data));
+      
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(new Error("網路連線逾時，請稍後再試"));
+      }, 15000);
+
+      function cleanup(){
+        clearTimeout(timer);
+        try{ delete window[cbName]; }catch(e){}
+        try{ s.remove(); }catch(e){}
+      }
+
+      window[cbName] = (res) => { cleanup(); resolve(res); };
+      s.onerror = () => { cleanup(); reject(new Error("無法連線到伺服器")); };
+
+      const sep = window.CONFIG.GAS_ENDPOINT.includes("?") ? "&" : "?";
+      s.src = `${window.CONFIG.GAS_ENDPOINT}${sep}action=${action}&payload=${payload}&callback=${cbName}&_=${Date.now()}`;
       document.body.appendChild(s);
     });
   }
 
   // 登入
   async function login() {
-      const id = document.getElementById("uid").value;
-      const pwd = document.getElementById("pwd").value;
+      const id = document.getElementById("uid").value.trim();
+      const pwd = document.getElementById("pwd").value.trim();
       if(!id || !pwd) { alert("請輸入帳號密碼"); return; }
       
-      const btn = event.target; btn.innerText = "登入中...";
-      const res = await api("login", {id, pass:pwd});
-      
-      if(res.ok) {
-          localStorage.setItem("employeeId", res.empId);
-          localStorage.setItem("employeeName", res.name);
-          localStorage.setItem("isManager", res.isManager);
-          location.href = "app.html";
-      } else {
-          alert(res.message);
-          btn.innerText = "登入";
+      const btn = document.getElementById("btnLogin");
+      btn.innerText = "登入中...";
+      btn.disabled = true;
+
+      try {
+        const res = await api("login", { empId: id, pass: pwd });
+        
+        if(res && res.ok) {
+            // ✅ 統一 localStorage 的 Key 命名，與 app.html 對齊
+            localStorage.setItem("empId", res.empId);
+            localStorage.setItem("empName", res.empName || res.name || id);
+            localStorage.setItem("isManager", res.isManager ? "true" : "false");
+            localStorage.setItem("canSchedule", res.canSchedule ? "true" : "false");
+            
+            location.href = "app.html";
+        } else {
+            alert(res ? res.message : "登入失敗");
+        }
+      } catch(err) {
+        alert(err.message || "發生錯誤");
+      } finally {
+        btn.innerText = "登入";
+        btn.disabled = false;
       }
   }
 
   // 寄送 Token
   async function sendToken() {
-      const id = document.getElementById("f_uid").value;
-      const email = document.getElementById("f_email").value;
+      const id = document.getElementById("f_uid").value.trim();
+      const email = document.getElementById("f_email").value.trim();
       if(!id || !email) { alert("請填寫欄位"); return; }
       
-      const btn = event.target; btn.innerText = "處理中...";
-      const res = await api("forgot_password", {empId:id, email:email});
-      
-      alert(res.message);
-      btn.innerText = "寄送驗證碼";
-      if(res.ok) showReset();
+      const btn = document.getElementById("btnForgot");
+      btn.innerText = "處理中...";
+      btn.disabled = true;
+
+      try {
+        const res = await api("forgot_password", { empId: id, email: email });
+        alert(res ? res.message : "請求已送出");
+        
+        if(res && res.ok) showReset();
+      } catch(err) {
+        alert(err.message || "發生錯誤");
+      } finally {
+        btn.innerText = "寄送驗證碼";
+        btn.disabled = false;
+      }
   }
 
   // 修改密碼
   async function doReset() {
-      const id = document.getElementById("f_uid").value; // 沿用上一頁的 ID
-      const token = document.getElementById("r_token").value;
-      const np = document.getElementById("r_newPwd").value;
+      const id = document.getElementById("f_uid").value.trim(); // 沿用上一頁的 ID
+      const token = document.getElementById("r_token").value.trim();
+      const np = document.getElementById("r_newPwd").value.trim();
       if(!token || !np) { alert("請填寫欄位"); return; }
       
-      const btn = event.target; btn.innerText = "更新中...";
-      const res = await api("reset_password_confirm", {empId:id, token:token, newPass:np});
-      
-      alert(res.message);
-      if(res.ok) showLogin();
-      else btn.innerText = "確認修改";
+      const btn = document.getElementById("btnReset");
+      btn.innerText = "更新中...";
+      btn.disabled = true;
+
+      try {
+        const res = await api("reset_password_confirm", { empId: id, token: token, newPass: np });
+        alert(res ? res.message : "處理完畢");
+        
+        if(res && res.ok) {
+          // 清空密碼欄位並返回登入
+          document.getElementById("r_newPwd").value = "";
+          document.getElementById("pwd").value = "";
+          showLogin();
+        }
+      } catch(err) {
+        alert(err.message || "發生錯誤");
+      } finally {
+        btn.innerText = "確認修改";
+        btn.disabled = false;
+      }
   }
 </script>
 </body>

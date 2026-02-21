@@ -25,7 +25,6 @@
     .btn { flex: 1; padding: 10px; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 14px; }
     .btn-approve { background: #10B981; color: white; }
     .btn-reject { background: #EF4444; color: white; }
-
     .btn:disabled, .btn-all:disabled { opacity: 0.6; cursor: not-allowed; filter: grayscale(1); }
     .btn-all { background: var(--primary); color: white; border: none; padding: 6px 12px; border-radius: 20px; font-size: 12px; cursor: pointer; }
 
@@ -75,7 +74,7 @@
   if(!isMgr){
     const g = document.getElementById("guard");
     g.style.display = "block";
-    g.innerHTML = "你不是主管權限，無法進入此頁。<br>如果你確定你是主管：請回到首頁重新登入，或清除瀏覽器快取後再試一次。";
+    g.innerHTML = "你不是主管權限，無法進入此頁。";
   }
 
   function api(action, data = {}) {
@@ -86,25 +85,12 @@
       const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random() * 1000000);
       const s = document.createElement("script");
 
-      const payloadObj = Object.assign({}, data, {
-        empId: uid,
-        webhookKey: (window.CONFIG && window.CONFIG.WEBHOOK_KEY) ? window.CONFIG.WEBHOOK_KEY : ""
-      });
-
+      const payloadObj = Object.assign({}, data, { empId: uid, webhookKey: (window.CONFIG && window.CONFIG.WEBHOOK_KEY) ? window.CONFIG.WEBHOOK_KEY : "" });
       const payload = encodeURIComponent(JSON.stringify(payloadObj));
       const bust = Date.now();
 
-      const timer = setTimeout(() => {
-        cleanup();
-        reject(new Error("請求逾時"));
-      }, 20000);
-
-      function cleanup() {
-        clearTimeout(timer);
-        try { delete window[cbName]; } catch (e) {}
-        try { s.remove(); } catch (e) {}
-      }
-
+      const timer = setTimeout(() => { cleanup(); reject(new Error("請求逾時")); }, 20000);
+      function cleanup() { clearTimeout(timer); try { delete window[cbName]; } catch (e) {} try { s.remove(); } catch (e) {} }
       window[cbName] = (res) => { cleanup(); resolve(res); };
       s.onerror = () => { cleanup(); reject(new Error("網路連線失敗")); };
 
@@ -116,36 +102,34 @@
 
   function pad2(n){ return String(n).padStart(2,'0'); }
 
-  // 🏆 終極防禦：強制套用 config.js 的 8 小時補償！
+  // 🏆 終極防禦：絕對不加減時區，後端字串直接印，若為舊版 ISO 強制轉台北
   function formatDT(v){
     if(!v) return '—';
     const str = String(v).trim();
-    if(!str) return '—';
+    if(!str || str === '--:--') return str;
 
-    if (/^\d{4}[\/\-]\d{2}[\/\-]\d{2} \d{2}:\d{2}(:\d{2})?$/.test(str)) {
-        return str.replace(/\//g, '-').substring(0, 16);
+    // 1. 後端的乾淨字串 (e.g., "2026/02/19 10:00:00" 或 "2026-02-19 10:00") -> 直接顯示！
+    if (/^\d{4}[\/\-]\d{2}[\/\-]\d{2}\s\d{2}:\d{2}(:\d{2})?$/.test(str)) {
+       return str.replace(/\//g, '-').substring(0, 16);
     }
 
+    // 2. 如果是舊資料的 ISO 或 Timestamp
     let d;
-    if (/^\d{10,13}$/.test(str)) {
-        d = new Date(str.length === 10 ? Number(str)*1000 : Number(str));
-    } else if (/^\d{4}-\d{2}-\d{2}T/.test(str) && !/[zZ]$/.test(str) && !/[+\-]\d{2}:\d{2}$/.test(str)) {
-        d = new Date(str + "+08:00");
-    } else {
-        d = new Date(str);
-    }
+    if (/^\d{10,13}$/.test(str)) d = new Date(Number(str));
+    else if (/^\d{4}-\d{2}-\d{2}T/.test(str) && !/[zZ]$/.test(str) && !/[+\-]\d{2}:\d{2}$/.test(str)) d = new Date(str + "+08:00");
+    else d = new Date(str);
 
     if (isNaN(d.getTime())) return str;
 
-    let shift = 8;
-    if (window.CONFIG && typeof window.CONFIG.TIME_SHIFT_HOURS === 'number') {
-        shift = window.CONFIG.TIME_SHIFT_HOURS;
+    // 強制用台北時間輸出
+    try {
+       const fmt = new Intl.DateTimeFormat('zh-TW', {
+          timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
+       });
+       return fmt.format(d).replace(/\//g, '-');
+    } catch(e) {
+       return str.substring(0, 16);
     }
-
-    const targetMs = d.getTime() + (shift * 60 * 60 * 1000);
-    const tDate = new Date(targetMs);
-    
-    return `${tDate.getUTCFullYear()}-${pad2(tDate.getUTCMonth()+1)}-${pad2(tDate.getUTCDate())} ${pad2(tDate.getUTCHours())}:${pad2(tDate.getUTCMinutes())}`;
   }
 
   function typeLabel_(r){
@@ -158,23 +142,13 @@
     if(t.includes('comp')) return '補休';
     if(t.includes('sick')) return '病假';
     if(t.includes('personal')) return '事假';
-    if(t.includes('official')) return '公假';
-    if(t.includes('marriage')) return '婚假';
-    if(t.includes('bereavement')) return '喪假';
-    if(t.includes('menstrual')) return '生理假';
-    if(t.includes('maternity')) return '產假';
-    if(t.includes('paternity')) return '陪產假';
-    if(t.includes('family')) return '家庭照顧假';
     if(t.includes('birthday')) return '生日假';
     return typeName || '申請';
   }
 
   function renderStats(list) {
     const el = document.getElementById("teamStats");
-    if (!list || list.length === 0) {
-      el.innerHTML = '<div style="text-align:center;color:#999;padding:20px;">無資料</div>';
-      return;
-    }
+    if (!list || list.length === 0) { el.innerHTML = '<div style="text-align:center;color:#999;padding:20px;">無資料</div>'; return; }
     let h = "";
     list.forEach(u => {
       h += `
@@ -188,49 +162,33 @@
 
   function renderPending(list) {
     const el = document.getElementById("pendingList");
-    if (!list || list.length === 0) {
-      el.innerHTML = `<div style="text-align:center;color:#999;padding:20px;">目前無待審核案件 ✅</div>`;
-      return;
-    }
+    if (!list || list.length === 0) { el.innerHTML = `<div style="text-align:center;color:#999;padding:20px;">目前無待審核案件 ✅</div>`; return; }
     let h = "";
     list.forEach(r => {
       const typeName = typeLabel_(r);
       const displayName = (r.empName || r.name || "").trim() || (r.empId || r.id || "未知員工");
 
       // 🏆 使用終極防禦 formatDT
-      const startShow = formatDT(r.startIso || r.startStr || r.start);
-      const endShow   = formatDT(r.endIso || r.endStr || r.end);
-      const submitShow = formatDT(r.createdAtIso || r.createdAtStr || r.createdAt);
+      const startShow = formatDT(r.startStr || r.startIso || r.start);
+      const endShow   = formatDT(r.endStr || r.endIso || r.end);
+      const submitShow = formatDT(r.createdAtStr || r.createdAtIso || r.createdAt);
 
       const cat = String(r.category || '').toUpperCase();
-      const lt  = String(r.leaveType || '').toLowerCase();
-
-      const reqId = String(r.reqId || r.id || '');
-      const safeId = encodeURIComponent(reqId);
+      const reqId = String(r.reqId || r.id || ''), safeId = encodeURIComponent(reqId);
       const note = (r.note || r.remark || r.memo || r.reason || '').toString().trim();
 
-      let kindLine = `類型: ${typeName}<br>`;
-      let timeLine = '';
-      let hoursLine = '';
-      let extraLine = '';
+      let kindLine = `類型: ${typeName}<br>`, timeLine = '', hoursLine = '', extraLine = '';
 
       if (cat === 'CORRECTION') {
-        const clockLabel = (r.clockTypeLabel || r.correctionTypeLabel || r.correctionType || r.clockType || '').toString().trim();
+        const clockLabel = (r.clockTypeLabel || r.correctionTypeLabel || '').toString().trim();
         extraLine += `補卡類型: ${clockLabel || '（未填）'}<br>`;
         timeLine = `補卡時間: ${startShow}${(endShow && endShow !== '—' && endShow !== startShow) ? ` ～ ${endShow}` : ''}<br>`;
-      } else if (cat === 'OUTING' || cat === 'OT') {
-        timeLine = `時間: ${startShow} ～ ${endShow}<br>`;
-        hoursLine = (Number(r.hours||0) > 0) ? `時數: ${Number(r.hours||0)} 小時<br>` : '';
-      } else if (cat === 'LEAVE' || lt.includes('annual') || lt.includes('comp') || lt.includes('sick') || lt.includes('personal') || lt.includes('birthday')) {
+      } else if (cat === 'OUTING' || cat === 'OT' || cat === 'LEAVE') {
         timeLine = `時間: ${startShow} ～ ${endShow}<br>`;
         hoursLine = `時數: ${Number(r.hours||0)} 小時<br>`;
       } else {
         timeLine = `日期: ${startShow}<br>`;
-        hoursLine = (Number(r.hours||0) > 0) ? `時數: ${Number(r.hours||0)} 小時<br>` : '';
       }
-
-      const noteLine = `備註: ${note || '無'}<br>`;
-      const submitLine = (submitShow && submitShow !== '—') ? `送單: ${submitShow}<br>` : '';
 
       h += `
         <div class="req-item" id="card-${safeId}">
@@ -239,7 +197,7 @@
             <div class="req-type">${typeName}</div>
           </div>
           <div class="req-info">
-            ${kindLine}${timeLine}${hoursLine}${extraLine}${noteLine}${submitLine}
+            ${kindLine}${timeLine}${hoursLine}${extraLine}備註: ${note || '無'}<br>送單: ${submitShow}
           </div>
           <div class="req-actions">
             <button class="btn btn-approve" onclick="decide('${safeId}', '${reqId}', 'APPROVED')">核准</button>
@@ -255,21 +213,12 @@
       document.getElementById("teamStats").innerHTML = '<div style="text-align:center;color:#999;padding:20px;">更新中...</div>';
       document.getElementById("pendingList").innerHTML = '<div style="text-align:center;color:#999;padding:20px;">檢查中...</div>';
     }
-
     try {
       const res = await api("get_manager_init");
-      if(res && res.ok) {
-        renderStats(res.stats || []);
-        renderPending(res.pending || []);
-      } else if (!silent) {
-        document.getElementById("teamStats").innerHTML = `<div style="text-align:center;color:red;">${res.message || '讀取失敗'}</div>`;
-        document.getElementById("pendingList").innerHTML = `<div style="text-align:center;color:red;">${res.message || '讀取失敗'}</div>`;
-      }
+      if(res && res.ok) { renderStats(res.stats || []); renderPending(res.pending || []); }
+      else if (!silent) { document.getElementById("teamStats").innerHTML = `<div style="text-align:center;color:red;">讀取失敗</div>`; document.getElementById("pendingList").innerHTML = `<div style="text-align:center;color:red;">讀取失敗</div>`; }
     } catch (err) {
-      if (!silent) {
-        document.getElementById("teamStats").innerHTML = `<div style="text-align:center;color:red;">連線失敗</div>`;
-        document.getElementById("pendingList").innerHTML = `<div style="text-align:center;color:red;">連線失敗</div>`;
-      }
+      if (!silent) { document.getElementById("teamStats").innerHTML = `<div style="text-align:center;color:red;">連線失敗</div>`; document.getElementById("pendingList").innerHTML = `<div style="text-align:center;color:red;">連線失敗</div>`; }
     }
   }
 
@@ -278,30 +227,24 @@
     if(!confirm(decision==='APPROVED'?'確定核准？':'確定駁回？')) return;
 
     const data = { reqId: reqId, decision: decision, managerEmpId: uid };
-    const card = document.getElementById(`card-${safeId}`);
-    const buttons = card ? card.querySelectorAll("button") : [];
+    const card = document.getElementById(`card-${safeId}`), buttons = card ? card.querySelectorAll("button") : [];
     
     if(card) card.style.opacity = '0.5';
     buttons.forEach(b => b.disabled = true);
 
     try {
       const res = await api("review_request", data);
-      
       if(res && res.ok) {
         if(card) card.remove();
-        if(document.querySelectorAll('.req-item').length === 0) {
-          document.getElementById("pendingList").innerHTML = `<div style="text-align:center;color:#999;padding:20px;">已全部審核完畢 ✅</div>`;
-        }
+        if(document.querySelectorAll('.req-item').length === 0) document.getElementById("pendingList").innerHTML = `<div style="text-align:center;color:#999;padding:20px;">已全部審核完畢 ✅</div>`;
         loadManagerInit(true); 
       } else {
         alert("操作失敗: " + ((res && res.message) || '未知錯誤'));
-        if(card) card.style.opacity = '1';
-        buttons.forEach(b => b.disabled = false);
+        if(card) card.style.opacity = '1'; buttons.forEach(b => b.disabled = false);
       }
     } catch (err) {
       alert("操作失敗: 網絡錯誤");
-      if(card) card.style.opacity = '1';
-      buttons.forEach(b => b.disabled = false);
+      if(card) card.style.opacity = '1'; buttons.forEach(b => b.disabled = false);
     }
   }
 
@@ -309,10 +252,8 @@
     if(!isMgr) return alert("你不是主管權限，無法操作。");
     if(!confirm("確定核准「本月所有」待審核單據？")) return;
 
-    const btnRefresh = document.getElementById("btnRefresh");
-    const btnApproveAll = document.getElementById("btnApproveAll");
-    btnRefresh.disabled = true;
-    btnApproveAll.disabled = true;
+    const btnRefresh = document.getElementById("btnRefresh"), btnApproveAll = document.getElementById("btnApproveAll");
+    btnRefresh.disabled = true; btnApproveAll.disabled = true;
 
     const now = new Date();
     try {
@@ -322,14 +263,11 @@
     } catch (err) {
       alert("操作失敗: 網絡錯誤");
     } finally {
-      btnRefresh.disabled = false;
-      btnApproveAll.disabled = false;
+      btnRefresh.disabled = false; btnApproveAll.disabled = false;
     }
   }
 
-  if (isMgr) {
-    loadManagerInit(false);
-  }
+  if (isMgr) loadManagerInit(false);
 </script>
 </body>
 </html>

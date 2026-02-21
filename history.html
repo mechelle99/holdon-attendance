@@ -1,4 +1,4 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
   <meta charset="utf-8"/>
@@ -6,273 +6,44 @@
   <title>出勤紀錄</title>
   <style>
     :root{
-      --primary:#4F46E5;
-      --bg:#F3F4F6;
-      --card:#FFFFFF;
-      --text:#111827;
-      --muted:#6B7280;
-      --ok:#10B981;
-      --warn:#F59E0B;
-      --danger:#EF4444;
-      --shadow: 0 10px 26px rgba(17,24,39,.10);
-      --shadow2: 0 6px 16px rgba(17,24,39,.06);
+      --primary:#4F46E5; --bg:#F3F4F6; --card:#FFFFFF; --text:#111827;
+      --muted:#6B7280; --ok:#10B981; --warn:#F59E0B; --danger:#EF4444;
+      --shadow: 0 10px 26px rgba(17,24,39,.10); --shadow2: 0 6px 16px rgba(17,24,39,.06);
       --radius: 18px;
     }
     *{box-sizing:border-box}
-    body{
-      margin:0;
-      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans TC",sans-serif;
-      background:var(--bg);
-      color:var(--text);
-      padding: 18px 18px calc(90px + env(safe-area-inset-bottom)) 18px;
-    }
-
-    .toast{
-      position: fixed;
-      left: 16px; right: 16px;
-      top: calc(16px + env(safe-area-inset-top));
-      background: #111827;
-      color:#fff;
-      padding: 12px 14px;
-      border-radius: 14px;
-      box-shadow: var(--shadow2);
-      display:none;
-      z-index: 9999;
-      font-size: 13px;
-      line-height: 1.4;
-    }
-
-    .hero{
-      background: linear-gradient(135deg, #4F46E5, #7C3AED);
-      border-radius: 26px;
-      padding: 18px;
-      box-shadow: var(--shadow);
-      color:#fff;
-      margin-bottom: 14px;
-    }
-    .hero h2{
-      margin:0;
-      font-size: 22px;
-      font-weight: 900;
-      letter-spacing: .2px;
-    }
-    .hero .sub{
-      margin-top: 6px;
-      font-size: 13px;
-      opacity: .88;
-      display:flex;
-      gap:10px;
-      flex-wrap:wrap;
-      align-items:center;
-    }
-    .pill{
-      background: rgba(255,255,255,.18);
-      border: 1px solid rgba(255,255,255,.22);
-      padding: 6px 10px;
-      border-radius: 999px;
-      font-weight: 700;
-    }
-
-    .filters{
-      display:flex;
-      gap:10px;
-      flex-wrap:wrap;
-      margin: 12px 0 14px 0;
-      align-items:center;
-    }
-    .filters input, .filters select{
-      border:none;
-      background:#fff;
-      border-radius: 14px;
-      padding: 10px 12px;
-      box-shadow: var(--shadow2);
-      font-size: 13px;
-      outline:none;
-    }
-    .filters button{
-      border:none;
-      background: var(--primary);
-      color:#fff;
-      border-radius: 14px;
-      padding: 10px 14px;
-      font-weight: 900;
-      cursor:pointer;
-      box-shadow: var(--shadow2);
-    }
+    body{ margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans TC",sans-serif; background:var(--bg); color:var(--text); padding: 18px 18px calc(90px + env(safe-area-inset-bottom)) 18px; }
+    .toast{ position: fixed; left: 16px; right: 16px; top: calc(16px + env(safe-area-inset-top)); background: #111827; color:#fff; padding: 12px 14px; border-radius: 14px; box-shadow: var(--shadow2); display:none; z-index: 9999; font-size: 13px; line-height: 1.4; }
+    .hero{ background: linear-gradient(135deg, #4F46E5, #7C3AED); border-radius: 26px; padding: 18px; box-shadow: var(--shadow); color:#fff; margin-bottom: 14px; }
+    .hero h2{ margin:0; font-size: 22px; font-weight: 900; letter-spacing: .2px; }
+    .hero .sub{ margin-top: 6px; font-size: 13px; opacity: .88; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .pill{ background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.22); padding: 6px 10px; border-radius: 999px; font-weight: 700; }
+    .filters{ display:flex; gap:10px; flex-wrap:wrap; margin: 12px 0 14px 0; align-items:center; }
+    .filters input, .filters select{ border:none; background:#fff; border-radius: 14px; padding: 10px 12px; box-shadow: var(--shadow2); font-size: 13px; outline:none; }
+    .filters button{ border:none; background: var(--primary); color:#fff; border-radius: 14px; padding: 10px 14px; font-weight: 900; cursor:pointer; box-shadow: var(--shadow2); }
     .filters button:active{ transform: scale(.99); }
-
-    .seg{
-      background:#fff;
-      border-radius: 20px;
-      box-shadow: var(--shadow2);
-      padding: 8px;
-      display:flex;
-      gap:8px;
-      align-items:center;
-      margin-bottom: 14px;
-      position: sticky;
-      top: calc(10px + env(safe-area-inset-top));
-      z-index: 50;
-    }
-    .seg-btn{
-      flex:1;
-      border:none;
-      background: transparent;
-      border-radius: 16px;
-      padding: 12px 12px;
-      font-weight: 1000;
-      font-size: 16px;
-      cursor:pointer;
-      display:flex;
-      justify-content:center;
-      align-items:center;
-      gap:10px;
-      color:#6B7280;
-    }
-    .seg-btn .count{
-      background:#EEF2FF;
-      color: var(--primary);
-      padding: 4px 10px;
-      border-radius: 999px;
-      font-size: 14px;
-      font-weight: 1000;
-      min-width: 44px;
-      text-align:center;
-    }
-    .seg-btn.active{
-      color: var(--primary);
-      background: rgba(79,70,229,.10);
-      border: 2px solid rgba(79,70,229,.55);
-    }
-
-    .grid{ display:block; }
-    .panel{ display:none; }
-    .panel.active{ display:block; }
-
-    @media (min-width: 900px){
-      .seg{ display:none; }
-      .grid{
-        display:grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 16px;
-        align-items:start;
-      }
-      .panel{ display:block; }
-    }
-
-    .section-title{
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      margin: 10px 0 10px 0;
-    }
-    .section-title h3{
-      margin:0;
-      font-size: 15px;
-      font-weight: 900;
-      color: var(--primary);
-    }
-    .section-title .small{
-      font-size: 12px;
-      color: var(--muted);
-      font-weight: 800;
-    }
-
-    .list{
-      display:flex;
-      flex-direction:column;
-      gap:12px;
-    }
-    .item{
-      background: var(--card);
-      border-radius: var(--radius);
-      padding: 14px 14px;
-      box-shadow: var(--shadow2);
-      border: 1px solid rgba(17,24,39,.05);
-      position: relative;
-      overflow:hidden;
-    }
-    .item:before{
-      content:"";
-      position:absolute;
-      left:0; top:0; bottom:0;
-      width: 5px;
-      background: #E5E7EB;
-    }
-    .item.ok:before{ background: var(--ok); }
-    .item.warn:before{ background: var(--warn); }
-    .item.danger:before{ background: var(--danger); }
-
-    .top{
-      display:flex;
-      justify-content:space-between;
-      gap: 10px;
-      margin-bottom: 6px;
-      align-items:flex-start;
-    }
-    .title{
-      font-weight: 1000;
-      font-size: 18px;
-      margin:0;
-      line-height: 1.25;
-      letter-spacing: .2px;
-    }
-    .badge{
-      font-size: 12px;
-      font-weight: 1000;
-      padding: 6px 12px;
-      border-radius: 999px;
-      background: #EEF2FF;
-      color: var(--primary);
-      white-space:nowrap;
-      height: fit-content;
-    }
-    .badge.ok{ background: rgba(16,185,129,.14); color:#065F46; }
-    .badge.warn{ background: rgba(245,158,11,.16); color:#92400E; }
-    .badge.danger{ background: rgba(239,68,68,.16); color:#991B1B; }
-
-    .meta{
-      font-size: 13px;
-      color: var(--muted);
-      line-height: 1.6;
-      font-weight: 800;
-      word-break: break-word;
-    }
-
-    .empty{
-      text-align:center;
-      padding: 22px;
-      color: #9CA3AF;
-      font-weight: 900;
-      background: rgba(255,255,255,.65);
-      border: 1px dashed rgba(17,24,39,.12);
-      border-radius: 16px;
-    }
-
-    .nav{
-      position: fixed;
-      left: 0; right: 0; bottom: 0;
-      padding: 12px 18px;
-      padding-bottom: max(12px, env(safe-area-inset-bottom));
-      background: rgba(255,255,255,.92);
-      backdrop-filter: blur(10px);
-      border-top-left-radius: 26px;
-      border-top-right-radius: 26px;
-      box-shadow: 0 -10px 30px rgba(17,24,39,.08);
-      display:flex;
-      justify-content: space-around;
-      z-index: 1000;
-    }
-    .nav-item{
-      text-decoration:none;
-      color:#9CA3AF;
-      display:flex; flex-direction:column; align-items:center;
-      gap: 4px;
-      font-size: 10px;
-      font-weight: 900;
-    }
-    .nav-item.active{ color: var(--primary); }
-    .nav-icon{ font-size: 22px; }
+    .seg{ background:#fff; border-radius: 20px; box-shadow: var(--shadow2); padding: 8px; display:flex; gap:8px; align-items:center; margin-bottom: 14px; position: sticky; top: calc(10px + env(safe-area-inset-top)); z-index: 50; }
+    .seg-btn{ flex:1; border:none; background: transparent; border-radius: 16px; padding: 12px 12px; font-weight: 1000; font-size: 16px; cursor:pointer; display:flex; justify-content:center; align-items:center; gap:10px; color:#6B7280; }
+    .seg-btn .count{ background:#EEF2FF; color: var(--primary); padding: 4px 10px; border-radius: 999px; font-size: 14px; font-weight: 1000; min-width: 44px; text-align:center; }
+    .seg-btn.active{ color: var(--primary); background: rgba(79,70,229,.10); border: 2px solid rgba(79,70,229,.55); }
+    .grid{ display:block; } .panel{ display:none; } .panel.active{ display:block; }
+    @media (min-width: 900px){ .seg{ display:none; } .grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items:start; } .panel{ display:block; } }
+    .section-title{ display:flex; justify-content:space-between; align-items:center; margin: 10px 0 10px 0; }
+    .section-title h3{ margin:0; font-size: 15px; font-weight: 900; color: var(--primary); }
+    .section-title .small{ font-size: 12px; color: var(--muted); font-weight: 800; }
+    .list{ display:flex; flex-direction:column; gap:12px; }
+    .item{ background: var(--card); border-radius: var(--radius); padding: 14px 14px; box-shadow: var(--shadow2); border: 1px solid rgba(17,24,39,.05); position: relative; overflow:hidden; }
+    .item:before{ content:""; position:absolute; left:0; top:0; bottom:0; width: 5px; background: #E5E7EB; }
+    .item.ok:before{ background: var(--ok); } .item.warn:before{ background: var(--warn); } .item.danger:before{ background: var(--danger); }
+    .top{ display:flex; justify-content:space-between; gap: 10px; margin-bottom: 6px; align-items:flex-start; }
+    .title{ font-weight: 1000; font-size: 18px; margin:0; line-height: 1.25; letter-spacing: .2px; }
+    .badge{ font-size: 12px; font-weight: 1000; padding: 6px 12px; border-radius: 999px; background: #EEF2FF; color: var(--primary); white-space:nowrap; height: fit-content; }
+    .badge.ok{ background: rgba(16,185,129,.14); color:#065F46; } .badge.warn{ background: rgba(245,158,11,.16); color:#92400E; } .badge.danger{ background: rgba(239,68,68,.16); color:#991B1B; }
+    .meta{ font-size: 13px; color: var(--muted); line-height: 1.6; font-weight: 800; word-break: break-word; }
+    .empty{ text-align:center; padding: 22px; color: #9CA3AF; font-weight: 900; background: rgba(255,255,255,.65); border: 1px dashed rgba(17,24,39,.12); border-radius: 16px; }
+    .nav{ position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 18px; padding-bottom: max(12px, env(safe-area-inset-bottom)); background: rgba(255,255,255,.92); backdrop-filter: blur(10px); border-top-left-radius: 26px; border-top-right-radius: 26px; box-shadow: 0 -10px 30px rgba(17,24,39,.08); display:flex; justify-content: space-around; z-index: 1000; }
+    .nav-item{ text-decoration:none; color:#9CA3AF; display:flex; flex-direction:column; align-items:center; gap: 4px; font-size: 10px; font-weight: 900; }
+    .nav-item.active{ color: var(--primary); } .nav-icon{ font-size: 22px; }
   </style>
 </head>
 <body>
@@ -338,9 +109,7 @@
     const empId = localStorage.getItem("empId") || localStorage.getItem("employeeId") || "";
     const empName = (localStorage.getItem("empName") || "").trim();
 
-    if(!empId){
-      location.href="index.html";
-    }
+    if(!empId){ location.href="index.html"; }
     document.getElementById("who").textContent = empName ? `${empName}（${empId}）` : `員工：${empId}`;
 
     if (localStorage.getItem("isManager") === "true") {
@@ -349,28 +118,20 @@
 
     function toast(msg){
       const el = document.getElementById("toast");
-      el.textContent = msg;
-      el.style.display = "block";
+      el.textContent = msg; el.style.display = "block";
       clearTimeout(window.__toastTimer);
       window.__toastTimer = setTimeout(()=> el.style.display="none", 2400);
     }
 
     function showPanel(which){
-      const tabAtt = document.getElementById("tabAtt");
-      const tabReq = document.getElementById("tabReq");
-      const pAtt = document.getElementById("panelAtt");
-      const pReq = document.getElementById("panelReq");
-
+      const tabAtt = document.getElementById("tabAtt"), tabReq = document.getElementById("tabReq");
+      const pAtt = document.getElementById("panelAtt"), pReq = document.getElementById("panelReq");
       if(which === 'req'){
-        tabReq.classList.add("active");
-        tabAtt.classList.remove("active");
-        pReq.classList.add("active");
-        pAtt.classList.remove("active");
+        tabReq.classList.add("active"); tabAtt.classList.remove("active");
+        pReq.classList.add("active"); pAtt.classList.remove("active");
       }else{
-        tabAtt.classList.add("active");
-        tabReq.classList.remove("active");
-        pAtt.classList.add("active");
-        pReq.classList.remove("active");
+        tabAtt.classList.add("active"); tabReq.classList.remove("active");
+        pAtt.classList.add("active"); pReq.classList.remove("active");
       }
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
@@ -382,26 +143,12 @@
 
         const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random()*1e6);
         const s = document.createElement("script");
-
-        const payloadObj = Object.assign({}, data, {
-          empId,
-          webhookKey: (window.CONFIG && window.CONFIG.WEBHOOK_KEY) ? window.CONFIG.WEBHOOK_KEY : ""
-        });
-
+        const payloadObj = Object.assign({}, data, { empId, webhookKey: (window.CONFIG && window.CONFIG.WEBHOOK_KEY) ? window.CONFIG.WEBHOOK_KEY : "" });
         const payload = encodeURIComponent(JSON.stringify(payloadObj));
         const bust = Date.now();
 
-        const timer = setTimeout(()=>{
-          cleanup();
-          reject(new Error("請求逾時"));
-        }, 20000);
-
-        function cleanup(){
-          clearTimeout(timer);
-          try{ delete window[cbName]; }catch(e){}
-          try{ s.remove(); }catch(e){}
-        }
-
+        const timer = setTimeout(()=>{ cleanup(); reject(new Error("請求逾時")); }, 20000);
+        function cleanup(){ clearTimeout(timer); try{ delete window[cbName]; }catch(e){} try{ s.remove(); }catch(e){} }
         window[cbName] = (res)=>{ cleanup(); resolve(res); };
         s.onerror = ()=>{ cleanup(); reject(new Error("網路連線失敗")); };
 
@@ -413,40 +160,34 @@
 
     function pad2(n){ return String(n).padStart(2,'0'); }
 
-    // 🏆 終極防禦：強制套用 config.js 的 8 小時補償！
+    // 🏆 終極防禦：絕對不加減時區，後端字串直接印，若為舊版 ISO 強制轉台北
     function formatDT(v){
       if(!v) return '—';
       const str = String(v).trim();
-      if(!str) return '—';
+      if(!str || str === '--:--') return str;
 
-      // 1. 如果已經是後端乾淨的 YYYY/MM/DD HH:mm:ss 格式，直接回傳不囉嗦
-      if (/^\d{4}[\/\-]\d{2}[\/\-]\d{2} \d{2}:\d{2}(:\d{2})?$/.test(str)) {
+      // 1. 後端的乾淨字串 (e.g., "2026/02/19 10:00:00" 或 "2026-02-19 10:00") -> 直接顯示！
+      if (/^\d{4}[\/\-]\d{2}[\/\-]\d{2}\s\d{2}:\d{2}(:\d{2})?$/.test(str)) {
          return str.replace(/\//g, '-').substring(0, 16);
       }
 
-      // 2. 解析為 Date 物件
+      // 2. 如果是舊資料的 ISO 或 Timestamp
       let d;
-      if (/^\d{10,13}$/.test(str)) {
-         d = new Date(str.length === 10 ? Number(str)*1000 : Number(str));
-      } else if (/^\d{4}-\d{2}-\d{2}T/.test(str) && !/[zZ]$/.test(str) && !/[+\-]\d{2}:\d{2}$/.test(str)) {
-         // ISO 沒有時區的話，當作加上 8 小時時區
-         d = new Date(str + "+08:00");
-      } else {
-         d = new Date(str);
-      }
+      if (/^\d{10,13}$/.test(str)) d = new Date(Number(str));
+      else if (/^\d{4}-\d{2}-\d{2}T/.test(str) && !/[zZ]$/.test(str) && !/[+\-]\d{2}:\d{2}$/.test(str)) d = new Date(str + "+08:00");
+      else d = new Date(str);
 
       if (isNaN(d.getTime())) return str;
 
-      // 3. 套用 config.js 的時差補償 (這就是解決你 8 小時落差的關鍵！)
-      let shift = 8; // 預設強制 +8
-      if (window.CONFIG && typeof window.CONFIG.TIME_SHIFT_HOURS === 'number') {
-         shift = window.CONFIG.TIME_SHIFT_HOURS; // 吃你的 config 設定
+      // 強制用台北時間輸出
+      try {
+         const fmt = new Intl.DateTimeFormat('zh-TW', {
+            timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
+         });
+         return fmt.format(d).replace(/\//g, '-');
+      } catch(e) {
+         return str.substring(0, 16);
       }
-
-      const targetMs = d.getTime() + (shift * 60 * 60 * 1000);
-      const tDate = new Date(targetMs);
-      
-      return `${tDate.getUTCFullYear()}-${pad2(tDate.getUTCMonth()+1)}-${pad2(tDate.getUTCDate())} ${pad2(tDate.getUTCHours())}:${pad2(tDate.getUTCMinutes())}`;
     }
 
     function parseToDate(v){
@@ -455,9 +196,7 @@
       const s0 = String(v).trim();
       
       let m = s0.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})[\sT](\d{1,2}):(\d{2})/);
-      if (m && !/[zZ]$/.test(s0) && !/[+\-]\d{2}:\d{2}$/.test(s0)) {
-        return new Date(`${m[1]}-${pad2(m[2])}-${pad2(m[3])}T${pad2(m[4])}:${pad2(m[5])}:00+08:00`);
-      }
+      if (m) return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], 0);
       const d = new Date(s0);
       return isNaN(d.getTime()) ? null : d;
     }
@@ -466,55 +205,38 @@
       const s = parseToDate(start);
       const e = parseToDate(end) || s;
       if(!s) return false;
-      const monthStart = new Date(y, m-1, 1, 0,0,0,0);
-      const monthEnd   = new Date(y, m,   0, 23,59,59,999);
+      const monthStart = new Date(y, m-1, 1, 0,0,0,0), monthEnd = new Date(y, m, 0, 23,59,59,999);
       return e >= monthStart && s <= monthEnd;
     }
 
     function normalizeDailyTag(tag){
-      const t = String(tag||'').trim();
-      const low = t.toLowerCase();
-      if(low==='annual') return '特休';
-      if(low==='sick') return '病假';
-      if(low==='personal') return '事假';
-      if(low==='birthday') return '生日假';
-      if(low==='comp') return '補休';
-      if(low==='outing') return '外出';
-      if(low==='ot') return '加班';
-      if(low==='correction') return '補卡';
-      if(low==='in') return '上班中';
-      if(low==='out') return '已下班';
+      const t = String(tag||'').trim(), low = t.toLowerCase();
+      if(low==='annual') return '特休'; if(low==='sick') return '病假'; if(low==='personal') return '事假';
+      if(low==='birthday') return '生日假'; if(low==='comp') return '補休'; if(low==='outing') return '外出';
+      if(low==='ot') return '加班'; if(low==='correction') return '補卡';
+      if(low==='in') return '上班中'; if(low==='out') return '已下班';
       return t || '—';
     }
 
     function attStatusBadge(tag){
       const t0 = normalizeDailyTag(tag);
       if(!t0 || t0==='—') return { cls:'warn', label:'—' };
-      if(t0.includes('上班中')) return { cls:'ok', label:t0 };
-      if(t0.includes('正常') || t0.includes('已下班')) return { cls:'ok', label:t0 };
-      if(t0.includes('休假') || t0.includes('特休') || t0.includes('病假') || t0.includes('事假') || t0.includes('生日假') || t0.includes('補休') || t0.includes('外出'))
-        return { cls:'warn', label:t0 };
-      if(t0.includes('加班')) return { cls:'ok', label:t0 };
-      if(t0.includes('遲到') || t0.includes('早退')) return { cls:'warn', label:t0 };
-      if(t0.includes('曠職') || t0.includes('缺卡') || t0.includes('缺勤') || t0.includes('未打卡'))
-        return { cls:'danger', label:t0 };
+      if(t0.includes('上班中') || t0.includes('正常') || t0.includes('已下班') || t0.includes('加班')) return { cls:'ok', label:t0 };
+      if(t0.includes('休假') || t0.includes('特休') || t0.includes('病假') || t0.includes('事假') || t0.includes('生日假') || t0.includes('補休') || t0.includes('外出') || t0.includes('遲到') || t0.includes('早退')) return { cls:'warn', label:t0 };
+      if(t0.includes('曠職') || t0.includes('缺卡') || t0.includes('缺勤') || t0.includes('未打卡')) return { cls:'danger', label:t0 };
       return { cls:'warn', label:t0 };
     }
 
     function deriveAttTag(row){
-      const inStr = String(row.in||'').trim();
-      const outStr = String(row.out||'').trim();
-      const hasIn = !!inStr && inStr !== '--:--';
-      const hasOut = !!outStr && outStr !== '--:--';
-
+      const inStr = String(row.in||'').trim(), outStr = String(row.out||'').trim();
+      const hasIn = !!inStr && inStr !== '--:--', hasOut = !!outStr && outStr !== '--:--';
       if(hasIn && !hasOut) return '上班中';
       if(!hasIn && hasOut) return '缺卡（缺上班）';
       return normalizeDailyTag(row.tag);
     }
 
     function reqTypeBadge(row){
-      const cat = String(row.category||'').toUpperCase();
-      const lt = String(row.leaveType||'').toLowerCase();
+      const cat = String(row.category||'').toUpperCase(), lt = String(row.leaveType||'').toLowerCase();
       if(cat==='CORRECTION' || lt.includes('correction') || lt.includes('補卡')) return '補卡';
       if(cat==='OUTING' || lt.includes('outing') || lt.includes('外出')) return '外出';
       if(cat==='OT' || lt==='ot' || lt.includes('加班')) return '加班';
@@ -529,12 +251,10 @@
     }
 
     function normalizeReqStatus(status){
-      const raw = String(status||'').trim();
-      const s = raw.toUpperCase();
+      const raw = String(status||'').trim(), s = raw.toUpperCase();
       if(!raw) return "PENDING";
       if(s === "APPROVED" || raw.includes("核准")) return "APPROVED";
       if(s === "REJECTED" || raw.includes("駁回")) return "REJECTED";
-      if(s === "PENDING" || raw.includes("待審") || raw.includes("審核中")) return "PENDING";
       return "PENDING";
     }
 
@@ -542,23 +262,14 @@
       const el = document.getElementById("attList");
       document.getElementById("attCount").textContent = `${list.length} 筆`;
       document.getElementById("attCountTop").textContent = `${list.length}`;
-
-      if(list.length===0){
-        el.innerHTML = `<div class="empty">本範圍沒有出勤資料</div>`;
-        return;
-      }
+      if(list.length===0){ el.innerHTML = `<div class="empty">本範圍沒有出勤資料</div>`; return; }
 
       el.innerHTML = list.map(r=>{
-        const finalTag = deriveAttTag(r);
-        const b = attStatusBadge(finalTag);
-
-        const title = `${r.dateKey} ${r.in || '--:--'} / ${r.out || '--:--'}`;
+        const b = attStatusBadge(deriveAttTag(r));
         return `
           <div class="item ${b.cls}">
             <div class="top">
-              <div>
-                <p class="title">${title}</p>
-              </div>
+              <div><p class="title">${r.dateKey} ${r.in || '--:--'} / ${r.out || '--:--'}</p></div>
               <span class="badge ${b.cls}">${b.label}</span>
             </div>
           </div>
@@ -570,39 +281,23 @@
       const el = document.getElementById("reqList");
       document.getElementById("reqCount").textContent = `${list.length} 筆`;
       document.getElementById("reqCountTop").textContent = `${list.length}`;
-
-      if(list.length===0){
-        el.innerHTML = `<div class="empty">本範圍沒有符合條件的申請單</div>`;
-        return;
-      }
+      if(list.length===0){ el.innerHTML = `<div class="empty">本範圍沒有符合條件的申請單</div>`; return; }
 
       el.innerHTML = list.map(r=>{
-        const badge = reqTypeBadge(r);
-        const statusNorm = normalizeReqStatus(r.status);
-        const sc = reqStatusBadge(statusNorm);
-
-        // 使用終極防禦 formatDT
-        const startVal = r.startIso ?? r.startStr ?? r.start_full ?? r.startAt ?? r.start ?? r.from ?? "";
-        const endVal   = r.endIso ?? r.endStr ?? r.end_full   ?? r.endAt   ?? r.end ?? r.to   ?? "";
-        const s = formatDT(startVal);
-        const e = formatDT(endVal);
-
+        const sc = reqStatusBadge(normalizeReqStatus(r.status));
+        const s = formatDT(r.startStr || r.startIso || r.start), e = formatDT(r.endStr || r.endIso || r.end);
         const hrs = (r.hours!==undefined && r.hours!==null && String(r.hours)!=='') ? Number(r.hours||0) : 0;
         const reason = (r.reason && String(r.reason).trim()) ? String(r.reason).trim() : '—';
-
-        const createdRaw = r.createdAtIso ?? r.createdAtStr ?? r.createdAt ?? r.created_at ?? r.created ?? r.submittedAt ?? r.ts ?? "";
-        const created = createdRaw ? formatDT(createdRaw) : "—";
+        const created = formatDT(r.createdAtStr || r.createdAtIso || r.createdAt || r.created || r.ts);
 
         let timeLine = `日期：${s}`;
-        if(endVal && String(endVal).trim() && String(endVal).trim() !== String(startVal).trim() && e !== '—'){
-          timeLine = `開始：${s}<br>結束：${e}`;
-        }
+        if(e && e !== '—' && e !== s) timeLine = `開始：${s}<br>結束：${e}`;
 
         return `
           <div class="item ${sc.cls}">
             <div class="top">
               <div>
-                <p class="title">${badge}</p>
+                <p class="title">${reqTypeBadge(r)}</p>
                 <div class="meta">${timeLine}</div>
                 <div class="meta">時數：${hrs} 小時</div>
                 <div class="meta">事由：${reason}</div>
@@ -616,64 +311,39 @@
     }
 
     function pickCurrentMonth(){
-      const now = new Date();
-      const y = now.getFullYear();
-      const m = now.getMonth()+1;
+      const now = new Date(), y = now.getFullYear(), m = now.getMonth()+1;
       document.getElementById("monthPick").value = `${y}-${String(m).padStart(2,'0')}`;
       document.getElementById("rangeTag").textContent = `篩選：${y}-${String(m).padStart(2,'0')}`;
       return { y, m };
     }
 
     function buildDateKeyFromDaily(d, y, m){
-      const mm = String(m).padStart(2,'0');
       const ds = String(d.date||'').trim();
       if(/^\d{4}-\d{2}-\d{2}$/.test(ds)) return ds;
-      const dd = String(d.date).padStart(2,'0');
-      return `${y}-${mm}-${dd}`;
+      return `${y}-${String(m).padStart(2,'0')}-${String(d.date).padStart(2,'0')}`;
     }
 
-    let __cacheReqAll = null;
-    let __cacheReqYM = { y:null, m:null };
+    let __cacheReqAll = null, __cacheReqYM = { y:null, m:null };
 
     function applyReqFilters(allReq, y, m){
-      const monthReq = allReq.filter(r =>
-        overlapsMonth(
-          r.start ?? r.start_full ?? r.startAt ?? r.from,
-          r.end   ?? r.end_full   ?? r.endAt   ?? r.to,
-          y, m
-        )
-      );
-
+      const monthReq = allReq.filter(r => overlapsMonth(r.start ?? r.start_full ?? r.startAt ?? r.from, r.end ?? r.end_full ?? r.endAt ?? r.to, y, m));
       const f = document.getElementById("reqStatusFilter").value;
       if(f === "ALL") return monthReq;
-
       return monthReq.filter(r => normalizeReqStatus(r.status) === f);
     }
 
     function updateStatusTag(){
-      const v = document.getElementById("reqStatusFilter").value;
-      const tag = document.getElementById("statusTag");
-      const map = {
-        ALL: "狀態：全部",
-        PENDING: "狀態：待審",
-        APPROVED: "狀態：核准",
-        REJECTED: "狀態：駁回"
-      };
-      tag.textContent = map[v] || "狀態：全部";
-      tag.style.display = "inline-flex";
+      const v = document.getElementById("reqStatusFilter").value, tag = document.getElementById("statusTag");
+      const map = { ALL: "狀態：全部", PENDING: "狀態：待審", APPROVED: "狀態：核准", REJECTED: "狀態：駁回" };
+      tag.textContent = map[v] || "狀態：全部"; tag.style.display = "inline-flex";
     }
 
     async function reload(forceFetch){
       const monthStr = document.getElementById("monthPick").value;
       let y, m;
       if(monthStr){
-        const parts = monthStr.split("-");
-        y = Number(parts[0]);
-        m = Number(parts[1]);
-      }else{
-        const cur = pickCurrentMonth();
-        y = cur.y; m = cur.m;
-      }
+        const parts = monthStr.split("-"); y = Number(parts[0]); m = Number(parts[1]);
+      }else{ const cur = pickCurrentMonth(); y = cur.y; m = cur.m; }
       document.getElementById("rangeTag").textContent = `篩選：${y}-${String(m).padStart(2,'0')}`;
       updateStatusTag();
 
@@ -682,56 +352,38 @@
 
       try{
         const dashRes = await api("get_dashboard", { year:y, month:m });
-
-        const daily = (dashRes && dashRes.ok && Array.isArray(dashRes.dailyData))
-          ? dashRes.dailyData
-          : (dashRes && dashRes.ok && Array.isArray(dashRes.data) ? dashRes.data : []);
+        const daily = (dashRes && dashRes.ok && Array.isArray(dashRes.dailyData)) ? dashRes.dailyData : (dashRes && dashRes.ok && Array.isArray(dashRes.data) ? dashRes.data : []);
 
         let attList = daily.map(d => {
-          const dateKey = buildDateKeyFromDaily(d, y, m);
-          const inStr  = (d.in ?? d.inTime ?? d.clockIn  ?? d.tsIn)  ? String(d.in ?? d.inTime ?? d.clockIn ?? d.tsIn) : '--:--';
-          const outStr = (d.out?? d.outTime?? d.clockOut ?? d.tsOut) ? String(d.out?? d.outTime?? d.clockOut?? d.tsOut): '--:--';
-          const rawTag = (d.tag !== undefined && d.tag !== null) ? String(d.tag) : (d.status ?? d.state ?? '');
-
-          return { dateKey, in: inStr, out: outStr, tag: rawTag };
+          return {
+            dateKey: buildDateKeyFromDaily(d, y, m),
+            in: (d.in ?? d.inTime ?? d.clockIn) ? String(d.in ?? d.inTime ?? d.clockIn) : '--:--',
+            out: (d.out ?? d.outTime ?? d.clockOut) ? String(d.out ?? d.outTime ?? d.clockOut) : '--:--',
+            tag: (d.tag !== undefined && d.tag !== null) ? String(d.tag) : (d.status ?? d.state ?? '')
+          };
         });
 
         attList.sort((a,b)=> b.dateKey.localeCompare(a.dateKey));
         renderAtt(attList);
 
-        const needFetch = forceFetch || !__cacheReqAll || __cacheReqYM.y !== y || __cacheReqYM.m !== m;
-        if(needFetch){
+        if(forceFetch || !__cacheReqAll || __cacheReqYM.y !== y || __cacheReqYM.m !== m){
           let reqRes;
-          try{
-            reqRes = await api("list_requests", { isManagerView:false, year:y, month:m });
-          }catch(e){
-            reqRes = await api("list_requests", { isManagerView:false });
-          }
-
-          __cacheReqAll = (reqRes && reqRes.ok && Array.isArray(reqRes.list))
-            ? reqRes.list
-            : (reqRes && reqRes.ok && Array.isArray(reqRes.data) ? reqRes.data : []);
+          try{ reqRes = await api("list_requests", { isManagerView:false, year:y, month:m }); }
+          catch(e){ reqRes = await api("list_requests", { isManagerView:false }); }
+          __cacheReqAll = (reqRes && reqRes.ok && Array.isArray(reqRes.list)) ? reqRes.list : (reqRes && reqRes.ok && Array.isArray(reqRes.data) ? reqRes.data : []);
           __cacheReqYM = { y, m };
         }
 
-        const reqFiltered = applyReqFilters(__cacheReqAll || [], y, m);
-        renderReq(reqFiltered);
+        renderReq(applyReqFilters(__cacheReqAll || [], y, m));
 
       }catch(e){
-        toast((e && e.message) ? e.message : "載入失敗（GAS/CONFIG）");
-        renderAtt([]);
-        renderReq([]);
+        toast("載入失敗（請檢查網路）");
+        renderAtt([]); renderReq([]);
       }
     }
 
-    document.getElementById("reqStatusFilter").addEventListener("change", ()=>{
-      reload(false);
-      showPanel('req');
-    });
-
-    pickCurrentMonth();
-    updateStatusTag();
-    reload(true);
+    document.getElementById("reqStatusFilter").addEventListener("change", ()=>{ reload(false); showPanel('req'); });
+    pickCurrentMonth(); updateStatusTag(); reload(true);
   </script>
 </body>
 </html>

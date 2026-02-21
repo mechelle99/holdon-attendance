@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
   <meta charset="utf-8"/>
@@ -413,29 +413,40 @@
 
     function pad2(n){ return String(n).padStart(2,'0'); }
 
-    // 🏆 終極防禦：強制視為台灣時間，阻斷瀏覽器時區干擾
+    // 🏆 終極防禦：強制套用 config.js 的 8 小時補償！
     function formatDT(v){
       if(!v) return '—';
-      const s0 = String(v).trim();
-      if(!s0) return '—';
+      const str = String(v).trim();
+      if(!str) return '—';
 
-      // 如果已經是我們後端存的純字串 (如 2026/02/19 10:00:00) -> 直接切出來印，不經過任何時間運算！
-      let m = s0.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})[\sT](\d{1,2}):(\d{2})/);
-      if (m && !/[zZ]$/.test(s0) && !/[+\-]\d{2}:\d{2}$/.test(s0)) {
-        return `${m[1]}-${pad2(m[2])}-${pad2(m[3])} ${pad2(m[4])}:${pad2(m[5])}`;
+      // 1. 如果已經是後端乾淨的 YYYY/MM/DD HH:mm:ss 格式，直接回傳不囉嗦
+      if (/^\d{4}[\/\-]\d{2}[\/\-]\d{2} \d{2}:\d{2}(:\d{2})?$/.test(str)) {
+         return str.replace(/\//g, '-').substring(0, 16);
       }
 
-      // 如果是「舊資料」的 ISO 時間 (含 Z 或時區)
-      const d = new Date(s0);
-      if (isNaN(d.getTime())) return s0;
+      // 2. 解析為 Date 物件
+      let d;
+      if (/^\d{10,13}$/.test(str)) {
+         d = new Date(str.length === 10 ? Number(str)*1000 : Number(str));
+      } else if (/^\d{4}-\d{2}-\d{2}T/.test(str) && !/[zZ]$/.test(str) && !/[+\-]\d{2}:\d{2}$/.test(str)) {
+         // ISO 沒有時區的話，當作加上 8 小時時區
+         d = new Date(str + "+08:00");
+      } else {
+         d = new Date(str);
+      }
 
-      // 直接取得該時間的絕對毫秒數，並加上 8 小時 (台灣時區)
-      const taipeiMs = d.getTime() + (8 * 60 * 60 * 1000);
-      const tDate = new Date(taipeiMs);
+      if (isNaN(d.getTime())) return str;
 
-      // 強制用 UTC 的方式抽出來，這樣不管手機的時區設在哪一國，看到的永遠是完美的台灣時間
-      return `${tDate.getUTCFullYear()}-${pad2(tDate.getUTCMonth()+1)}-${pad2(tDate.getUTCDate())} ` +
-             `${pad2(tDate.getUTCHours())}:${pad2(tDate.getUTCMinutes())}`;
+      // 3. 套用 config.js 的時差補償 (這就是解決你 8 小時落差的關鍵！)
+      let shift = 8; // 預設強制 +8
+      if (window.CONFIG && typeof window.CONFIG.TIME_SHIFT_HOURS === 'number') {
+         shift = window.CONFIG.TIME_SHIFT_HOURS; // 吃你的 config 設定
+      }
+
+      const targetMs = d.getTime() + (shift * 60 * 60 * 1000);
+      const tDate = new Date(targetMs);
+      
+      return `${tDate.getUTCFullYear()}-${pad2(tDate.getUTCMonth()+1)}-${pad2(tDate.getUTCDate())} ${pad2(tDate.getUTCHours())}:${pad2(tDate.getUTCMinutes())}`;
     }
 
     function parseToDate(v){
@@ -445,7 +456,6 @@
       
       let m = s0.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})[\sT](\d{1,2}):(\d{2})/);
       if (m && !/[zZ]$/.test(s0) && !/[+\-]\d{2}:\d{2}$/.test(s0)) {
-        // 強制加上台灣時區標記，避免瀏覽器誤判為 UTC
         return new Date(`${m[1]}-${pad2(m[2])}-${pad2(m[3])}T${pad2(m[4])}:${pad2(m[5])}:00+08:00`);
       }
       const d = new Date(s0);
@@ -571,18 +581,20 @@
         const statusNorm = normalizeReqStatus(r.status);
         const sc = reqStatusBadge(statusNorm);
 
-        // 🏆 直接呼叫終極防禦函數，不再被坑
-        const s = formatDT(r.startStr || r.startIso || r.start);
-        const e = formatDT(r.endStr || r.endIso || r.end);
+        // 使用終極防禦 formatDT
+        const startVal = r.startIso ?? r.startStr ?? r.start_full ?? r.startAt ?? r.start ?? r.from ?? "";
+        const endVal   = r.endIso ?? r.endStr ?? r.end_full   ?? r.endAt   ?? r.end ?? r.to   ?? "";
+        const s = formatDT(startVal);
+        const e = formatDT(endVal);
 
         const hrs = (r.hours!==undefined && r.hours!==null && String(r.hours)!=='') ? Number(r.hours||0) : 0;
         const reason = (r.reason && String(r.reason).trim()) ? String(r.reason).trim() : '—';
 
-        const createdRaw = r.createdAtStr ?? r.createdAt ?? r.created ?? r.submittedAt ?? r.ts ?? "";
-        const created = formatDT(createdRaw);
+        const createdRaw = r.createdAtIso ?? r.createdAtStr ?? r.createdAt ?? r.created_at ?? r.created ?? r.submittedAt ?? r.ts ?? "";
+        const created = createdRaw ? formatDT(createdRaw) : "—";
 
         let timeLine = `日期：${s}`;
-        if(e && String(e).trim() && String(e).trim() !== String(s).trim() && e !== '—'){
+        if(endVal && String(endVal).trim() && String(endVal).trim() !== String(startVal).trim() && e !== '—'){
           timeLine = `開始：${s}<br>結束：${e}`;
         }
 

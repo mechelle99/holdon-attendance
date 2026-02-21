@@ -114,7 +114,7 @@
 
     <div class="form-group" id="hoursGroup">
       <label>時數（0.5 小時為單位）</label>
-      <input type="number" id="hours" value="0.0" readonly style="background-color:#F3F4F6;">
+      <input type="number" id="hours" value="0.0" step="0.5" min="0">
     </div>
 
     <div class="form-group">
@@ -322,21 +322,21 @@
      * 5) roster 前端快取 + 班別規則（EARLY/LATE/OFF）
      * ============================== */
 
-    // ✅ 記憶體快取：同一個 yyyy-mm 只抓一次
-    const __rosterCache = new Map(); // key = "2026-02" , val = roster object
+    const __rosterCache = new Map(); 
 
     function ymKey_(y, m){ return `${y}-${pad2(m)}`; }
 
+    // ✅ 修改：防呆時間推斷（如果沒有排班，會透過這裡回傳 null，讓後續處理）
     function normalizeShiftValue(v){
       const s = String(v||'').trim().toLowerCase();
-      if(!s) return 'EARLY';
+      if(!s) return null; // 讓系統知道找不到
       if (s.includes('休') || s.includes('off')) return 'OFF';
       if (s.includes('午') || s.includes('late')) return 'LATE';
       if (s.includes('早') || s.includes('early')) return 'EARLY';
-      return 'EARLY';
+      return null;
     }
 
-    // ✅ 你口徑：早班 10-18（無休）；午班 12-21（休 16-17）；休假 OFF
+    // 早班 10-18（無休）；午班 12-21（休 16-17）；休假 OFF
     function getShiftRuleByKey_(shiftKey){
       if(shiftKey === 'OFF') return { off:true, name:'休' };
       if(shiftKey === 'LATE') return { inH:12, inM:0, outH:21, outM:0, breakStartH:16, breakStartM:0, breakEndH:17, breakEndM:0, name:'午' };
@@ -360,7 +360,7 @@
       return normalizeShiftValue(val);
     }
 
-    // ✅ 只負責「帶入該日班表時間」
+    // 只負責「帶入該日班表時間」
     async function applyLeaveAutoTimeByRoster(){
       const cat = document.getElementById("cat").value;
       if(cat !== "LEAVE") return;
@@ -373,17 +373,19 @@
       const m = s.getMonth()+1;
       const d = s.getDate();
 
-      let shiftKey = 'EARLY';
+      let shiftKey = null;
       try{
         const roster = await getRosterMonth_(y, m);
         shiftKey = getMyShiftKeyForDay_(roster, d);
-      }catch(e){
-        shiftKey = 'EARLY';
+      }catch(e){}
+
+      // ✅ 動態推斷：如果找不到班別，依據開始時間是否過 12 點決定
+      if (!shiftKey) {
+         shiftKey = (s.getHours() >= 12) ? 'LATE' : 'EARLY';
       }
 
       const rule = getShiftRuleByKey_(shiftKey);
 
-      // OFF：帶入一個可視時間，但最後 hours 會算 0 並擋送出
       const startH = rule.off ? 10 : rule.inH;
       const startM = rule.off ? 0  : (rule.inM||0);
       const endH   = rule.off ? 18 : rule.outH;
@@ -394,13 +396,11 @@
       document.getElementById("start").value = toLocalInputValue(ss);
       document.getElementById("end").value   = toLocalInputValue(ee);
 
-      // ✅ 帶完再算一次就好
       await calcHoursSmart_();
     }
 
     /* ==============================
-     * 6) OT/OUTING：走後端 calc_hours（若後端沒有會 fallback）
-     * - 加序號防競速覆蓋
+     * 6) OT/OUTING：走後端 calc_hours
      * ============================== */
     let __calcTimer = null;
     let __calcSeq = 0;
@@ -436,7 +436,6 @@
         return;
       }
 
-      // fallback
       let fallbackH = calcHoursLocalHalf_(s, e);
       if(cat === "OUTING"){
         const isTrip = !!document.getElementById("isTrip").checked;
@@ -479,7 +478,7 @@
     }
 
     /* ==============================
-     * 7) 標準 HR overlap 計算（LEAVE 專用，含午班休息 16-17）
+     * 7) 標準 HR overlap 計算（LEAVE 專用）
      * ============================== */
     function overlapMs_(aStart, aEnd, bStart, bEnd){
       const s = Math.max(aStart, bStart);
@@ -546,10 +545,18 @@
         const m = cur.getMonth()+1;
         const d = cur.getDate();
 
-        const roster = await getRosterMonth_(y, m);
-        const shiftKey = getMyShiftKeyForDay_(roster, d);
-        const rule = getShiftRuleByKey_(shiftKey);
+        let shiftKey = null;
+        try{
+            const roster = await getRosterMonth_(y, m);
+            shiftKey = getMyShiftKeyForDay_(roster, d);
+        }catch(err){}
 
+        // ✅ 動態判斷：依據此區段的開始時間，決定是用午班還是早班
+        if (!shiftKey) {
+            shiftKey = (segStart.getHours() >= 12) ? 'LATE' : 'EARLY';
+        }
+
+        const rule = getShiftRuleByKey_(shiftKey);
         total += calcLeaveHoursOneDay_(cur, segStart, segEnd, rule);
       }
 
@@ -592,8 +599,8 @@
           document.getElementById("hours").value = Number(h).toFixed(1);
           setNote("請假：以「請假∩班別」扣除「休息重疊」計算（午班 16:00–17:00 會自動扣除）。");
         }catch(err){
-          // ✅ fallback：逐日用早班 overlap（不會再出現 56）
-          const rule = getShiftRuleByKey_('EARLY');
+          // fallback
+          const rule = getShiftRuleByKey_(s.getHours() >= 12 ? 'LATE' : 'EARLY');
           let h = 0;
 
           for(let cur = dayStart_(s); cur <= dayStart_(e); cur = addDays_(cur,1)){
@@ -605,12 +612,11 @@
 
           h = Math.round(h*2)/2;
           document.getElementById("hours").value = Number(h).toFixed(1);
-          setNote("班表讀取失敗：暫用早班規則估算。最終仍以審核規則為準。");
+          setNote("班表讀取失敗：暫用時間推斷估算。最終仍以審核規則為準。");
         }
         return;
       }
 
-      // OT / OUTING：走後端（若後端沒有 calc_hours 會 fallback）
       await calcHoursByServer_();
     }
 
@@ -620,7 +626,7 @@
     }
 
     /* ==============================
-     * 9) 送出申請（帶 startServer/endServer）
+     * 9) 送出申請
      * ============================== */
     async function submitReq() {
       const btn = document.getElementById("submitBtn");
@@ -711,7 +717,7 @@
     }
 
     /* ==============================
-     * 10) 綁定事件（避免狂打 API）
+     * 10) 綁定事件
      * ============================== */
     (function bindAll() {
       const startEl = document.getElementById("start");
@@ -721,6 +727,7 @@
       const correctionTypeEl = document.getElementById("correctionType");
       const isTripEl = document.getElementById("isTrip");
       const autoClockEl = document.getElementById("autoClock");
+      const hoursEl = document.getElementById("hours");
       const submitBtn = document.getElementById("submitBtn");
 
       const safeRecalc = () => { debounceCalc(); };
@@ -730,11 +737,17 @@
         el.addEventListener("change", safeRecalc);
       });
 
-      // ✅ 重點：切到 LEAVE 時，不先 debounceCalc()，避免重算一次
+      // 監聽手動修改時數
+      if(hoursEl) {
+          hoursEl.addEventListener("input", () => {
+              // 標記為手動修改，防止自動計算覆蓋（如果需要可以做更複雜的標記）
+          });
+      }
+
       catEl.addEventListener("change", async () => {
         toggleType();
         if (document.getElementById("cat").value === "LEAVE") {
-          await applyLeaveAutoTimeByRoster(); // 內含 calcHoursSmart_
+          await applyLeaveAutoTimeByRoster(); 
         } else {
           debounceCalc();
         }
@@ -755,7 +768,7 @@
     })();
 
     /* ==============================
-     * 11) 初始化：預設今天 10:00-18:00 + 計算
+     * 11) 初始化：預設今天 10:00-18:00
      * ============================== */
     (function initDefaultTime() {
       const now = new Date();

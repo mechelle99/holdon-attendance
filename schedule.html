@@ -334,7 +334,7 @@
       }
     }
 
-    function upd(targetEmpId, y, m, d, dateStr, el){
+  function upd(targetEmpId, y, m, d, dateStr, el){
       const prev = el.getAttribute("data-prev") || "";
       const next = String(el.value||"").trim();
 
@@ -347,6 +347,7 @@
         year: Number(y), 
         month: Number(m), 
         day: Number(d), 
+        date: dateStr, // ✅ 補上這個關鍵參數，讓後端找得到是哪一天！
         shift: next,
         managerEmpId: uid 
       })

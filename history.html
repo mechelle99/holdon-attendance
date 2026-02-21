@@ -155,30 +155,39 @@
 
     function pad2(n){ return String(n).padStart(2,'0'); }
 
+    // ✅ Taipei-safe formatter: 不再做 TIME_SHIFT_HOURS，不用 UTC 組字
     function formatDT(v){
-      if(!v) return '—';
+      if(v === null || v === undefined) return '—';
       const str = String(v).trim();
       if(!str || str === '--:--') return str;
 
+      // 已經是 "YYYY-MM-DD HH:mm" / "YYYY/MM/DD HH:mm" 這種，直接顯示
       if (/^\d{4}[\/\-]\d{2}[\/\-]\d{2}\s\d{2}:\d{2}(:\d{2})?$/.test(str)) {
-         return str.replace(/\//g, '-').substring(0, 16);
+        return str.replace(/\//g,'-').substring(0,16);
       }
 
-      let d;
-      if (/^\d{10,13}$/.test(str)) d = new Date(Number(str));
-      else if (/^\d{4}-\d{2}-\d{2}T/.test(str) && !/[zZ]$/.test(str) && !/[+\-]\d{2}:\d{2}$/.test(str)) d = new Date(str + "+08:00");
-      else d = new Date(str);
+      let d = null;
 
-      if (isNaN(d.getTime())) return str;
-
-      let shift = 0;
-      if (window.CONFIG && typeof window.CONFIG.TIME_SHIFT_HOURS === 'number') {
-         shift = window.CONFIG.TIME_SHIFT_HOURS;
+      // 13/10 位時間戳
+      if (/^\d{10,13}$/.test(str)) {
+        d = new Date(Number(str));
+      } else {
+        // 任何 ISO（不管有沒有 Z 或 +08:00）都交給 Date 解析
+        d = new Date(str);
       }
-      const targetMs = d.getTime() + (shift * 60 * 60 * 1000);
-      const tDate = new Date(targetMs);
-      
-      return `${tDate.getUTCFullYear()}-${pad2(tDate.getUTCMonth()+1)}-${pad2(tDate.getUTCDate())} ${pad2(tDate.getUTCHours())}:${pad2(tDate.getUTCMinutes())}`;
+
+      if (!d || isNaN(d.getTime())) return str;
+
+      // 強制用 Asia/Taipei 取出年月日時分
+      const parts = new Intl.DateTimeFormat('sv-SE', {
+        timeZone: 'Asia/Taipei',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit',
+        hour12: false
+      }).formatToParts(d);
+
+      const get = (t)=> parts.find(p=>p.type===t)?.value || '';
+      return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}`;
     }
 
     function parseToDate(v){
@@ -277,10 +286,16 @@
 
       el.innerHTML = list.map(r=>{
         const sc = reqStatusBadge(normalizeReqStatus(r.status));
-        const s = formatDT(r.startStr || r.startIso || r.start), e = formatDT(r.endStr || r.endIso || r.end);
+        
+        // ✅ 核心修正：優先吃 xxxStr，避免 ISO 被二次轉換
+        const s = formatDT(r.startStr || r.start || r.startIso);
+        const e = formatDT(r.endStr   || r.end   || r.endIso);
+        
         const hrs = (r.hours!==undefined && r.hours!==null && String(r.hours)!=='') ? Number(r.hours||0) : 0;
         const reason = (r.reason && String(r.reason).trim()) ? String(r.reason).trim() : '—';
-        const created = formatDT(r.createdAtStr || r.createdAtIso || r.createdAt || r.created || r.ts);
+        
+        // ✅ 核心修正：優先吃 xxxStr
+        const created = formatDT(r.createdAtStr || r.createdAt || r.createdAtIso || r.created || r.ts);
 
         let timeLine = `日期：${s}`;
         if(e && e !== '—' && e !== s) timeLine = `開始：${s}<br>結束：${e}`;
@@ -343,7 +358,6 @@
       document.getElementById("attList").innerHTML = `<div class="empty">載入中…</div>`;
 
       try{
-        // 🚀 將 forceFetch 傳給後端，強制突破快取！
         const dashRes = await api("get_dashboard", { year:y, month:m, noCache: forceFetch });
         const daily = (dashRes && dashRes.ok && Array.isArray(dashRes.dailyData)) ? dashRes.dailyData : (dashRes && dashRes.ok && Array.isArray(dashRes.data) ? dashRes.data : []);
 

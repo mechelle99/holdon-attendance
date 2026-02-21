@@ -335,7 +335,6 @@
 
   <script src="config.js"></script>
   <script>
-    // ====== 基本身分 ======
     const empId = localStorage.getItem("empId") || localStorage.getItem("employeeId") || "";
     const empName = (localStorage.getItem("empName") || "").trim();
 
@@ -346,12 +345,7 @@
 
     if (localStorage.getItem("isManager") === "true") {
       document.getElementById("mgrBtn").style.display = "flex";
-    } else {
-      document.getElementById("mgrBtn").style.display = "none";
     }
-
-    // ====== 時區固定 ======
-    const TZ = "Asia/Taipei";
 
     function toast(msg){
       const el = document.getElementById("toast");
@@ -381,7 +375,6 @@
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
-    // ====== JSONP API ======
     function api(action, data={}){
       return new Promise((resolve, reject)=>{
         const ENDPOINT = window.CONFIG && (window.CONFIG.GAS_ENDPOINT || window.CONFIG.API_BASE || window.CONFIG.API_URL);
@@ -420,56 +413,43 @@
 
     function pad2(n){ return String(n).padStart(2,'0'); }
 
-    // ✅ 徹底修復：修正 UTC 與 Local Time 的判定，斷絕 8 小時落差
+    // 🏆 終極防禦：強制視為台灣時間，阻斷瀏覽器時區干擾
+    function formatDT(v){
+      if(!v) return '—';
+      const s0 = String(v).trim();
+      if(!s0) return '—';
+
+      // 如果已經是我們後端存的純字串 (如 2026/02/19 10:00:00) -> 直接切出來印，不經過任何時間運算！
+      let m = s0.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})[\sT](\d{1,2}):(\d{2})/);
+      if (m && !/[zZ]$/.test(s0) && !/[+\-]\d{2}:\d{2}$/.test(s0)) {
+        return `${m[1]}-${pad2(m[2])}-${pad2(m[3])} ${pad2(m[4])}:${pad2(m[5])}`;
+      }
+
+      // 如果是「舊資料」的 ISO 時間 (含 Z 或時區)
+      const d = new Date(s0);
+      if (isNaN(d.getTime())) return s0;
+
+      // 直接取得該時間的絕對毫秒數，並加上 8 小時 (台灣時區)
+      const taipeiMs = d.getTime() + (8 * 60 * 60 * 1000);
+      const tDate = new Date(taipeiMs);
+
+      // 強制用 UTC 的方式抽出來，這樣不管手機的時區設在哪一國，看到的永遠是完美的台灣時間
+      return `${tDate.getUTCFullYear()}-${pad2(tDate.getUTCMonth()+1)}-${pad2(tDate.getUTCDate())} ` +
+             `${pad2(tDate.getUTCHours())}:${pad2(tDate.getUTCMinutes())}`;
+    }
+
     function parseToDate(v){
       if(!v) return null;
       if(Object.prototype.toString.call(v) === '[object Date]' && !isNaN(v.getTime())) return v;
       const s0 = String(v).trim();
-      if(!s0) return null;
-
-      if(/^\d{10,13}$/.test(s0)){
-        const n = Number(s0);
-        const d = new Date(s0.length===10 ? n*1000 : n);
-        return isNaN(d.getTime()) ? null : d;
+      
+      let m = s0.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})[\sT](\d{1,2}):(\d{2})/);
+      if (m && !/[zZ]$/.test(s0) && !/[+\-]\d{2}:\d{2}$/.test(s0)) {
+        // 強制加上台灣時區標記，避免瀏覽器誤判為 UTC
+        return new Date(`${m[1]}-${pad2(m[2])}-${pad2(m[3])}T${pad2(m[4])}:${pad2(m[5])}:00+08:00`);
       }
-
-      // 如果結尾已經有 Z 或 +08:00 等時區標記，絕對不能再加字串，直接解析！
-      if(/[zZ]$/.test(s0) || /[+\-]\d{2}:\d{2}$/.test(s0)){
-        const d = new Date(s0);
-        return isNaN(d.getTime()) ? null : d;
-      }
-
-      // 若是 ISO 但沒有時區，才補上台灣時區
-      if(/^\d{4}-\d{2}-\d{2}T/.test(s0)){
-        const d = new Date(s0 + "+08:00");
-        return isNaN(d.getTime()) ? null : d;
-      }
-
-      // 相容 2026-02-18 或 2026/02/18
-      let m = s0.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})[\sT](\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-      if(m){
-        return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0), 0);
-      }
-
-      m = s0.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
-      if(m){
-        return new Date(+m[1], +m[2]-1, +m[3], 0,0,0,0);
-      }
-
       const d = new Date(s0);
       return isNaN(d.getTime()) ? null : d;
-    }
-
-    function formatDT(v){
-      const d = parseToDate(v);
-      if(!d) return String(v||'—');
-      const fmt = new Intl.DateTimeFormat('zh-TW', {
-        timeZone: TZ,
-        year:'numeric', month:'2-digit', day:'2-digit',
-        hour:'2-digit', minute:'2-digit',
-        hour12:false
-      });
-      return fmt.format(d).replace(/\//g,'-');
     }
 
     function overlapsMonth(start, end, y, m){
@@ -492,10 +472,8 @@
       if(low==='outing') return '外出';
       if(low==='ot') return '加班';
       if(low==='correction') return '補卡';
-
       if(low==='in') return '上班中';
       if(low==='out') return '已下班';
-
       return t || '—';
     }
 
@@ -593,18 +571,18 @@
         const statusNorm = normalizeReqStatus(r.status);
         const sc = reqStatusBadge(statusNorm);
 
-        // ✅ 核心修正：優先使用後端格式化好的字串，絕對不會再飄移 8 小時
-        const s = r.startStr ? String(r.startStr).replace(/\//g,'-') : formatDT(r.start ?? r.start_full ?? r.startAt ?? r.from);
-        const e = r.endStr ? String(r.endStr).replace(/\//g,'-') : formatDT(r.end ?? r.end_full ?? r.endAt ?? r.to);
+        // 🏆 直接呼叫終極防禦函數，不再被坑
+        const s = formatDT(r.startStr || r.startIso || r.start);
+        const e = formatDT(r.endStr || r.endIso || r.end);
 
         const hrs = (r.hours!==undefined && r.hours!==null && String(r.hours)!=='') ? Number(r.hours||0) : 0;
         const reason = (r.reason && String(r.reason).trim()) ? String(r.reason).trim() : '—';
 
         const createdRaw = r.createdAtStr ?? r.createdAt ?? r.created ?? r.submittedAt ?? r.ts ?? "";
-        const created = r.createdAtStr ? String(r.createdAtStr).replace(/\//g,'-') : (createdRaw ? formatDT(createdRaw) : "—");
+        const created = formatDT(createdRaw);
 
         let timeLine = `日期：${s}`;
-        if(e && String(e).trim() && String(e).trim() !== String(s).trim() && String(e).trim() !== '—'){
+        if(e && String(e).trim() && String(e).trim() !== String(s).trim() && e !== '—'){
           timeLine = `開始：${s}<br>結束：${e}`;
         }
 

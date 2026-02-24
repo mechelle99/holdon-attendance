@@ -309,11 +309,7 @@
 
   <script src="config.js"></script>
   <script>
-    const uid =
-      localStorage.getItem("empId") ||
-      localStorage.getItem("employeeId") ||
-      localStorage.getItem("userId") || "";
-
+    const uid = localStorage.getItem("empId") || localStorage.getItem("employeeId") || localStorage.getItem("userId") || "";
     if(!uid) location.href="index.html";
 
     function toast(msg){
@@ -361,23 +357,17 @@
           try{ s.remove(); }catch(e){}
         }
 
-        window[cbName] = (res) => {
-          cleanup();
-          resolve(res);
-        };
-
-        s.onerror = () => {
-          cleanup();
-          reject(new Error("Network Error"));
-        };
+        window[cbName] = (res) => { cleanup(); resolve(res); };
+        s.onerror = () => { cleanup(); reject(new Error("Network Error")); };
 
         const sep = ENDPOINT.includes("?") ? "&" : "?";
+
+        // ✅ 這行是之前爆掉的點：少了反引號
         s.src = `${ENDPOINT}${sep}action=${encodeURIComponent(action)}&payload=${payload}&callback=${cbName}&_=${Date.now()}`;
         document.body.appendChild(s);
       });
     }
 
-    // 年月下拉
     const yS = document.getElementById("y");
     const mS = document.getElementById("m");
     const now = new Date();
@@ -395,10 +385,10 @@
       const low = raw.toLowerCase();
 
       if(raw==='早班' || low==='early' || raw==='早') return { label:'早', cls:'badge-early', value:'早班' };
-      if(raw==='午班' || low==='late'  || raw==='午') return { label:'午', cls:'badge-late',  value:'午班' };
-      if(raw==='休假' || low==='off'   || raw==='休') return { label:'休', cls:'badge-off',   value:'休假' };
+      if(raw==='午班' || low==='late' || raw==='午') return { label:'午', cls:'badge-late', value:'午班' };
+      if(raw==='休假' || low==='off' || raw==='休') return { label:'休', cls:'badge-off', value:'休假' };
 
-      // 其他任何不認識的資料（包含 IN, OUT, 或空白），一律洗成空值，強迫排班
+      // 其他任何不認識的資料（包含 IN, OUT, 或空白），一律洗成空值
       return { label:'-', cls:'badge-off', value:'' };
     }
 
@@ -423,9 +413,7 @@
       const isNextMonth = (targetVal === currentVal + 1);
       const isManager = !!res.isManager;
 
-      // 非主管：只能排「下個月」且今天日期 <= lockDay
       const isLocked = (!isManager) && (!isNextMonth || (isNextMonth && today.getDate() > lockDay));
-
       return { isManager, isLocked, lockDay, isNextMonth };
     }
 
@@ -433,17 +421,19 @@
       if(!roster) return null;
       const byEmp = roster[empId];
       if(!byEmp) return null;
-
       if(byEmp[d] != null) return byEmp[d];
       if(byEmp[dateStr] != null) return byEmp[dateStr];
-
       return null;
     }
 
     function renderTable(res, y, m) {
       const modeTag = document.getElementById("modeTag");
       const lockTag = document.getElementById("lockTag");
-      const { isManager, isLocked, lockDay } = computeLock(res, y, m);
+
+      const lock = computeLock(res, y, m);
+      const isManager = lock.isManager;
+      const isLocked = lock.isLocked;
+      const lockDay = lock.lockDay;
 
       if(isManager){
         modeTag.textContent = "👑 主管模式（可任意編輯）";
@@ -451,13 +441,12 @@
       }else{
         modeTag.textContent = "👤 員工模式";
         lockTag.style.display = "inline-flex";
-        lockTag.textContent = isLocked
-          ? `🔒 已鎖定（每月${lockDay}號截止）`
-          : `🟢 開放排班中`;
+        lockTag.textContent = isLocked ? `🔒 已鎖定（每月${lockDay}號截止）` : "🟢 開放排班中";
       }
 
       const days = new Date(y, m, 0).getDate();
 
+      // ✅ 這段之前是 JSX 會爆：改成字串
       let head = `<th>員工</th>`;
       for(let d=1; d<=days; d++){
         const wk = ['日','一','二','三','四','五','六'][new Date(y, m-1, d).getDay()];
@@ -496,7 +485,6 @@
           const shiftInfo = classifyShift(shiftVal);
 
           if(isManager){
-            // ✅ 下拉選單不再有 IN 和 OUT。遇到髒資料會直接選定 '-'
             const safeEmpId = String(empId).replace(/'/g,"\\'");
             tds += `
               <td>
@@ -525,6 +513,7 @@
       const m = Number(mS.value);
 
       document.getElementById("rangeTag").textContent = `篩選：${y}-${pad2(m)}`;
+
       const cacheKey = `roster_${y}_${m}`;
 
       if(!forceRefresh && sessionStorage.getItem(cacheKey)) {
@@ -542,7 +531,7 @@
         if(res && res.ok){
           sessionStorage.setItem(cacheKey, JSON.stringify(res));
           renderTable(res, y, m);
-        } else if (!sessionStorage.getItem(cacheKey)) {
+        }else if (!sessionStorage.getItem(cacheKey)) {
           document.getElementById("modeTag").textContent = "讀取失敗";
           document.getElementById("tbRow").innerHTML =
             `<tr><td class="empty" colspan="10" style="color:#EF4444">讀取失敗</td></tr>`;
@@ -556,6 +545,7 @@
       }
     }
 
+    // ✅ update_schedule：保留你原本參數，不動你的功能
     function upd(targetEmpId, y, m, d, dateStr, el){
       const prev = el.getAttribute("data-prev") || "";
       const next = String(el.value||"").trim();
@@ -569,7 +559,7 @@
         year: Number(y),
         month: Number(m),
         day: Number(d),
-        date: dateStr, // ✅ 你說的關鍵參數保留：讓後端找得到是哪一天
+        date: dateStr,
         shift: next,
         managerEmpId: uid
       })

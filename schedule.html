@@ -95,6 +95,7 @@
     <div class="sub">
       <span class="pill" id="modeTag">載入中…</span>
       <span class="pill" id="rangeTag">篩選：—</span>
+      <span class="pill" id="statsTag" style="display:none; background:rgba(16,185,129,.2); border-color:rgba(16,185,129,.4); color:#fff;">—</span>
       <span class="pill" id="lockTag" style="display:none;">—</span>
     </div>
   </section>
@@ -184,7 +185,6 @@
     for(let y=2024; y<=2028; y++){ yS.add(new Option(y, y, y===now.getFullYear(), y===now.getFullYear())); }
     for(let m=1; m<=12; m++){ mS.add(new Option(m, m, m===now.getMonth()+1, m===now.getMonth()+1)); }
 
-    // ✅ 徹底拔除 IN/OUT 選項，並清洗髒資料
     function classifyShift(v){
       const raw = String(v||'').trim();
       const low = raw.toLowerCase();
@@ -193,7 +193,6 @@
       if(raw==='午班' || low==='late'  || raw==='午') return { label:'午', cls:'badge-late',  value:'午班' };
       if(raw==='休假' || low==='off'   || raw==='休') return { label:'休', cls:'badge-off',   value:'休假' };
       
-      // 其他任何不認識的資料（包含 IN, OUT, 或空白），一律洗成空值，強迫排班
       return { label:'-', cls:'badge-off', value:'' };
     }
 
@@ -232,6 +231,7 @@
     function renderTable(res, y, m) {
       const modeTag = document.getElementById("modeTag");
       const lockTag = document.getElementById("lockTag");
+      const statsTag = document.getElementById("statsTag");
       
       const { isManager, isLocked, lockDay } = computeLock(res, y, m);
 
@@ -242,6 +242,14 @@
         modeTag.textContent = "👤 員工模式";
         lockTag.style.display = "inline-flex";
         lockTag.textContent = isLocked ? `🔒 已鎖定（每月${lockDay}號截止）` : `🟢 開放排班中`;
+      }
+
+      // 新增：顯示本月基準天數
+      if (res.monthStats) {
+        statsTag.style.display = "inline-flex";
+        statsTag.innerHTML = `🎯 應出勤: ${res.monthStats.workDays}天 / 應休: ${res.monthStats.offDays}天`;
+      } else {
+        statsTag.style.display = "none";
       }
 
       const days = new Date(y, m, 0).getDate();
@@ -265,7 +273,20 @@
       employees.forEach(e=>{
         const empId = e.empId || e.id || "";
         const empName = e.empName || e.name || empId || "—";
-        let tds = `<td>${escapeHtml(empName)}</td>`;
+        
+        // 新增：組合餘額顯示的 HTML (如果時數大於 0 才顯示)
+        let balanceHtml = "";
+        const ann = Number(e.annual) || 0;
+        const cmp = Number(e.comp) || 0;
+        
+        if (ann > 0 || cmp > 0) {
+          const annTag = ann > 0 ? `<span style="color:#10B981; margin-right:4px;">特:${ann}h</span>` : "";
+          const cmpTag = cmp > 0 ? `<span style="color:#3B82F6;">補:${cmp}h</span>` : "";
+          balanceHtml = `<div style="font-size:10px; margin-top:4px; font-weight:normal;">${annTag}${cmpTag}</div>`;
+        }
+
+        // 將名字與餘額一起包裝
+        let tds = `<td><div style="font-weight:900;">${escapeHtml(empName)}</div>${balanceHtml}</td>`;
 
         for(let d=1; d<=days; d++){
           const dateStr = `${y}-${pad2(m)}-${pad2(d)}`;
@@ -281,7 +302,6 @@
           const shiftInfo = classifyShift(shiftVal);
 
           if(isManager){
-            // ✅ 下拉選單不再有 IN 和 OUT。遇到髒資料會直接選定 '-'
             tds += `
               <td>
                 <select class="shift-sel ${shiftInfo.cls}" data-prev="${escapeHtml(shiftInfo.value||'')}" 
@@ -347,7 +367,7 @@
         year: Number(y), 
         month: Number(m), 
         day: Number(d), 
-        date: dateStr, // ✅ 補上這個關鍵參數，讓後端找得到是哪一天！
+        date: dateStr,
         shift: next,
         managerEmpId: uid 
       })

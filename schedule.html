@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no"/>
   <title>團隊排班</title>
 
+  <script>
+    if (localStorage.getItem("isManager") === "true") {
+      document.documentElement.classList.add("is-mgr");
+    }
+  </script>
+
   <style>
     :root{
       --primary:#4F46E5;
@@ -14,410 +20,581 @@
       --muted:#6B7280;
       --shadow: 0 10px 26px rgba(17,24,39,.10);
       --shadow2: 0 6px 16px rgba(17,24,39,.06);
-      --radius:18px;
       --ok:#10B981;
       --warn:#F59E0B;
       --danger:#EF4444;
-      --chip:#EEF2FF;
-      --chipText:#3730A3;
+      --radius:18px;
     }
     *{ box-sizing:border-box; }
     body{
       margin:0;
-      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans TC",sans-serif;
       background:var(--bg);
       color:var(--text);
-      padding:16px 16px 90px;
+      padding: 18px 18px calc(96px + env(safe-area-inset-bottom)) 18px;
     }
-    .topbar{
-      display:flex; gap:10px; align-items:center; justify-content:space-between;
-      margin-bottom:12px;
+    .hero{
+      background: linear-gradient(135deg, #4F46E5, #7C3AED);
+      border-radius: 26px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+      color:#fff;
+      margin-bottom: 14px;
     }
-    .title{
-      font-weight:800; font-size:18px;
-      letter-spacing:.2px;
+    .hero h2{
+      margin:0;
+      font-size: 22px;
+      font-weight: 900;
+      letter-spacing: .2px;
+    }
+    .hero .sub{
+      margin-top: 8px;
+      font-size: 13px;
+      opacity: .90;
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    .pill{
+      background: rgba(255,255,255,.18);
+      border: 1px solid rgba(255,255,255,.22);
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-weight: 800;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
     }
     .controls{
-      display:flex; gap:8px; align-items:center;
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin: 12px 0 14px 0;
+      align-items:center;
     }
-    select,button{
-      border:1px solid rgba(17,24,39,.12);
-      background:#fff;
-      border-radius:12px;
-      padding:10px 12px;
-      font-size:14px;
-      box-shadow: var(--shadow2);
-      outline:none;
-    }
-    button{
-      background:linear-gradient(135deg,#4F46E5,#7C3AED);
-      color:#fff;
+    .controls select{
       border:none;
-      cursor:pointer;
-      font-weight:700;
+      background:#fff;
+      border-radius: 14px;
+      padding: 10px 12px;
+      box-shadow: var(--shadow2);
+      font-size: 13px;
+      outline:none;
+      min-width: 88px;
     }
-    button:active{ transform: translateY(1px); }
+    .controls button{
+      border:none;
+      background: var(--primary);
+      color:#fff;
+      border-radius: 14px;
+      padding: 10px 14px;
+      font-weight: 900;
+      cursor:pointer;
+      box-shadow: var(--shadow2);
+    }
+    .controls button:active{ transform: scale(.99); }
     .card{
       background:var(--card);
-      border-radius:var(--radius);
-      box-shadow:var(--shadow);
-      padding:14px;
-      margin-bottom:12px;
+      border-radius: 22px;
+      box-shadow: var(--shadow2);
+      overflow:hidden;
+      border: 1px solid rgba(17,24,39,.06);
     }
-    .hint{
-      font-size:12px; color:var(--muted);
-      line-height:1.4;
-    }
-    .restbox{
-      display:flex; align-items:flex-start; justify-content:space-between; gap:12px;
-    }
-    .restbox .big{
-      font-weight:900;
-      font-size:18px;
-      line-height:1.2;
-    }
-    .chips{
-      display:flex; flex-wrap:wrap; gap:8px;
-      margin-top:10px;
-    }
-    .chip{
-      background:var(--chip);
-      color:var(--chipText);
-      padding:6px 10px;
-      border-radius:999px;
-      font-size:12px;
-      font-weight:700;
-    }
-
-    .tableWrap{
-      overflow:auto;
-      -webkit-overflow-scrolling:touch;
-      border-radius:16px;
-      border:1px solid rgba(17,24,39,.08);
+    .table-scroll{
+      overflow-x:auto;
+      -webkit-overflow-scrolling: touch;
     }
     table{
       width:100%;
       border-collapse:collapse;
-      min-width: 720px;
-      background:#fff;
+      min-width: 900px;
     }
-    th,td{
-      padding:10px 10px;
-      border-bottom:1px solid rgba(17,24,39,.06);
+    th, td{
+      padding: 12px 10px;
       text-align:center;
-      font-size:13px;
-      white-space:nowrap;
+      border-bottom: 1px solid rgba(17,24,39,.06);
+      font-size: 13px;
+      white-space: nowrap;
     }
-    th{
-      position:sticky; top:0;
-      background:#FBFBFE;
-      z-index:2;
-      font-weight:800;
+    thead th{
+      background:#F9FAFB;
+      font-weight: 900;
+      position: sticky;
+      top: 0;
+      z-index: 15;
     }
-    td.name{
+    th:first-child, td:first-child{
+      position: sticky;
+      left: 0;
+      z-index: 12;
+      background: #fff;
+      border-right: 2px solid rgba(17,24,39,.06);
+      font-weight: 900;
+      color: var(--primary);
       text-align:left;
-      font-weight:800;
-      position:sticky; left:0;
+      padding-left: 14px;
+      min-width: 140px;
+    }
+    thead th:first-child{
+      z-index: 25;
+      background:#F9FAFB;
+    }
+    .dayHead{ line-height:1.15; font-weight: 900; }
+    .dayHead small{
+      display:block;
+      margin-top: 4px;
+      font-weight: 900;
+      opacity: .72;
+    }
+    .badge{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      min-width: 44px;
+      padding: 8px 10px;
+      border-radius: 14px;
+      font-weight: 900;
+      border: 1px solid rgba(17,24,39,.10);
       background:#fff;
-      z-index:1;
-      border-right:1px solid rgba(17,24,39,.06);
-    }
-    .cell{
-      border-radius:10px;
-      padding:7px 8px;
-      font-weight:800;
-      display:inline-block;
-      min-width:38px;
-    }
-    .shift-early{ background:#ECFDF5; color:#065F46; }
-    .shift-late{ background:#EFF6FF; color:#1D4ED8; }
-    .shift-off{ background:#F3F4F6; color:#374151; }
-    .shift-leave{ background:#FFF7ED; color:#9A3412; }
-
-    .footer{
-      position:fixed; left:0; right:0; bottom:0;
-      padding:12px 16px calc(12px + env(safe-area-inset-bottom));
-      background:rgba(243,244,246,.92);
-      backdrop-filter: blur(10px);
-      border-top:1px solid rgba(17,24,39,.06);
-      display:flex; gap:10px; align-items:center; justify-content:space-between;
-    }
-    .status{
-      font-size:12px; color:var(--muted);
-      max-width:70%;
-      overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-    }
-    .pill{
-      font-size:12px;
-      padding:8px 10px;
-      border-radius:999px;
-      background:#fff;
-      border:1px solid rgba(17,24,39,.10);
-      font-weight:800;
       color:#111827;
-      box-shadow: var(--shadow2);
     }
+    .badge-early{
+      background: rgba(16,185,129,.14);
+      border-color: rgba(16,185,129,.45);
+      color:#065F46;
+    }
+    .badge-late{
+      background: rgba(245,158,11,.16);
+      border-color: rgba(245,158,11,.50);
+      color:#92400E;
+    }
+    .badge-off{
+      background: rgba(156,163,175,.16);
+      border-color: rgba(156,163,175,.35);
+      color:#6B7280;
+    }
+    .badge-leave{
+      background: rgba(59,130,246,.14);
+      border-color: rgba(59,130,246,.45);
+      color:#1E40AF;
+      min-width: 70px;
+      padding: 8px 12px;
+      border-radius: 14px;
+    }
+    .shift-sel{
+      width: 74px;
+      padding: 8px 10px;
+      border-radius: 14px;
+      border: 1px solid rgba(17,24,39,.10);
+      background:#fff;
+      font-weight: 900;
+      text-align:center;
+      outline:none;
+      box-shadow: none;
+      -webkit-appearance: none;
+      appearance: none;
+      cursor:pointer;
+    }
+    .shift-sel.badge-early{
+      background: rgba(16,185,129,.14);
+      border-color: rgba(16,185,129,.45);
+      color:#065F46;
+    }
+    .shift-sel.badge-late{
+      background: rgba(245,158,11,.16);
+      border-color: rgba(245,158,11,.50);
+      color:#92400E;
+    }
+    .shift-sel.badge-off{
+      background: rgba(156,163,175,.16);
+      border-color: rgba(156,163,175,.35);
+      color:#6B7280;
+    }
+    .shift-sel:disabled{ opacity:.55; cursor:not-allowed; }
+    .empty{
+      text-align:center;
+      padding: 26px 18px;
+      color: #9CA3AF;
+      font-weight: 900;
+    }
+    .toast{
+      position: fixed;
+      left: 16px;
+      right: 16px;
+      top: calc(16px + env(safe-area-inset-top));
+      background: #111827;
+      color:#fff;
+      padding: 12px 14px;
+      border-radius: 14px;
+      box-shadow: var(--shadow2);
+      display:none;
+      z-index: 9999;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    .nav{
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      padding: 12px 18px;
+      padding-bottom: max(12px, env(safe-area-inset-bottom));
+      background: rgba(255,255,255,.92);
+      backdrop-filter: blur(10px);
+      border-top-left-radius: 26px;
+      border-top-right-radius: 26px;
+      box-shadow: 0 -10px 30px rgba(17,24,39,.08);
+      display:flex;
+      justify-content: space-around;
+      z-index: 1000;
+    }
+    .nav-item{
+      text-decoration:none;
+      color:#9CA3AF;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap: 4px;
+      font-size: 10px;
+      font-weight: 900;
+    }
+    .nav-item.active{ color: var(--primary); }
+    .nav-icon{ font-size: 22px; }
+    #mgrBtn{ display: none !important; }
+    html.is-mgr #mgrBtn{ display: flex !important; }
   </style>
 </head>
+
 <body>
+  <div class="toast" id="toast"></div>
 
-  <div class="topbar">
-    <div class="title">團隊排班</div>
-    <div class="controls">
-      <select id="yearSel"></select>
-      <select id="monthSel"></select>
-      <button id="reloadBtn">重新載入</button>
+  <section class="hero">
+    <h2>📅 團隊排班</h2>
+    <div class="sub">
+      <span class="pill" id="modeTag">載入中…</span>
+      <span class="pill" id="rangeTag">篩選：—</span>
+      <span class="pill" id="lockTag" style="display:none;">—</span>
     </div>
+  </section>
+
+  <div class="controls">
+    <select id="y"></select>
+    <select id="m"></select>
+    <button type="button" id="btnLoad">查詢</button>
   </div>
 
   <div class="card">
-    <div class="restbox">
-      <div>
-        <div class="big" id="restTitle">本月可休：-- 天</div>
-        <div class="hint" id="restHint">（週末 -- + 國定假日 --）</div>
-      </div>
-      <div class="pill" id="lockHint">排班截止：--</div>
-    </div>
-    <div class="chips" id="restChips" style="display:none;"></div>
-  </div>
-
-  <div class="card">
-    <div class="hint" style="margin-bottom:10px;">
-      說明：休假統計以「週六/週日」+「Holidays 表的日期」合併計算，國定假日若落在週末不重複計算。
-    </div>
-    <div class="tableWrap">
-      <table id="rosterTable"></table>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr id="thRow">
+            <th>員工</th>
+          </tr>
+        </thead>
+        <tbody id="tbRow">
+          <tr><td class="empty" colspan="10">載入中…</td></tr>
+        </tbody>
+      </table>
     </div>
   </div>
 
-  <div class="footer">
-    <div class="status" id="status">準備中…</div>
-    <div class="pill" id="mePill">—</div>
-  </div>
+  <nav class="nav" id="bottomNav">
+    <a href="app.html" class="nav-item"><span class="nav-icon">🏠</span>首頁</a>
+    <a href="request.html" class="nav-item"><span class="nav-icon">📝</span>申請</a>
+    <a href="history.html" class="nav-item"><span class="nav-icon">📋</span>紀錄</a>
+    <a href="schedule.html" class="nav-item active"><span class="nav-icon">📅</span>排班</a>
+    <a href="manager.html" class="nav-item" id="mgrBtn"><span class="nav-icon">👑</span>主管</a>
+  </nav>
 
-<script>
-  // ✅ 最小修正：支援用網址參數設定 WEBAPP_URL（避免 iOS/LINE 沒 console 時卡死）
-  // 用法：.../index.html?webapp=https://script.google.com/macros/s/XXXX/exec
-  function getWebAppUrl(){
-    try{
-      const qs = new URLSearchParams(location.search);
-      const fromQS = (qs.get('webapp') || '').trim();
-      if (fromQS){
-        localStorage.setItem('WEBAPP_URL', fromQS);
-        return fromQS;
-      }
-    }catch(e){}
-    return (localStorage.getItem('WEBAPP_URL') || '').trim();
-  }
+  <script src="config.js"></script>
+  <script>
+    const uid =
+      localStorage.getItem("empId") ||
+      localStorage.getItem("employeeId") ||
+      localStorage.getItem("userId") || "";
 
-  const EMP_ID = localStorage.getItem('empId') || localStorage.getItem('userId') || '';
-  const WEBHOOK_KEY = localStorage.getItem('WEBHOOK_KEY') || ''; // 若你有開啟 WEBHOOK_KEY
+    if(!uid) location.href="index.html";
 
-  const $ = (id)=>document.getElementById(id);
-
-  function setStatus(msg){ $('status').textContent = msg; }
-
-  function yyyymmNow(){
-    const now = new Date();
-    return { y: now.getFullYear(), m: now.getMonth()+1 };
-  }
-
-  function fillYM(){
-    const now = yyyymmNow();
-    const ySel = $('yearSel');
-    const mSel = $('monthSel');
-
-    ySel.innerHTML = '';
-    const y0 = now.y - 1, y1 = now.y + 1;
-    for(let y=y0; y<=y1; y++){
-      const op = document.createElement('option');
-      op.value = y; op.textContent = y;
-      if (y===now.y) op.selected = true;
-      ySel.appendChild(op);
+    function toast(msg){
+      const el = document.getElementById("toast");
+      el.textContent = msg;
+      el.style.display = "block";
+      clearTimeout(window.__toastTimer);
+      window.__toastTimer = setTimeout(()=> el.style.display="none", 2400);
     }
 
-    mSel.innerHTML = '';
-    for(let m=1; m<=12; m++){
-      const op = document.createElement('option');
-      op.value = m; op.textContent = String(m).padStart(2,'0');
-      if (m===now.m) op.selected = true;
-      mSel.appendChild(op);
-    }
-  }
+    function pad2(n){ return String(n).padStart(2,'0'); }
 
-  function jsonp(url){
-    return new Promise((resolve, reject)=>{
-      const cb = 'cb_' + Math.random().toString(36).slice(2);
-      const s = document.createElement('script');
-      const sep = url.includes('?') ? '&' : '?';
-      s.src = url + sep + 'callback=' + cb;
-      s.onerror = ()=>{ cleanup(); reject(new Error('JSONP error')); };
-
-      window[cb] = (data)=>{
-        cleanup();
-        resolve(data);
-      };
-      function cleanup(){
-        try{ delete window[cb]; }catch(e){ window[cb]=undefined; }
-        if (s && s.parentNode) s.parentNode.removeChild(s);
-      }
-      document.body.appendChild(s);
-    });
-  }
-
-  function buildCell(v){
-    const s = String(v||'').trim();
-    if (!s) return '';
-    const span = document.createElement('span');
-    span.className = 'cell';
-
-    if (s.includes('早')) span.classList.add('shift-early');
-    else if (s.includes('午')) span.classList.add('shift-late');
-    else if (s.includes('休')) span.classList.add('shift-off');
-    else span.classList.add('shift-leave');
-
-    span.textContent = s;
-    return span;
-  }
-
-  function renderRestDays(restDays){
-    if (!restDays || !restDays.ok){
-      $('restTitle').textContent = '本月可休：-- 天';
-      $('restHint').textContent = '（週末 -- + 國定假日 --）';
-      $('restChips').style.display = 'none';
-      return;
+    function escapeHtml(s){
+      return String(s ?? "").replace(/[&<>"']/g, (c)=>({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+      }[c]));
     }
 
-    $('restTitle').textContent = `本月可休：${restDays.totalOffDays} 天`;
-    $('restHint').textContent = `（週末 ${restDays.weekendDays} + 國定假日 ${restDays.holidayExtra}）`;
-
-    const chips = [];
-    chips.push(`週末：${restDays.weekendDays} 天`);
-    chips.push(`國定假日：${restDays.holidayTotal} 天`);
-    if (restDays.holidayOnWeekend){
-      chips.push(`其中落週末：${restDays.holidayOnWeekend} 天`);
-    }
-    chips.push(`合計（去重）：${restDays.totalOffDays} 天`);
-
-    const wrap = $('restChips');
-    wrap.innerHTML = '';
-    chips.forEach(t=>{
-      const c = document.createElement('div');
-      c.className = 'chip';
-      c.textContent = t;
-      wrap.appendChild(c);
-    });
-    wrap.style.display = 'flex';
-  }
-
-  function renderTable(data){
-    const tbl = $('rosterTable');
-    tbl.innerHTML = '';
-
-    const employees = data.employees || [];
-    const roster = data.roster || {};
-    const y = Number($('yearSel').value);
-    const m = Number($('monthSel').value);
-    const daysInMonth = new Date(y, m, 0).getDate();
-
-    const thead = document.createElement('thead');
-    const trH = document.createElement('tr');
-    const th0 = document.createElement('th');
-    th0.textContent = '員工';
-    th0.style.left = '0';
-    th0.style.position = 'sticky';
-    trH.appendChild(th0);
-
-    for(let d=1; d<=daysInMonth; d++){
-      const th = document.createElement('th');
-      th.textContent = d;
-      trH.appendChild(th);
-    }
-    thead.appendChild(trH);
-    tbl.appendChild(thead);
-
-    const tbody = document.createElement('tbody');
-
-    employees.forEach(emp=>{
-      const tr = document.createElement('tr');
-
-      const tdName = document.createElement('td');
-      tdName.className = 'name';
-      tdName.textContent = emp.empName || emp.empId;
-      tr.appendChild(tdName);
-
-      for(let d=1; d<=daysInMonth; d++){
-        const td = document.createElement('td');
-        const cellObj = (roster[emp.empId] && roster[emp.empId][d]) ? roster[emp.empId][d] : null;
-
-        if (cellObj && cellObj.value){
-          const node = buildCell(cellObj.value);
-          if (node) td.appendChild(node);
-        }else{
-          td.textContent = '';
+    function api(action, data = {}) {
+      return new Promise((resolve, reject) => {
+        const ENDPOINT = window.CONFIG && (window.CONFIG.GAS_ENDPOINT || window.CONFIG.API_BASE || window.CONFIG.API_URL);
+        if(!ENDPOINT){
+          reject(new Error("Missing CONFIG.GAS_ENDPOINT"));
+          return;
         }
-        tr.appendChild(td);
+
+        const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random()*1e6);
+        const s = document.createElement("script");
+
+        const payloadObj = Object.assign({}, data, { userId: uid, empId: uid });
+        if(window.CONFIG && window.CONFIG.WEBHOOK_KEY && payloadObj.webhookKey == null){
+          payloadObj.webhookKey = window.CONFIG.WEBHOOK_KEY;
+        }
+
+        const payload = encodeURIComponent(JSON.stringify(payloadObj));
+
+        const timer = setTimeout(() => {
+          cleanup();
+          reject(new Error("timeout"));
+        }, 20000);
+
+        function cleanup(){
+          clearTimeout(timer);
+          try{ delete window[cbName]; }catch(e){}
+          try{ s.remove(); }catch(e){}
+        }
+
+        window[cbName] = (res) => {
+          cleanup();
+          resolve(res);
+        };
+
+        s.onerror = () => {
+          cleanup();
+          reject(new Error("Network Error"));
+        };
+
+        const sep = ENDPOINT.includes("?") ? "&" : "?";
+        s.src = `${ENDPOINT}${sep}action=${encodeURIComponent(action)}&payload=${payload}&callback=${cbName}&_=${Date.now()}`;
+        document.body.appendChild(s);
+      });
+    }
+
+    // 年月下拉
+    const yS = document.getElementById("y");
+    const mS = document.getElementById("m");
+    const now = new Date();
+
+    for(let y=2024; y<=2028; y++){
+      yS.add(new Option(y, y, y===now.getFullYear(), y===now.getFullYear()));
+    }
+    for(let m=1; m<=12; m++){
+      mS.add(new Option(m, m, m===now.getMonth()+1, m===now.getMonth()+1));
+    }
+
+    // ✅ 徹底拔除 IN/OUT 選項，並清洗髒資料
+    function classifyShift(v){
+      const raw = String(v||'').trim();
+      const low = raw.toLowerCase();
+
+      if(raw==='早班' || low==='early' || raw==='早') return { label:'早', cls:'badge-early', value:'早班' };
+      if(raw==='午班' || low==='late'  || raw==='午') return { label:'午', cls:'badge-late',  value:'午班' };
+      if(raw==='休假' || low==='off'   || raw==='休') return { label:'休', cls:'badge-off',   value:'休假' };
+
+      // 其他任何不認識的資料（包含 IN, OUT, 或空白），一律洗成空值，強迫排班
+      return { label:'-', cls:'badge-off', value:'' };
+    }
+
+    function getLeaveText(cell){
+      if(!cell || typeof cell === "string") return "";
+      if(cell.type === "LEAVE") return String(cell.value||"").trim();
+      return "";
+    }
+
+    function pickShiftValue(cell){
+      if(cell == null) return "";
+      if(typeof cell === "string") return cell;
+      return cell.value || cell.shift || cell.v || "";
+    }
+
+    function computeLock(res, targetY, targetM){
+      const today = new Date();
+      const lockDay = Number(res.lockDay || 25);
+      const currentVal = today.getFullYear()*12 + (today.getMonth()+1);
+      const targetVal = targetY*12 + targetM;
+
+      const isNextMonth = (targetVal === currentVal + 1);
+      const isManager = !!res.isManager;
+
+      // 非主管：只能排「下個月」且今天日期 <= lockDay
+      const isLocked = (!isManager) && (!isNextMonth || (isNextMonth && today.getDate() > lockDay));
+
+      return { isManager, isLocked, lockDay, isNextMonth };
+    }
+
+    function getCell(roster, empId, d, dateStr){
+      if(!roster) return null;
+      const byEmp = roster[empId];
+      if(!byEmp) return null;
+
+      if(byEmp[d] != null) return byEmp[d];
+      if(byEmp[dateStr] != null) return byEmp[dateStr];
+
+      return null;
+    }
+
+    function renderTable(res, y, m) {
+      const modeTag = document.getElementById("modeTag");
+      const lockTag = document.getElementById("lockTag");
+      const { isManager, isLocked, lockDay } = computeLock(res, y, m);
+
+      if(isManager){
+        modeTag.textContent = "👑 主管模式（可任意編輯）";
+        lockTag.style.display = "none";
+      }else{
+        modeTag.textContent = "👤 員工模式";
+        lockTag.style.display = "inline-flex";
+        lockTag.textContent = isLocked
+          ? `🔒 已鎖定（每月${lockDay}號截止）`
+          : `🟢 開放排班中`;
       }
 
-      tbody.appendChild(tr);
-    });
+      const days = new Date(y, m, 0).getDate();
 
-    tbl.appendChild(tbody);
-  }
+      let head = `<th>員工</th>`;
+      for(let d=1; d<=days; d++){
+        const wk = ['日','一','二','三','四','五','六'][new Date(y, m-1, d).getDay()];
+        const isWeekend = (wk==='日' || wk==='六');
+        head += `<th class="dayHead" style="${isWeekend ? 'color:#EF4444' : ''}">${d}<small>${wk}</small></th>`;
+      }
+      document.getElementById("thRow").innerHTML = head;
 
-  async function loadRoster(){
-    const y = Number($('yearSel').value);
-    const m = Number($('monthSel').value);
+      const employees = Array.isArray(res.employees) ? res.employees : [];
+      const roster = res.roster || {};
 
-    const WEBAPP_URL = getWebAppUrl(); // ✅ 即時取值（支援 ?webapp=）
+      if(employees.length === 0){
+        document.getElementById("tbRow").innerHTML =
+          `<tr><td class="empty" colspan="${days+1}">沒有可排班的人員</td></tr>`;
+        return;
+      }
 
-    if (!WEBAPP_URL){
-      setStatus('請先設定 WEBAPP_URL（localStorage.WEBAPP_URL 或 ?webapp=）');
-      alert('請用網址參數帶入：?webapp=你的GAS/exec\n例如：.../index.html?webapp=https://script.google.com/macros/s/XXXX/exec\n（系統會自動記住）');
-      return;
+      let rows = "";
+      employees.forEach(e=>{
+        const empId = e.empId || e.id || "";
+        const empName = e.empName || e.name || empId || "—";
+
+        let tds = `<td>${escapeHtml(empName)}</td>`;
+
+        for(let d=1; d<=days; d++){
+          const dateStr = `${y}-${pad2(m)}-${pad2(d)}`;
+          const cell = getCell(roster, empId, d, dateStr);
+
+          const leaveText = getLeaveText(cell);
+          if(leaveText){
+            tds += `<td><span class="badge badge-leave">${escapeHtml(leaveText)}</span></td>`;
+            continue;
+          }
+
+          const shiftVal = pickShiftValue(cell);
+          const shiftInfo = classifyShift(shiftVal);
+
+          if(isManager){
+            // ✅ 下拉選單不再有 IN 和 OUT。遇到髒資料會直接選定 '-'
+            const safeEmpId = String(empId).replace(/'/g,"\\'");
+            tds += `
+              <td>
+                <select class="shift-sel ${shiftInfo.cls}"
+                        data-prev="${escapeHtml(shiftInfo.value||'')}"
+                        onchange="upd('${safeEmpId}','${y}','${m}','${d}','${dateStr}',this)">
+                  <option value="" ${shiftInfo.value===''?'selected':''}>-</option>
+                  <option value="早班" ${shiftInfo.value==='早班'?'selected':''}>早</option>
+                  <option value="午班" ${shiftInfo.value==='午班'?'selected':''}>午</option>
+                  <option value="休假" ${shiftInfo.value==='休假'?'selected':''}>休</option>
+                </select>
+              </td>`;
+          }else{
+            tds += `<td><span class="badge ${shiftInfo.cls}">${escapeHtml(shiftInfo.label)}</span></td>`;
+          }
+        }
+
+        rows += `<tr>${tds}</tr>`;
+      });
+
+      document.getElementById("tbRow").innerHTML = rows;
     }
-    if (!EMP_ID){
-      setStatus('找不到 empId（localStorage.empId）');
-      alert('請先登入讓 localStorage 有 empId');
-      return;
+
+    async function load(forceRefresh = false){
+      const y = Number(yS.value);
+      const m = Number(mS.value);
+
+      document.getElementById("rangeTag").textContent = `篩選：${y}-${pad2(m)}`;
+      const cacheKey = `roster_${y}_${m}`;
+
+      if(!forceRefresh && sessionStorage.getItem(cacheKey)) {
+        try {
+          renderTable(JSON.parse(sessionStorage.getItem(cacheKey)), y, m);
+        } catch(e) {}
+      } else {
+        document.getElementById("modeTag").textContent = "載入中…";
+        document.getElementById("tbRow").innerHTML = `<tr><td class="empty" colspan="10">資料同步中…</td></tr>`;
+      }
+
+      try{
+        const res = await api("get_roster_data", { year:y, month:m });
+
+        if(res && res.ok){
+          sessionStorage.setItem(cacheKey, JSON.stringify(res));
+          renderTable(res, y, m);
+        } else if (!sessionStorage.getItem(cacheKey)) {
+          document.getElementById("modeTag").textContent = "讀取失敗";
+          document.getElementById("tbRow").innerHTML =
+            `<tr><td class="empty" colspan="10" style="color:#EF4444">讀取失敗</td></tr>`;
+        }
+      }catch(err){
+        if (!sessionStorage.getItem(cacheKey)) {
+          document.getElementById("modeTag").textContent = "連線異常";
+          document.getElementById("tbRow").innerHTML =
+            `<tr><td class="empty" colspan="10" style="color:#EF4444">連線異常</td></tr>`;
+        }
+      }
     }
 
-    setStatus('載入排班中…');
+    function upd(targetEmpId, y, m, d, dateStr, el){
+      const prev = el.getAttribute("data-prev") || "";
+      const next = String(el.value||"").trim();
 
-    const payload = encodeURIComponent(JSON.stringify({
-      empId: EMP_ID,
-      year: y,
-      month: m,
-      webhookKey: WEBHOOK_KEY
-    }));
+      el.classList.remove('badge-early','badge-late','badge-off');
+      const info = classifyShift(next);
+      el.classList.add(info.cls);
 
-    const url = `${WEBAPP_URL}?action=get_roster_data&payload=${payload}`;
-    const res = await jsonp(url);
-
-    if (!res || !res.ok){
-      setStatus('載入失敗：' + (res && res.message ? res.message : 'unknown'));
-      alert(res && res.message ? res.message : '載入失敗');
-      return;
+      api("update_schedule", {
+        empId: targetEmpId,
+        year: Number(y),
+        month: Number(m),
+        day: Number(d),
+        date: dateStr, // ✅ 你說的關鍵參數保留：讓後端找得到是哪一天
+        shift: next,
+        managerEmpId: uid
+      })
+      .then(res=>{
+        if(!res || !res.ok){
+          toast(res && res.message ? res.message : "更新失敗");
+          el.value = prev;
+          el.classList.remove('badge-early','badge-late','badge-off');
+          el.classList.add(classifyShift(prev).cls);
+        }else{
+          toast("✅ 已更新");
+          el.setAttribute("data-prev", next);
+          sessionStorage.removeItem(`roster_${y}_${m}`);
+        }
+      })
+      .catch(()=>{
+        toast("更新失敗：網路或伺服器逾時");
+        el.value = prev;
+        el.classList.remove('badge-early','badge-late','badge-off');
+        el.classList.add(classifyShift(prev).cls);
+      });
     }
 
-    renderRestDays(res.restDays);
-    $('lockHint').textContent = `排班截止：每月 ${res.lockDay || '--'} 號`;
-    $('mePill').textContent = `ID：${EMP_ID}`;
-
-    renderTable(res);
-    setStatus('完成 ✅');
-  }
-
-  $('reloadBtn').addEventListener('click', loadRoster);
-  $('yearSel').addEventListener('change', loadRoster);
-  $('monthSel').addEventListener('change', loadRoster);
-
-  fillYM();
-  loadRoster().catch(err=>{
-    console.error(err);
-    setStatus('發生錯誤：' + String(err && err.message ? err.message : err));
-  });
-</script>
-
+    document.getElementById("btnLoad").addEventListener("click", () => load(true));
+    load();
+  </script>
 </body>
 </html>

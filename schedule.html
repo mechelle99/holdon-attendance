@@ -1,11 +1,8 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-  <meta charset="utf-8" />
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no"
-  />
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no"/>
   <title>團隊排班</title>
 
   <script>
@@ -28,9 +25,7 @@
       --danger:#EF4444;
       --radius:18px;
     }
-
     *{ box-sizing:border-box; }
-
     body{
       margin:0;
       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans TC",sans-serif;
@@ -47,265 +42,46 @@
       color:#fff;
       margin-bottom: 14px;
     }
+    .hero h2{ margin:0; font-size: 22px; font-weight: 900; letter-spacing: .2px; }
+    .hero .sub{ margin-top: 8px; font-size: 13px; opacity: .90; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .pill{ background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.22); padding: 6px 10px; border-radius: 999px; font-weight: 800; display:inline-flex; align-items:center; gap:8px; }
 
-    .hero h2{
-      margin:0;
-      font-size: 22px;
-      font-weight: 900;
-      letter-spacing: .2px;
-    }
-
-    .hero .sub{
-      margin-top: 8px;
-      font-size: 13px;
-      opacity: .90;
-      display:flex;
-      gap:10px;
-      flex-wrap:wrap;
-      align-items:center;
-    }
-
-    .pill{
-      background: rgba(255,255,255,.18);
-      border: 1px solid rgba(255,255,255,.22);
-      padding: 6px 10px;
-      border-radius: 999px;
-      font-weight: 800;
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-    }
-
-    .controls{
-      display:flex;
-      gap:10px;
-      flex-wrap:wrap;
-      margin: 12px 0 14px 0;
-      align-items:center;
-    }
-
-    .controls select{
-      border:none;
-      background:#fff;
-      border-radius: 14px;
-      padding: 10px 12px;
-      box-shadow: var(--shadow2);
-      font-size: 13px;
-      outline:none;
-      min-width: 88px;
-    }
-
-    .controls button{
-      border:none;
-      background: var(--primary);
-      color:#fff;
-      border-radius: 14px;
-      padding: 10px 14px;
-      font-weight: 900;
-      cursor:pointer;
-      box-shadow: var(--shadow2);
-    }
-
+    .controls{ display:flex; gap:10px; flex-wrap:wrap; margin: 12px 0 14px 0; align-items:center; }
+    .controls select{ border:none; background:#fff; border-radius: 14px; padding: 10px 12px; box-shadow: var(--shadow2); font-size: 13px; outline:none; min-width: 88px; }
+    .controls button{ border:none; background: var(--primary); color:#fff; border-radius: 14px; padding: 10px 14px; font-weight: 900; cursor:pointer; box-shadow: var(--shadow2); }
     .controls button:active{ transform: scale(.99); }
 
-    .card{
-      background:var(--card);
-      border-radius: 22px;
-      box-shadow: var(--shadow2);
-      overflow:hidden;
-      border: 1px solid rgba(17,24,39,.06);
-    }
+    .card{ background:var(--card); border-radius: 22px; box-shadow: var(--shadow2); overflow:hidden; border: 1px solid rgba(17,24,39,.06); }
+    .table-scroll{ overflow-x:auto; -webkit-overflow-scrolling: touch; }
+    table{ width:100%; border-collapse:collapse; min-width: 900px; }
+    th, td{ padding: 12px 10px; text-align:center; border-bottom: 1px solid rgba(17,24,39,.06); font-size: 13px; white-space: nowrap; }
+    thead th{ background:#F9FAFB; font-weight: 900; position: sticky; top: 0; z-index: 15; }
+    th:first-child, td:first-child{ position: sticky; left: 0; z-index: 12; background: #fff; border-right: 2px solid rgba(17,24,39,.06); font-weight: 900; color: var(--primary); text-align:left; padding-left: 14px; min-width: 140px; }
+    thead th:first-child{ z-index: 25; background:#F9FAFB; }
 
-    .table-scroll{
-      overflow-x:auto;
-      -webkit-overflow-scrolling: touch;
-    }
+    .dayHead{ line-height:1.15; font-weight: 900; }
+    .dayHead small{ display:block; margin-top: 4px; font-weight: 900; opacity: .72; }
 
-    table{
-      width:100%;
-      border-collapse:collapse;
-      min-width: 900px;
-    }
+    .badge{ display:inline-flex; align-items:center; justify-content:center; min-width: 44px; padding: 8px 10px; border-radius: 14px; font-weight: 900; border: 1px solid rgba(17,24,39,.10); background:#fff; color:#111827; }
+    .badge-early{ background: rgba(16,185,129,.14); border-color: rgba(16,185,129,.45); color:#065F46; }
+    .badge-late{ background: rgba(245,158,11,.16); border-color: rgba(245,158,11,.50); color:#92400E; }
+    .badge-off{ background: rgba(156,163,175,.16); border-color: rgba(156,163,175,.35); color:#6B7280; }
+    .badge-leave{ background: rgba(59,130,246,.14); border-color: rgba(59,130,246,.45); color:#1E40AF; min-width: 70px; padding: 8px 12px; border-radius: 14px; }
 
-    th, td{
-      padding: 12px 10px;
-      text-align:center;
-      border-bottom: 1px solid rgba(17,24,39,.06);
-      font-size: 13px;
-      white-space: nowrap;
-    }
+    .shift-sel{ width: 74px; padding: 8px 10px; border-radius: 14px; border: 1px solid rgba(17,24,39,.10); background:#fff; font-weight: 900; text-align:center; outline:none; box-shadow: none; -webkit-appearance: none; appearance: none; cursor:pointer; }
+    .shift-sel.badge-early{ background: rgba(16,185,129,.14); border-color: rgba(16,185,129,.45); color:#065F46; }
+    .shift-sel.badge-late{ background: rgba(245,158,11,.16); border-color: rgba(245,158,11,.50); color:#92400E; }
+    .shift-sel.badge-off{ background: rgba(156,163,175,.16); border-color: rgba(156,163,175,.35); color:#6B7280; }
+    .shift-sel:disabled{ opacity:.55; cursor:not-allowed; }
 
-    thead th{
-      background:#F9FAFB;
-      font-weight: 900;
-      position: sticky;
-      top: 0;
-      z-index: 15;
-    }
+    .empty{ text-align:center; padding: 26px 18px; color: #9CA3AF; font-weight: 900; }
+    .toast{ position: fixed; left: 16px; right: 16px; top: calc(16px + env(safe-area-inset-top)); background: #111827; color:#fff; padding: 12px 14px; border-radius: 14px; box-shadow: var(--shadow2); display:none; z-index: 9999; font-size: 13px; line-height: 1.4; }
 
-    th:first-child, td:first-child{
-      position: sticky;
-      left: 0;
-      z-index: 12;
-      background: #fff;
-      border-right: 2px solid rgba(17,24,39,.06);
-      font-weight: 900;
-      color: var(--primary);
-      text-align:left;
-      padding-left: 14px;
-      min-width: 140px;
-    }
-
-    thead th:first-child{
-      z-index: 25;
-      background:#F9FAFB;
-    }
-
-    .dayHead{
-      line-height:1.15;
-      font-weight: 900;
-    }
-
-    .dayHead small{
-      display:block;
-      margin-top: 4px;
-      font-weight: 900;
-      opacity: .72;
-    }
-
-    .badge{
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      min-width: 44px;
-      padding: 8px 10px;
-      border-radius: 14px;
-      font-weight: 900;
-      border: 1px solid rgba(17,24,39,.10);
-      background:#fff;
-      color:#111827;
-    }
-
-    .badge-early{
-      background: rgba(16,185,129,.14);
-      border-color: rgba(16,185,129,.45);
-      color:#065F46;
-    }
-
-    .badge-late{
-      background: rgba(245,158,11,.16);
-      border-color: rgba(245,158,11,.50);
-      color:#92400E;
-    }
-
-    .badge-off{
-      background: rgba(156,163,175,.16);
-      border-color: rgba(156,163,175,.35);
-      color:#6B7280;
-    }
-
-    .badge-leave{
-      background: rgba(59,130,246,.14);
-      border-color: rgba(59,130,246,.45);
-      color:#1E40AF;
-      min-width: 70px;
-      padding: 8px 12px;
-      border-radius: 14px;
-    }
-
-    .shift-sel{
-      width: 74px;
-      padding: 8px 10px;
-      border-radius: 14px;
-      border: 1px solid rgba(17,24,39,.10);
-      background:#fff;
-      font-weight: 900;
-      text-align:center;
-      outline:none;
-      box-shadow: none;
-      -webkit-appearance: none;
-      appearance: none;
-      cursor:pointer;
-    }
-
-    .shift-sel.badge-early{
-      background: rgba(16,185,129,.14);
-      border-color: rgba(16,185,129,.45);
-      color:#065F46;
-    }
-
-    .shift-sel.badge-late{
-      background: rgba(245,158,11,.16);
-      border-color: rgba(245,158,11,.50);
-      color:#92400E;
-    }
-
-    .shift-sel.badge-off{
-      background: rgba(156,163,175,.16);
-      border-color: rgba(156,163,175,.35);
-      color:#6B7280;
-    }
-
-    .shift-sel:disabled{
-      opacity:.55;
-      cursor:not-allowed;
-    }
-
-    .empty{
-      text-align:center;
-      padding: 26px 18px;
-      color: #9CA3AF;
-      font-weight: 900;
-    }
-
-    .toast{
-      position: fixed;
-      left: 16px;
-      right: 16px;
-      top: calc(16px + env(safe-area-inset-top));
-      background: #111827;
-      color:#fff;
-      padding: 12px 14px;
-      border-radius: 14px;
-      box-shadow: var(--shadow2);
-      display:none;
-      z-index: 9999;
-      font-size: 13px;
-      line-height: 1.4;
-    }
-
-    .nav{
-      position: fixed;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      padding: 12px 18px;
-      padding-bottom: max(12px, env(safe-area-inset-bottom));
-      background: rgba(255,255,255,.92);
-      backdrop-filter: blur(10px);
-      border-top-left-radius: 26px;
-      border-top-right-radius: 26px;
-      box-shadow: 0 -10px 30px rgba(17,24,39,.08);
-      display:flex;
-      justify-content: space-around;
-      z-index: 1000;
-    }
-
-    .nav-item{
-      text-decoration:none;
-      color:#9CA3AF;
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      gap: 4px;
-      font-size: 10px;
-      font-weight: 900;
-    }
-
+    .nav{ position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 18px; padding-bottom: max(12px, env(safe-area-inset-bottom)); background: rgba(255,255,255,.92); backdrop-filter: blur(10px); border-top-left-radius: 26px; border-top-right-radius: 26px; box-shadow: 0 -10px 30px rgba(17,24,39,.08); display:flex; justify-content: space-around; z-index: 1000; }
+    .nav-item{ text-decoration:none; color:#9CA3AF; display:flex; flex-direction:column; align-items:center; gap: 4px; font-size: 10px; font-weight: 900; }
     .nav-item.active{ color: var(--primary); }
-
     .nav-icon{ font-size: 22px; }
-
+    
     #mgrBtn{ display: none !important; }
     html.is-mgr #mgrBtn{ display: flex !important; }
   </style>
@@ -360,7 +136,7 @@
       localStorage.getItem("userId") ||
       "";
 
-    if (!uid) location.href = "index.html";
+    if(!uid) location.href="index.html";
 
     function toast(msg){
       const el = document.getElementById("toast");
@@ -369,62 +145,33 @@
       clearTimeout(window.__toastTimer);
       window.__toastTimer = setTimeout(()=> el.style.display="none", 2400);
     }
-
     function pad2(n){ return String(n).padStart(2,'0'); }
-
     function escapeHtml(s){
       return String(s ?? "").replace(/[&<>"']/g, (c)=>({
-        "&":"&amp;",
-        "<":"&lt;",
-        ">":"&gt;",
-        '"':"&quot;",
-        "'":"&#39;"
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
       }[c]));
     }
 
     function api(action, data = {}) {
       return new Promise((resolve, reject) => {
-        const ENDPOINT =
-          window.CONFIG &&
-          (window.CONFIG.GAS_ENDPOINT || window.CONFIG.API_BASE || window.CONFIG.API_URL);
-
-        if(!ENDPOINT){
-          reject(new Error("Missing CONFIG.GAS_ENDPOINT"));
-          return;
-        }
+        const ENDPOINT = window.CONFIG && (window.CONFIG.GAS_ENDPOINT || window.CONFIG.API_BASE || window.CONFIG.API_URL);
+        if(!ENDPOINT){ reject(new Error("Missing CONFIG.GAS_ENDPOINT")); return; }
 
         const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random()*1e6);
         const s = document.createElement("script");
-
         const payloadObj = Object.assign({}, data, { userId: uid, empId: uid });
 
-        if (window.CONFIG && window.CONFIG.WEBHOOK_KEY && payloadObj.webhookKey == null) {
+        if(window.CONFIG && window.CONFIG.WEBHOOK_KEY && payloadObj.webhookKey == null){
           payloadObj.webhookKey = window.CONFIG.WEBHOOK_KEY;
         }
 
         const payload = encodeURIComponent(JSON.stringify(payloadObj));
+        
+        const timer = setTimeout(() => { cleanup(); reject(new Error("timeout")); }, 20000);
+        function cleanup(){ clearTimeout(timer); try{delete window[cbName];}catch(e){} try{s.remove();}catch(e){} }
 
-        const timer = setTimeout(() => {
-          cleanup();
-          reject(new Error("timeout"));
-        }, 20000);
-
-        function cleanup(){
-          clearTimeout(timer);
-          try{ delete window[cbName]; }catch(e){}
-          try{ s.remove(); }catch(e){}
-        }
-
-        window[cbName] = (res) => {
-          cleanup();
-          resolve(res);
-        };
-
-        s.onerror = () => {
-          cleanup();
-          reject(new Error("Network Error"));
-        };
-
+        window[cbName] = (res) => { cleanup(); resolve(res); };
+        s.onerror = () => { cleanup(); reject(new Error("Network Error")); };
         const sep = ENDPOINT.includes("?") ? "&" : "?";
         s.src = `${ENDPOINT}${sep}action=${encodeURIComponent(action)}&payload=${payload}&callback=${cbName}&_=${Date.now()}`;
         document.body.appendChild(s);
@@ -434,36 +181,25 @@
     const yS = document.getElementById("y");
     const mS = document.getElementById("m");
     const now = new Date();
-
-    for (let y = 2024; y <= 2028; y++) {
-      yS.add(new Option(y, y, y === now.getFullYear(), y === now.getFullYear()));
-    }
-    for (let m = 1; m <= 12; m++) {
-      mS.add(new Option(m, m, m === now.getMonth()+1, m === now.getMonth()+1));
-    }
+    for(let y=2024; y<=2028; y++){ yS.add(new Option(y, y, y===now.getFullYear(), y===now.getFullYear())); }
+    for(let m=1; m<=12; m++){ mS.add(new Option(m, m, m===now.getMonth()+1, m===now.getMonth()+1)); }
 
     // ✅ 徹底拔除 IN/OUT 選項，並清洗髒資料
     function classifyShift(v){
-      const raw = String(v || "").trim();
+      const raw = String(v||'').trim();
       const low = raw.toLowerCase();
-
-      if (raw === "早班" || low === "early" || raw === "早") {
-        return { label: "早", cls: "badge-early", value: "早班" };
-      }
-      if (raw === "午班" || low === "late" || raw === "午") {
-        return { label: "午", cls: "badge-late", value: "午班" };
-      }
-      if (raw === "休假" || low === "off" || raw === "休") {
-        return { label: "休", cls: "badge-off", value: "休假" };
-      }
-
+      
+      if(raw==='早班' || low==='early' || raw==='早') return { label:'早', cls:'badge-early', value:'早班' };
+      if(raw==='午班' || low==='late'  || raw==='午') return { label:'午', cls:'badge-late',  value:'午班' };
+      if(raw==='休假' || low==='off'   || raw==='休') return { label:'休', cls:'badge-off',   value:'休假' };
+      
       // 其他任何不認識的資料（包含 IN, OUT, 或空白），一律洗成空值，強迫排班
-      return { label: "-", cls: "badge-off", value: "" };
+      return { label:'-', cls:'badge-off', value:'' };
     }
 
     function getLeaveText(cell){
       if(!cell || typeof cell === "string") return "";
-      if(cell.type === "LEAVE") return String(cell.value || "").trim();
+      if(cell.type === "LEAVE") return String(cell.value||"").trim();
       return "";
     }
 
@@ -476,17 +212,11 @@
     function computeLock(res, targetY, targetM){
       const today = new Date();
       const lockDay = Number(res.lockDay || 25);
-
       const currentVal = today.getFullYear()*12 + (today.getMonth()+1);
       const targetVal  = targetY*12 + targetM;
-
       const isNextMonth = (targetVal === currentVal + 1);
       const isManager = !!res.isManager;
-
-      const isLocked =
-        (!isManager) &&
-        (!isNextMonth || (isNextMonth && today.getDate() > lockDay));
-
+      const isLocked = (!isManager) && (!isNextMonth || (isNextMonth && today.getDate() > lockDay));
       return { isManager, isLocked, lockDay, isNextMonth };
     }
 
@@ -499,9 +229,10 @@
       return null;
     }
 
-    function renderTable(res, y, m){
+    function renderTable(res, y, m) {
       const modeTag = document.getElementById("modeTag");
       const lockTag = document.getElementById("lockTag");
+      
       const { isManager, isLocked, lockDay } = computeLock(res, y, m);
 
       if(isManager){
@@ -510,18 +241,15 @@
       }else{
         modeTag.textContent = "👤 員工模式";
         lockTag.style.display = "inline-flex";
-        lockTag.textContent = isLocked
-          ? `🔒 已鎖定（每月${lockDay}號截止）`
-          : "🟢 開放排班中";
+        lockTag.textContent = isLocked ? `🔒 已鎖定（每月${lockDay}號截止）` : `🟢 開放排班中`;
       }
 
       const days = new Date(y, m, 0).getDate();
-
       let head = `<th>員工</th>`;
-      for(let d = 1; d <= days; d++){
-        const wk = ["日","一","二","三","四","五","六"][new Date(y, m-1, d).getDay()];
-        const isWeekend = (wk === "日" || wk === "六");
-        head += `<th class="dayHead" style="${isWeekend ? "color:#EF4444" : ""}">${d}<small>${wk}</small></th>`;
+      for(let d=1; d<=days; d++){
+        const wk = ['日','一','二','三','四','五','六'][new Date(y, m-1, d).getDay()];
+        const isWeekend = (wk==='日' || wk==='六');
+        head += `<th class="dayHead" style="${isWeekend ? 'color:#EF4444' : ''}">${d}<small>${wk}</small></th>`;
       }
       document.getElementById("thRow").innerHTML = head;
 
@@ -529,8 +257,7 @@
       const roster = res.roster || {};
 
       if(employees.length === 0){
-        document.getElementById("tbRow").innerHTML =
-          `<tr><td class="empty" colspan="${days+1}">沒有可排班的人員</td></tr>`;
+        document.getElementById("tbRow").innerHTML = `<tr><td class="empty" colspan="${days+1}">沒有可排班的人員</td></tr>`;
         return;
       }
 
@@ -538,15 +265,13 @@
       employees.forEach(e=>{
         const empId = e.empId || e.id || "";
         const empName = e.empName || e.name || empId || "—";
-
         let tds = `<td>${escapeHtml(empName)}</td>`;
 
         for(let d=1; d<=days; d++){
           const dateStr = `${y}-${pad2(m)}-${pad2(d)}`;
-
           const cell = getCell(roster, empId, d, dateStr);
-
           const leaveText = getLeaveText(cell);
+          
           if(leaveText){
             tds += `<td><span class="badge badge-leave">${escapeHtml(leaveText)}</span></td>`;
             continue;
@@ -557,103 +282,91 @@
 
           if(isManager){
             // ✅ 下拉選單不再有 IN 和 OUT。遇到髒資料會直接選定 '-'
-            const safeEmpId = String(empId).replace(/'/g, "\\'");
-
             tds += `
               <td>
-                <select
-                  class="shift-sel ${shiftInfo.cls}"
-                  data-prev="${escapeHtml(shiftInfo.value || "")}"
-                  onchange="upd('${safeEmpId}','${y}','${m}','${d}','${dateStr}',this)"
-                >
-                  <option value="" ${shiftInfo.value === "" ? "selected" : ""}>-</option>
-                  <option value="早班" ${shiftInfo.value === "早班" ? "selected" : ""}>早</option>
-                  <option value="午班" ${shiftInfo.value === "午班" ? "selected" : ""}>午</option>
-                  <option value="休假" ${shiftInfo.value === "休假" ? "selected" : ""}>休</option>
+                <select class="shift-sel ${shiftInfo.cls}" data-prev="${escapeHtml(shiftInfo.value||'')}" 
+                        onchange="upd('${String(empId).replace(/'/g,"\\'")}','${y}','${m}','${d}','${dateStr}',this)">
+                  <option value="" ${shiftInfo.value===''?'selected':''}>-</option>
+                  <option value="早班" ${shiftInfo.value==='早班'?'selected':''}>早</option>
+                  <option value="午班" ${shiftInfo.value==='午班'?'selected':''}>午</option>
+                  <option value="休假" ${shiftInfo.value==='休假'?'selected':''}>休</option>
                 </select>
-              </td>
-            `;
+              </td>`;
           }else{
             tds += `<td><span class="badge ${shiftInfo.cls}">${escapeHtml(shiftInfo.label)}</span></td>`;
           }
         }
-
         rows += `<tr>${tds}</tr>`;
       });
-
       document.getElementById("tbRow").innerHTML = rows;
     }
 
     async function load(forceRefresh = false){
       const y = Number(yS.value);
       const m = Number(mS.value);
-
       document.getElementById("rangeTag").textContent = `篩選：${y}-${pad2(m)}`;
-      const cacheKey = `roster_${y}_${m}`;
 
-      if(!forceRefresh && sessionStorage.getItem(cacheKey)){
-        try{
-          renderTable(JSON.parse(sessionStorage.getItem(cacheKey)), y, m);
-        }catch(e){}
-      }else{
-        document.getElementById("modeTag").textContent = "載入中…";
-        document.getElementById("tbRow").innerHTML =
-          `<tr><td class="empty" colspan="10">資料同步中…</td></tr>`;
+      const cacheKey = `roster_${y}_${m}`;
+      
+      if(!forceRefresh && sessionStorage.getItem(cacheKey)) {
+         try {
+           renderTable(JSON.parse(sessionStorage.getItem(cacheKey)), y, m);
+         } catch(e) {}
+      } else {
+         document.getElementById("modeTag").textContent = "載入中…";
+         document.getElementById("tbRow").innerHTML = `<tr><td class="empty" colspan="10">資料同步中…</td></tr>`;
       }
 
       try{
         const res = await api("get_roster_data", { year:y, month:m });
-
         if(res && res.ok){
           sessionStorage.setItem(cacheKey, JSON.stringify(res));
           renderTable(res, y, m);
-        }else if(!sessionStorage.getItem(cacheKey)){
+        } else if (!sessionStorage.getItem(cacheKey)) {
           document.getElementById("modeTag").textContent = "讀取失敗";
-          document.getElementById("tbRow").innerHTML =
-            `<tr><td class="empty" colspan="10" style="color:#EF4444">讀取失敗</td></tr>`;
+          document.getElementById("tbRow").innerHTML = `<tr><td class="empty" colspan="10" style="color:#EF4444">讀取失敗</td></tr>`;
         }
       }catch(err){
-        if(!sessionStorage.getItem(cacheKey)){
+        if (!sessionStorage.getItem(cacheKey)) {
           document.getElementById("modeTag").textContent = "連線異常";
-          document.getElementById("tbRow").innerHTML =
-            `<tr><td class="empty" colspan="10" style="color:#EF4444">連線異常</td></tr>`;
+          document.getElementById("tbRow").innerHTML = `<tr><td class="empty" colspan="10" style="color:#EF4444">連線異常</td></tr>`;
         }
       }
     }
 
-    function upd(targetEmpId, y, m, d, dateStr, el){
+  function upd(targetEmpId, y, m, d, dateStr, el){
       const prev = el.getAttribute("data-prev") || "";
-      const next = String(el.value || "").trim();
+      const next = String(el.value||"").trim();
 
-      el.classList.remove("badge-early","badge-late","badge-off");
+      el.classList.remove('badge-early','badge-late','badge-off');
       const info = classifyShift(next);
       el.classList.add(info.cls);
 
-      api("update_schedule", {
-        empId: targetEmpId,
-        year: Number(y),
-        month: Number(m),
-        day: Number(d),
+      api("update_schedule", { 
+        empId: targetEmpId, 
+        year: Number(y), 
+        month: Number(m), 
+        day: Number(d), 
         date: dateStr, // ✅ 補上這個關鍵參數，讓後端找得到是哪一天！
         shift: next,
-        managerEmpId: uid
+        managerEmpId: uid 
       })
       .then(res=>{
         if(!res || !res.ok){
           toast(res && res.message ? res.message : "更新失敗");
           el.value = prev;
-          el.classList.remove("badge-early","badge-late","badge-off");
+          el.classList.remove('badge-early','badge-late','badge-off');
           el.classList.add(classifyShift(prev).cls);
         }else{
           toast("✅ 已更新");
           el.setAttribute("data-prev", next);
-          sessionStorage.removeItem(`roster_${y}_${m}`);
+          sessionStorage.removeItem(`roster_${y}_${m}`); 
         }
       })
       .catch(()=>{
         toast("更新失敗：網路或伺服器逾時");
         el.value = prev;
-        el.classList.remove("badge-early","badge-late","badge-off");
+        el.classList.remove('badge-early','badge-late','badge-off');
         el.classList.add(classifyShift(prev).cls);
       });
     }

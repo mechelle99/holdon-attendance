@@ -196,9 +196,20 @@
   </div>
 
 <script>
-  // ✅ 你的 GAS WebApp URL（/exec）
-  // 例：https://script.google.com/macros/s/XXXX/exec
-  const WEBAPP_URL = localStorage.getItem('WEBAPP_URL') || ''; // 你可以先在 console set
+  // ✅ 最小修正：支援用網址參數設定 WEBAPP_URL（避免 iOS/LINE 沒 console 時卡死）
+  // 用法：.../index.html?webapp=https://script.google.com/macros/s/XXXX/exec
+  function getWebAppUrl(){
+    try{
+      const qs = new URLSearchParams(location.search);
+      const fromQS = (qs.get('webapp') || '').trim();
+      if (fromQS){
+        localStorage.setItem('WEBAPP_URL', fromQS);
+        return fromQS;
+      }
+    }catch(e){}
+    return (localStorage.getItem('WEBAPP_URL') || '').trim();
+  }
+
   const EMP_ID = localStorage.getItem('empId') || localStorage.getItem('userId') || '';
   const WEBHOOK_KEY = localStorage.getItem('WEBHOOK_KEY') || ''; // 若你有開啟 WEBHOOK_KEY
 
@@ -280,7 +291,6 @@
     $('restTitle').textContent = `本月可休：${restDays.totalOffDays} 天`;
     $('restHint').textContent = `（週末 ${restDays.weekendDays} + 國定假日 ${restDays.holidayExtra}）`;
 
-    // 你想更精細也行：把「國定落週末」顯示成一個 chip，避免你誤會數字
     const chips = [];
     chips.push(`週末：${restDays.weekendDays} 天`);
     chips.push(`國定假日：${restDays.holidayTotal} 天`);
@@ -310,7 +320,6 @@
     const m = Number($('monthSel').value);
     const daysInMonth = new Date(y, m, 0).getDate();
 
-    // header
     const thead = document.createElement('thead');
     const trH = document.createElement('tr');
     const th0 = document.createElement('th');
@@ -360,9 +369,11 @@
     const y = Number($('yearSel').value);
     const m = Number($('monthSel').value);
 
+    const WEBAPP_URL = getWebAppUrl(); // ✅ 即時取值（支援 ?webapp=）
+
     if (!WEBAPP_URL){
-      setStatus('請先設定 WEBAPP_URL（localStorage.WEBAPP_URL）');
-      alert('請先在瀏覽器 console 執行：localStorage.setItem("WEBAPP_URL","你的GAS /exec網址") 然後重整');
+      setStatus('請先設定 WEBAPP_URL（localStorage.WEBAPP_URL 或 ?webapp=）');
+      alert('請用網址參數帶入：?webapp=你的GAS/exec\n例如：.../index.html?webapp=https://script.google.com/macros/s/XXXX/exec\n（系統會自動記住）');
       return;
     }
     if (!EMP_ID){
@@ -389,17 +400,11 @@
       return;
     }
 
-    // 顯示休假統計
     renderRestDays(res.restDays);
-
-    // 顯示 lockDay
     $('lockHint').textContent = `排班截止：每月 ${res.lockDay || '--'} 號`;
-
-    // 顯示自己
     $('mePill').textContent = `ID：${EMP_ID}`;
 
     renderTable(res);
-
     setStatus('完成 ✅');
   }
 

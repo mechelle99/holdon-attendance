@@ -8,7 +8,8 @@
     body{font-family:system-ui,sans-serif;background:#f6f7fb;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;}
     .card{background:#fff;padding:24px;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,0.1);width:100%;max-width:320px;}
     input{width:100%;padding:12px;margin:8px 0;border:1px solid #ddd;border-radius:8px;box-sizing:border-box;}
-    button{width:100%;padding:12px;background:#111;color:#fff;border:none;border-radius:8px;cursor:pointer;margin-top:10px;font-weight:bold;}
+    button{width:100%;padding:12px;background:#111;color:#fff;border:none;border-radius:8px;cursor:pointer;margin-top:10px;font-weight:bold;transition: opacity 0.2s;}
+    button:disabled{opacity:0.6;cursor:not-allowed;}
   </style>
 </head>
 <body>
@@ -17,35 +18,101 @@
     <input id="empId" placeholder="員工編號">
     <input id="token" placeholder="驗證碼">
     <input id="newPass" type="password" placeholder="新密碼 (至少6碼)">
-    <button onclick="doReset()">確認變更</button>
+    <button id="btnReset" onclick="doReset()">確認變更</button>
     <div style="text-align:center;margin-top:10px;">
       <a href="index.html" style="font-size:13px;color:#007aff;">回登入頁</a>
     </div>
   </div>
+  
   <script src="config.js"></script>
   <script>
+    // 取得網址參數自動帶入
     const params = new URLSearchParams(window.location.search);
     if(params.get('id')) document.getElementById('empId').value = params.get('id');
     if(params.get('token')) document.getElementById('token').value = params.get('token');
 
-    function doReset() {
-      const id = document.getElementById("empId").value;
-      const token = document.getElementById("token").value;
-      const pass = document.getElementById("newPass").value;
-      if(!id || !token || pass.length < 6) return alert("資料不完整或密碼太短");
+    // ✅ 升級版：使用現代 fetch API 發送 POST 請求
+    async function api(action, data = {}) {
+      if(!window.CONFIG || !window.CONFIG.GAS_ENDPOINT){
+        alert("系統設定錯誤：找不到 CONFIG.GAS_ENDPOINT");
+        throw new Error("Missing CONFIG.GAS_ENDPOINT");
+      }
 
-      const script = document.createElement("script");
-      const cb = "cb" + Date.now();
-      const payload = JSON.stringify({ empId: id, token: token, newPass: pass, webhookKey: window.CONFIG?.WEBHOOK_KEY });
-      
-      window[cb] = (res) => {
-        if(res.ok) { alert("修改成功，請登入"); location.href="index.html"; }
-        else { alert(res.message); }
-        delete window[cb]; script.remove();
+      const payloadObj = Object.assign({}, data);
+      if(window.CONFIG.WEBHOOK_KEY && payloadObj.webhookKey == null){
+        payloadObj.webhookKey = window.CONFIG.WEBHOOK_KEY;
+      }
+
+      const payloadBody = {
+        action: action,
+        payload: payloadObj
       };
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+        const response = await fetch(window.CONFIG.GAS_ENDPOINT, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'text/plain;charset=utf-8', 
+          },
+          body: JSON.stringify(payloadBody),
+          redirect: 'follow',
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`HTTP 錯誤狀態碼: ${response.status}`);
+        }
+
+        return await response.json();
+
+      } catch (error) {
+        console.error("API 呼叫失敗:", error);
+        if (error.name === 'AbortError') {
+           throw new Error("網路連線逾時，請稍後再試");
+        }
+        throw new Error("無法連線到伺服器，請檢查網路或防護外掛設定");
+      }
+    }
+
+    // 執行重設密碼
+    async function doReset() {
+      const id = document.getElementById("empId").value.trim();
+      const token = document.getElementById("token").value.trim();
+      const pass = document.getElementById("newPass").value.trim();
       
-      script.src = `${window.CONFIG.GAS_ENDPOINT}?action=reset_password&payload=${encodeURIComponent(payload)}&callback=${cb}`;
-      document.body.appendChild(script);
+      if(!id || !token || pass.length < 6) {
+        return alert("資料不完整或密碼太短 (至少 6 碼)");
+      }
+
+      const btn = document.getElementById("btnReset");
+      btn.disabled = true;
+      btn.innerText = "處理中...";
+
+      try {
+        // 注意：這裡 action 依照你原本的設定帶入 reset_password
+        const res = await api("reset_password", { 
+          empId: id, 
+          token: token, 
+          newPass: pass 
+        });
+
+        if(res && res.ok) { 
+          alert("修改成功，請登入"); 
+          location.href = "index.html"; 
+        } else { 
+          alert(res ? res.message : "修改失敗"); 
+        }
+      } catch (err) {
+        alert(err.message || "發生錯誤");
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "確認變更";
+      }
     }
   </script>
 </body>

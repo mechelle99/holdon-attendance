@@ -264,46 +264,59 @@
       return true;
     }
 
-    // ====== JSONP API (固定用 action query param) ======
-    function api(action, data={}){
-      return new Promise((resolve, reject)=>{
-        if(!assertConfig_()){
-          reject(new Error("Missing CONFIG"));
-          return;
-        }
+    // ✅ 升級版：使用現代 fetch API 發送 POST 請求
+    async function api(action, data={}) {
+      if(!assertConfig_()){
+        throw new Error("Missing CONFIG");
+      }
 
-        const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random()*100000);
-        const s = document.createElement("script");
+      // 保留原本 app.html 附加 empId 與 webhookKey 的邏輯
+      const payloadObj = Object.assign({}, data, {
+        empId,
+        webhookKey: window.CONFIG.WEBHOOK_KEY || ""
+      });
 
-        const payloadObj = Object.assign({}, data, {
-          empId,
-          webhookKey: window.CONFIG.WEBHOOK_KEY || ""
+      // 將 action 和資料包裝在一起
+      const payloadBody = {
+        action: action,
+        payload: payloadObj
+      };
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+        const response = await fetch(window.CONFIG.GAS_ENDPOINT, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'text/plain;charset=utf-8', 
+          },
+          body: JSON.stringify(payloadBody),
+          redirect: 'follow',
+          signal: controller.signal
         });
 
-        const payload = encodeURIComponent(JSON.stringify(payloadObj));
-        const bust = Date.now();
+        clearTimeout(timeoutId);
 
-        const timer = setTimeout(()=>{
-          cleanup();
-          reject(new Error("Timeout"));
-        }, 20000);
-
-        function cleanup(){
-          clearTimeout(timer);
-          try{ delete window[cbName]; }catch(e){}
-          try{ s.remove(); }catch(e){}
+        if (!response.ok) {
+          throw new Error(`HTTP 錯誤狀態碼: ${response.status}`);
         }
 
-        window[cbName] = (res)=>{ cleanup(); resolve(res); };
-        s.onerror = ()=>{ cleanup(); reject(new Error("NetworkError")); };
+        const result = await response.json();
+        return result;
 
-        s.src = `${window.CONFIG.GAS_ENDPOINT}?action=${encodeURIComponent(action)}&payload=${payload}&callback=${cbName}&_=${bust}`;
-        document.body.appendChild(s);
-      });
+      } catch (error) {
+        console.error("API 呼叫失敗:", error);
+        if (error.name === 'AbortError') {
+           throw new Error("網路連線逾時，請稍後再試");
+        }
+        throw new Error("無法連線到伺服器，請檢查網路或防護外掛設定");
+      }
     }
 
     // ✅ 將渲染邏輯獨立出來，給快取和 API 共同使用
     function renderMeData(res) {
+      // 顯示到畫面上
       const name = (res.empName || "").trim() || empId;
       document.getElementById("hello").textContent = `Hi, ${name}`;
       document.getElementById("subline").textContent =
@@ -384,7 +397,7 @@
             resolve({ lat, lng, accuracy });
           },
           (err)=>{
-            if(err && err.code === 1) reject(new Error("你拒絕了定位權限（請到瀏覽器/LINE 設定開啟定位）"));
+            if(err && err.code === 1) reject(new Error("你拒絕了定位權限（請到瀏覽器設定開啟定位）"));
             else if(err && err.code === 2) reject(new Error("定位不可用（請開啟 GPS / 允許定位服務）"));
             else if(err && err.code === 3) reject(new Error("定位逾時（到戶外/窗邊再試一次）"));
             else reject(new Error("定位失敗"));

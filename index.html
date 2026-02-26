@@ -79,36 +79,52 @@
     location.href = "app.html";
   }
 
-  // ✅ 更安全的 API 呼叫 (包含 Timeout 與防重複 callback)
-  function api(action, data={}) {
-    return new Promise((resolve, reject) => {
-      if(!window.CONFIG || !window.CONFIG.GAS_ENDPOINT){
-        alert("系統設定錯誤：找不到 CONFIG.GAS_ENDPOINT");
-        return reject("No Config");
+  // ✅ 升級版：使用現代 fetch API 發送 POST 請求，避開外掛攔截與長度限制
+  async function api(action, data={}) {
+    if(!window.CONFIG || !window.CONFIG.GAS_ENDPOINT){
+      alert("系統設定錯誤：找不到 CONFIG.GAS_ENDPOINT");
+      throw new Error("No Config");
+    }
+
+    // 將 action 和資料包裝在一起，對齊你後端的解析邏輯
+    const payloadBody = {
+      action: action,
+      payload: data
+    };
+
+    try {
+      // 建立一個 15 秒的 Timeout 控制器
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      const response = await fetch(window.CONFIG.GAS_ENDPOINT, {
+        method: 'POST',
+        // 💡 關鍵：設定為 text/plain 避免觸發嚴格的 CORS 預檢 (Preflight)
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8', 
+        },
+        body: JSON.stringify(payloadBody),
+        redirect: 'follow', // GAS 必定轉址，此設定為必須
+        signal: controller.signal // 綁定 Timeout
+      });
+
+      clearTimeout(timeoutId); // 成功回應就解除 Timeout
+
+      if (!response.ok) {
+        throw new Error(`HTTP 錯誤狀態碼: ${response.status}`);
       }
 
-      const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random()*100000);
-      const s = document.createElement("script");
-      const payload = encodeURIComponent(JSON.stringify(data));
-      
-      const timer = setTimeout(() => {
-        cleanup();
-        reject(new Error("網路連線逾時，請稍後再試"));
-      }, 15000);
+      // 直接將 GAS 回傳的字串解析為 JSON
+      const result = await response.json();
+      return result;
 
-      function cleanup(){
-        clearTimeout(timer);
-        try{ delete window[cbName]; }catch(e){}
-        try{ s.remove(); }catch(e){}
+    } catch (error) {
+      console.error("API 呼叫失敗:", error);
+      if (error.name === 'AbortError') {
+         throw new Error("網路連線逾時，請稍後再試");
       }
-
-      window[cbName] = (res) => { cleanup(); resolve(res); };
-      s.onerror = () => { cleanup(); reject(new Error("無法連線到伺服器")); };
-
-      const sep = window.CONFIG.GAS_ENDPOINT.includes("?") ? "&" : "?";
-      s.src = `${window.CONFIG.GAS_ENDPOINT}${sep}action=${action}&payload=${payload}&callback=${cbName}&_=${Date.now()}`;
-      document.body.appendChild(s);
-    });
+      throw new Error("無法連線到伺服器，請檢查網路或防護外掛設定");
+    }
   }
 
   // 登入

@@ -131,26 +131,56 @@
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
-    function api(action, data={}){
-      return new Promise((resolve, reject)=>{
-        const ENDPOINT = window.CONFIG && (window.CONFIG.GAS_ENDPOINT || window.CONFIG.API_BASE || window.CONFIG.API_URL);
-        if(!ENDPOINT) return reject(new Error("缺少 CONFIG.GAS_ENDPOINT"));
+    // ✅ 升級版：使用現代 fetch API 發送 POST 請求
+    async function api(action, data={}) {
+      const ENDPOINT = window.CONFIG && (window.CONFIG.GAS_ENDPOINT || window.CONFIG.API_BASE || window.CONFIG.API_URL);
+      if(!ENDPOINT){
+        alert("系統設定錯誤：找不到 CONFIG.GAS_ENDPOINT");
+        throw new Error("Missing CONFIG");
+      }
 
-        const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random()*1e6);
-        const s = document.createElement("script");
-        const payloadObj = Object.assign({}, data, { empId, webhookKey: (window.CONFIG && window.CONFIG.WEBHOOK_KEY) ? window.CONFIG.WEBHOOK_KEY : "" });
-        const payload = encodeURIComponent(JSON.stringify(payloadObj));
-        const bust = Date.now();
-
-        const timer = setTimeout(()=>{ cleanup(); reject(new Error("請求逾時")); }, 20000);
-        function cleanup(){ clearTimeout(timer); try{ delete window[cbName]; }catch(e){} try{ s.remove(); }catch(e){} }
-        window[cbName] = (res)=>{ cleanup(); resolve(res); };
-        s.onerror = ()=>{ cleanup(); reject(new Error("網路連線失敗")); };
-
-        const sep = ENDPOINT.includes("?") ? "&" : "?";
-        s.src = `${ENDPOINT}${sep}action=${encodeURIComponent(action)}&payload=${payload}&callback=${cbName}&_=${bust}`;
-        document.body.appendChild(s);
+      // 自動加上 empId 與 webhookKey，確保資料能被後端認可
+      const currentEmpId = localStorage.getItem("empId") || localStorage.getItem("employeeId") || "";
+      const payloadObj = Object.assign({}, data, {
+        empId: currentEmpId,
+        webhookKey: (window.CONFIG && window.CONFIG.WEBHOOK_KEY) ? window.CONFIG.WEBHOOK_KEY : ""
       });
+
+      const payloadBody = {
+        action: action,
+        payload: payloadObj
+      };
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+        const response = await fetch(ENDPOINT, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'text/plain;charset=utf-8', 
+          },
+          body: JSON.stringify(payloadBody),
+          redirect: 'follow',
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`HTTP 錯誤狀態碼: ${response.status}`);
+        }
+
+        const result = await response.json();
+        return result;
+
+      } catch (error) {
+        console.error("API 呼叫失敗:", error);
+        if (error.name === 'AbortError') {
+           throw new Error("網路連線逾時，請稍後再試");
+        }
+        throw new Error("無法連線到伺服器，請檢查網路或防護外掛設定");
+      }
     }
 
     function pad2(n){ return String(n).padStart(2,'0'); }

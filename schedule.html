@@ -389,7 +389,8 @@
       el.classList.add(info.cls);
 
       api("update_schedule", { 
-        empId: targetEmpId, 
+        // ✅ 核心修復：把 empId 改成 targetEmpId，避免被 api() 函式強制覆蓋成主管自己的 ID
+        targetEmpId: targetEmpId, 
         year: Number(y), 
         month: Number(m), 
         day: Number(d), 

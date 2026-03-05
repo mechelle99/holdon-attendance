@@ -26,14 +26,16 @@
     .seg-btn.active{ color: var(--primary); background: rgba(79,70,229,.10); }
     .seg-btn.active .count{ background:var(--primary); color: #fff;}
     
-    /* 強制面板分離，不使用 Grid 同時顯示 */
     .panel{ display:none; animation: fadeIn 0.3s ease;} .panel.active{ display:block; }
     @keyframes fadeIn { from{opacity:0; transform:translateY(5px);} to{opacity:1; transform:translateY(0);} }
     
-    /* 📊 統計儀表板樣式 */
-    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
-    .stat-box { background: var(--card); padding: 16px 4px; border-radius: 18px; text-align: center; box-shadow: var(--shadow2); border: 1px solid rgba(17,24,39,.04); }
-    .stat-box .num { font-size: 22px; font-weight: 900; margin-bottom: 4px; }
+    /* 💰 專為薪資計算打造的儀表板 */
+    .stats-wrap { background: var(--card); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow2); margin-bottom: 16px; border: 1px solid rgba(17,24,39,.04); }
+    .stats-wrap h3 { margin: 0 0 12px 0; font-size: 15px; font-weight: 900; color: var(--primary); display:flex; align-items:center; gap:6px;}
+    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .stat-box { background: #F9FAFB; padding: 12px 4px; border-radius: 12px; text-align: center; border: 1px solid rgba(17,24,39,.03); }
+    .stat-box .num { font-size: 20px; font-weight: 900; margin-bottom: 2px; }
+    .stat-box .num small { font-size: 12px; opacity: 0.7; margin-left: 2px; }
     .stat-box .label { font-size: 11px; color: var(--muted); font-weight: 800; letter-spacing: -0.2px;}
     .text-danger { color: var(--danger); } .text-warn { color: var(--warn); } .text-ok { color: var(--ok); } .text-primary { color: var(--primary); }
 
@@ -42,7 +44,7 @@
     .section-title .small{ font-size: 12px; color: var(--muted); font-weight: 800; background: #E5E7EB; padding: 4px 10px; border-radius: 999px;}
     
     .list{ display:flex; flex-direction:column; gap:12px; }
-    .item{ background: var(--card); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow2); border: 1px solid rgba(17,24,39,.04); position: relative; overflow:hidden; }
+    .item{ background: var(--card); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow2); border: 1px solid rgba(17,24,39,.05); position: relative; overflow:hidden; }
     .item:before{ content:""; position:absolute; left:0; top:0; bottom:0; width: 5px; background: #E5E7EB; }
     .item.ok:before{ background: var(--ok); } .item.warn:before{ background: var(--warn); } .item.danger:before{ background: var(--danger); }
     .top{ display:flex; justify-content:space-between; gap: 10px; margin-bottom: 8px; align-items:flex-start; }
@@ -86,11 +88,17 @@
   </div>
 
   <section class="panel active" id="panelAtt">
-    <div class="stats-grid" id="statsGrid" style="display:none;">
-      <div class="stat-box"><div class="num text-danger" id="stMiss">0</div><div class="label">異常/缺卡</div></div>
-      <div class="stat-box"><div class="num text-warn" id="stLate">0</div><div class="label">遲到/早退</div></div>
-      <div class="stat-box"><div class="num text-primary" id="stLeave">0</div><div class="label">請假/外出</div></div>
-      <div class="stat-box"><div class="num text-ok" id="stNormal">0</div><div class="label">正常出勤</div></div>
+    
+    <div class="stats-wrap" id="statsWrap" style="display:none;">
+      <h3>💰 本月計薪輔助總結</h3>
+      <div class="stats-grid">
+        <div class="stat-box"><div class="num text-danger" id="stMiss">0<small>天</small></div><div class="label">曠職/缺卡</div></div>
+        <div class="stat-box"><div class="num text-warn" id="stLate">0<small>次</small></div><div class="label">遲到/早退</div></div>
+        <div class="stat-box"><div class="num text-primary" id="stPersonal">0<small>h</small></div><div class="label">事假(扣全薪)</div></div>
+        <div class="stat-box"><div class="num text-primary" id="stSick">0<small>h</small></div><div class="label">病假(扣半薪)</div></div>
+        <div class="stat-box"><div class="num text-ok" id="stAnnual">0<small>h</small></div><div class="label">特休/補休</div></div>
+        <div class="stat-box"><div class="num text-ok" id="stOT">0<small>h</small></div><div class="label">核准加班</div></div>
+      </div>
     </div>
 
     <div class="section-title">
@@ -133,7 +141,6 @@
 
     if(!empId){ location.href="index.html"; }
 
-    // 主管介面初始化
     if (isManager) {
       document.getElementById("mgrBtn").style.display = "flex";
       document.getElementById("empFilter").style.display = "inline-block";
@@ -165,13 +172,13 @@
       return String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
     }
 
-    // 基礎 API 呼叫 (Timeout 提升至 25秒，避免資料多時斷線)
     async function api(action, data={}) {
       const ENDPOINT = window.CONFIG && (window.CONFIG.GAS_ENDPOINT || window.CONFIG.API_BASE || window.CONFIG.API_URL);
       if(!ENDPOINT){ throw new Error("找不到系統連線網址"); }
 
+      const currentEmpId = localStorage.getItem("empId") || localStorage.getItem("employeeId") || "";
       const payloadObj = Object.assign({}, data, {
-        empId: empId,
+        empId: currentEmpId,
         webhookKey: (window.CONFIG && window.CONFIG.WEBHOOK_KEY) ? window.CONFIG.WEBHOOK_KEY : ""
       });
 
@@ -188,7 +195,7 @@
         });
 
         clearTimeout(timeoutId);
-        if (!response.ok) throw new Error(`連線狀態異常: ${response.status}`);
+        if (!response.ok) throw new Error(`連線異常: ${response.status}`);
         return await response.json();
       } catch (error) {
         if (error.name === 'AbortError') throw new Error("網路連線逾時，請稍後再試");
@@ -196,28 +203,68 @@
       }
     }
 
+    // 日期處理工具
+    function formatDT(v){
+      if(v === null || v === undefined) return '—';
+      const str = String(v).trim();
+      if(!str || str === '--:--') return str;
+      if (/^\d{4}[\/\-]\d{2}[\/\-]\d{2}\s\d{2}:\d{2}(:\d{2})?$/.test(str)) return str.replace(/\//g,'-').substring(0,16);
+
+      let d = (/^\d{10,13}$/.test(str)) ? new Date(Number(str)) : new Date(str);
+      if (!d || isNaN(d.getTime())) return str;
+
+      const parts = new Intl.DateTimeFormat('sv-SE', {
+        timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', hour12: false
+      }).formatToParts(d);
+
+      const get = (t)=> parts.find(p=>p.type===t)?.value || '';
+      return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}`;
+    }
+
+    function parseToDate(v){
+      if(!v) return null;
+      if(Object.prototype.toString.call(v) === '[object Date]' && !isNaN(v.getTime())) return v;
+      const s0 = String(v).trim();
+      let m = s0.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})[\sT](\d{1,2}):(\d{2})/);
+      if (m) return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], 0);
+      return isNaN(new Date(s0).getTime()) ? null : new Date(s0);
+    }
+
+    function overlapsMonth(start, end, y, m){
+      const s = parseToDate(start);
+      const e = parseToDate(end) || s;
+      if(!s) return false;
+      const monthStart = new Date(y, m-1, 1, 0,0,0,0), monthEnd = new Date(y, m, 0, 23,59,59,999);
+      return e >= monthStart && s <= monthEnd;
+    }
+
+    function buildDateKeyFromDaily(d, y, m){
+      const ds = String(d.date||'').trim();
+      if(/^\d{4}-\d{2}-\d{2}$/.test(ds)) return ds;
+      return `${y}-${String(m).padStart(2,'0')}-${String(d.date).padStart(2,'0')}`;
+    }
+
     // ========================================
-    // 🚀 按需載入與智慧快取核心邏輯 (Lazy Load)
+    // 🚀 核心邏輯區
     // ========================================
     let currentTab = 'att';
-    const attCache = {}; // 存放打卡資料
-    const reqCache = {}; // 存放申請單資料
+    const attCache = {}; 
+    const reqCache = {}; 
 
-    // 取得當前篩選狀態
     function getFilterState() {
       const mVal = document.getElementById("monthPick").value;
       let y, m;
       if (mVal) {
         [y, m] = mVal.split('-').map(Number);
       } else {
-        const d = new Date(); y = d.getFullYear(); m = d.getMonth() + 1;
+        const d = new Date(); y = d.getFullYear(); m = d.d.getMonth() + 1;
         document.getElementById("monthPick").value = `${y}-${String(m).padStart(2,'0')}`;
       }
       
       const sel = document.getElementById("empFilter");
       const targetEmpId = (isManager && sel && sel.value) ? sel.value : "";
       
-      // 更新畫面上方的標籤
       document.getElementById("rangeTag").textContent = `篩選：${y}-${String(m).padStart(2,'0')}`;
       if (targetEmpId && sel.selectedIndex > 0) {
         document.getElementById("who").textContent = `員工：${sel.options[sel.selectedIndex].text}`;
@@ -228,7 +275,6 @@
       return { y, m, targetEmpId, key: `${y}-${m}-${targetEmpId}` };
     }
 
-    // 點擊頁籤切換
     function showPanel(tab) {
       currentTab = tab;
       const tabAtt = document.getElementById("tabAtt"), tabReq = document.getElementById("tabReq");
@@ -241,89 +287,134 @@
         pAtt.classList.add("active"); pReq.classList.remove("active");
       }
       window.scrollTo({ top: 0, behavior: "smooth" });
-      loadCurrentTab(false); // 讀取該頁籤資料
     }
 
-    // 改變條件時觸發
-    function onFilterChange() { loadCurrentTab(false); }
-    // 點擊強制更新按鈕
-    function onRefreshClick() { loadCurrentTab(true); toast("重新拉取最新資料..."); }
+    function onFilterChange() { reloadAll(false); }
+    function onRefreshClick() { reloadAll(true); toast("重新拉取最新資料..."); }
 
-    // 核心調度器：只載入當前畫面需要的資料
-    async function loadCurrentTab(force) {
+    // 平行發出請求，一次更新所有資料，並計算計薪輔助總結
+    function reloadAll(forceFetch){
       const state = getFilterState();
       
-      if (currentTab === 'att') {
-        if (force || !attCache[state.key]) {
-          await fetchAtt(state.y, state.m, state.targetEmpId, force, state.key);
-        } else {
-          renderAttUI(attCache[state.key]); // 瞬間讀取快取
-        }
-      } else {
-        if (force || !reqCache[state.key]) {
-          await fetchReq(state.y, state.m, state.targetEmpId, force, state.key);
-        } else {
-          renderReqUI(); // 瞬間讀取快取並套用狀態過濾
-        }
-      }
+      // 兵分兩路，同時拉取打卡與申請單
+      Promise.all([
+        fetchAtt(state.y, state.m, state.targetEmpId, forceFetch, state.key),
+        fetchReq(state.y, state.m, state.targetEmpId, forceFetch, state.key)
+      ]).then(() => {
+        // 兩邊都拉完後，精準計算計薪統計
+        calcCombinedStats(state);
+      });
     }
 
-    // ========================================
-    // 📦 打卡資料處理
-    // ========================================
     async function fetchAtt(y, m, targetEmpId, force, key) {
-      const listEl = document.getElementById("attList");
-      listEl.innerHTML = `<div class="empty">☁️ 向伺服器調閱打卡紀錄中...</div>`;
-      document.getElementById("statsGrid").style.display = "none";
+      if (!force && attCache[key]) { renderAttUI(attCache[key]); return; }
       
+      document.getElementById("attList").innerHTML = `<div class="empty">☁️ 向伺服器調閱打卡紀錄中...</div>`;
       try {
         const res = await api("get_dashboard", { year: y, month: m, targetEmpId: targetEmpId, noCache: force });
         const daily = (res && res.ok && Array.isArray(res.dailyData)) ? res.dailyData : [];
         
         let attList = daily.map(d => ({
-          dateKey: (String(d.date||'').includes('-')) ? d.date : `${y}-${String(m).padStart(2,'0')}-${String(d.date).padStart(2,'0')}`,
+          dateKey: buildDateKeyFromDaily(d, y, m),
           in: (d.in && d.in !== '--:--') ? d.in : '--:--',
           out: (d.out && d.out !== '--:--') ? d.out : '--:--',
           tag: String(d.tag || d.status || '')
         }));
         
         attList.sort((a,b)=> b.dateKey.localeCompare(a.dateKey));
-        attCache[key] = attList; // 存入快取
+        attCache[key] = attList;
         renderAttUI(attList);
       } catch (e) {
-        listEl.innerHTML = `<div class="empty text-danger">⚠️ 讀取失敗：${escapeHtml(e.message)}</div>`;
+        document.getElementById("attList").innerHTML = `<div class="empty text-danger">⚠️ 讀取失敗</div>`;
       }
     }
 
+    async function fetchReq(y, m, targetEmpId, force, key) {
+      if (!force && reqCache[key]) { renderReqUI(); return; }
+
+      document.getElementById("reqList").innerHTML = `<div class="empty">☁️ 向伺服器調閱申請單中...</div>`;
+      try {
+        let res;
+        if (targetEmpId && isManager) {
+          res = await api("list_requests", { isManagerView: true, year: y, month: m, noCache: force });
+          if (res && res.ok && res.list) res.list = res.list.filter(r => String(r.empId).toLowerCase() === targetEmpId.toLowerCase());
+        } else {
+          res = await api("list_requests", { isManagerView: false, year: y, month: m, noCache: force }); 
+        }
+        reqCache[key] = (res && res.ok && Array.isArray(res.list)) ? res.list : [];
+        renderReqUI();
+      } catch (e) {
+        document.getElementById("reqList").innerHTML = `<div class="empty text-danger">⚠️ 讀取失敗</div>`;
+      }
+    }
+
+    // ========================================
+    // 💰 核心：計薪輔助運算邏輯 (交叉比對)
+    // ========================================
+    function calcCombinedStats(state) {
+      const attList = attCache[state.key] || [];
+      const reqList = reqCache[state.key] || [];
+
+      // 1. 從打卡紀錄算天數(曠職、遲到)
+      let countMiss = 0, countLate = 0;
+      attList.forEach(r => {
+        const hasIn = r.in !== '--:--', hasOut = r.out !== '--:--';
+        let finalTag = r.tag;
+        if(hasIn && !hasOut && finalTag === '缺卡') finalTag = '上班中';
+
+        if (finalTag.includes('曠職') || finalTag.includes('缺卡') || finalTag.includes('未打卡')) countMiss++;
+        if (finalTag.includes('遲到') || finalTag.includes('早退')) countLate++;
+      });
+
+      // 2. 從已核准的申請單算時數(事假、病假、特休、加班)
+      let hrsPersonal = 0, hrsSick = 0, hrsAnnual = 0, hrsOT = 0;
+      
+      reqList.forEach(r => {
+        // 只統計這一個月的，且必須是「已核准 (APPROVED)」的單據才列入計薪
+        const isMonth = overlapsMonth(r.start ?? r.startAt ?? r.from, r.end ?? r.endAt ?? r.to, state.y, state.m);
+        const st = String(r.status||'').trim().toUpperCase();
+        
+        if (isMonth && (st === 'APPROVED' || st.includes('核准'))) {
+          const type = String(r.leaveType || r.category || '').toLowerCase();
+          const cat = String(r.category || '').toUpperCase();
+          const h = Number(r.hours || 0);
+
+          if (type.includes('personal') || type.includes('事假')) hrsPersonal += h;
+          else if (type.includes('sick') || type.includes('病假')) hrsSick += h;
+          else if (type.includes('annual') || type.includes('特休') || type.includes('comp') || type.includes('補休')) hrsAnnual += h;
+          else if (cat === 'OT' || type.includes('ot') || type.includes('加班')) hrsOT += h;
+        }
+      });
+
+      // 更新畫面
+      document.getElementById('stMiss').innerHTML = `${countMiss}<small>天</small>`;
+      document.getElementById('stLate').innerHTML = `${countLate}<small>次</small>`;
+      document.getElementById('stPersonal').innerHTML = `${hrsPersonal}<small>h</small>`;
+      document.getElementById('stSick').innerHTML = `${hrsSick}<small>h</small>`;
+      document.getElementById('stAnnual').innerHTML = `${hrsAnnual}<small>h</small>`;
+      document.getElementById('stOT').innerHTML = `${hrsOT}<small>h</small>`;
+      
+      // 顯示儀表板
+      document.getElementById('statsWrap').style.display = 'block';
+    }
+
+    // ========================================
+    // 🎨 UI 渲染與過濾
+    // ========================================
     function renderAttUI(list) {
       const el = document.getElementById("attList");
       document.getElementById("attCount").textContent = `${list.length} 筆`;
       document.getElementById("attCountTop").textContent = `${list.length}`;
       
-      let countLate = 0, countMiss = 0, countLeave = 0, countNormal = 0;
-
-      if(list.length === 0){ 
-        el.innerHTML = `<div class="empty">📭 這個月沒有任何出勤紀錄</div>`; 
-        document.getElementById("statsGrid").style.display = "none";
-        return; 
-      }
+      if(list.length === 0){ el.innerHTML = `<div class="empty">📭 這個月沒有任何出勤紀錄</div>`; return; }
 
       el.innerHTML = list.map(r => {
         const hasIn = r.in !== '--:--', hasOut = r.out !== '--:--';
         let finalTag = r.tag;
-        
-        // 防呆：如果是上班中但標籤是缺卡，幫忙修正顯示
         if(hasIn && !hasOut && finalTag === '缺卡') finalTag = '上班中';
         
         const b = attStatusBadge(finalTag);
         const title = `${r.dateKey} ${r.in} / ${r.out}`;
-
-        // 計算儀表板
-        const tStr = finalTag;
-        if (tStr.includes('遲到') || tStr.includes('早退')) countLate++;
-        else if (tStr.includes('曠職') || tStr.includes('缺卡') || tStr.includes('未打卡')) countMiss++;
-        else if (['特休','病假','事假','生日假','補休','公假','婚假','喪假','產假','陪產假','外出'].some(l => tStr.includes(l))) countLeave++;
-        else countNormal++;
 
         return `
           <div class="item ${b.cls}">
@@ -334,50 +425,6 @@
           </div>
         `;
       }).join("");
-
-      // 刷新儀表板
-      document.getElementById("stMiss").textContent = countMiss;
-      document.getElementById("stLate").textContent = countLate;
-      document.getElementById("stLeave").textContent = countLeave;
-      document.getElementById("stNormal").textContent = countNormal;
-      document.getElementById("statsGrid").style.display = "grid";
-    }
-
-    function attStatusBadge(tag){
-      const t = String(tag||'').trim().toLowerCase();
-      let label = t || '—';
-      if(t==='annual') label='特休'; if(t==='sick') label='病假'; if(t==='personal') label='事假';
-      if(t==='birthday') label='生日假'; if(t==='comp') label='補休'; if(t==='outing') label='外出';
-      if(t==='ot') label='加班'; if(t==='correction') label='補卡';
-      if(t==='in') label='上班中'; if(t==='out') label='已下班';
-
-      if(label.includes('上班中') || label.includes('正常') || label.includes('已下班') || label.includes('加班')) return { cls:'ok', label };
-      if(label.includes('休') || label.includes('假') || label.includes('外出') || label.includes('遲到') || label.includes('早退')) return { cls:'warn', label };
-      if(label.includes('曠職') || label.includes('缺卡') || label.includes('未打卡')) return { cls:'danger', label };
-      return { cls:'warn', label };
-    }
-
-    // ========================================
-    // 📦 申請單資料處理
-    // ========================================
-    async function fetchReq(y, m, targetEmpId, force, key) {
-      const listEl = document.getElementById("reqList");
-      listEl.innerHTML = `<div class="empty">☁️ 向伺服器調閱申請單中...</div>`;
-      
-      try {
-        let res;
-        if (targetEmpId && isManager) {
-          res = await api("list_requests", { isManagerView: true, year: y, month: m, noCache: force });
-          if (res && res.ok && res.list) res.list = res.list.filter(r => String(r.empId).toLowerCase() === targetEmpId.toLowerCase());
-        } else {
-          res = await api("list_requests", { isManagerView: false, year: y, month: m, noCache: force }); 
-        }
-        let reqList = (res && res.ok && Array.isArray(res.list)) ? res.list : [];
-        reqCache[key] = reqList; // 存入快取
-        renderReqUI();
-      } catch (e) {
-        listEl.innerHTML = `<div class="empty text-danger">⚠️ 讀取失敗：${escapeHtml(e.message)}</div>`;
-      }
     }
 
     function renderReqUI() {
@@ -385,7 +432,7 @@
       const list = reqCache[state.key] || [];
       const filterVal = document.getElementById("reqStatusFilter").value;
       
-      // 前端瞬間過濾，不需要再發送 API！
+      // 前端瞬間過濾，不再發送 API
       const filtered = list.filter(r => {
         const isMonth = overlapsMonth(r.start ?? r.startAt ?? r.from, r.end ?? r.endAt ?? r.to, state.y, state.m);
         if (!isMonth) return false;
@@ -401,14 +448,10 @@
       const el = document.getElementById("reqList");
       document.getElementById("reqCount").textContent = `${filtered.length} 筆`;
       
-      // 更新 Tab 上的總數（不管狀態，顯示該月全部申請單總數）
       const totalMonthCount = list.filter(r => overlapsMonth(r.start ?? r.startAt ?? r.from, r.end ?? r.endAt ?? r.to, state.y, state.m)).length;
       document.getElementById("reqCountTop").textContent = `${totalMonthCount}`;
 
-      if(filtered.length === 0){ 
-        el.innerHTML = `<div class="empty">📭 沒有符合狀態的申請單</div>`; 
-        return; 
-      }
+      if(filtered.length === 0){ el.innerHTML = `<div class="empty">📭 沒有符合狀態的申請單</div>`; return; }
 
       el.innerHTML = filtered.map(r => {
         let st = String(r.status||'').trim().toUpperCase();
@@ -451,26 +494,23 @@
       }).join("");
     }
 
-    // 日期工具
-    function parseToDate(v){
-      if(!v) return null;
-      if(Object.prototype.toString.call(v) === '[object Date]' && !isNaN(v.getTime())) return v;
-      const s0 = String(v).trim();
-      let m = s0.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})[\sT](\d{1,2}):(\d{2})/);
-      if (m) return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], 0);
-      return isNaN(new Date(s0).getTime()) ? null : new Date(s0);
-    }
-    function overlapsMonth(start, end, y, m){
-      const s = parseToDate(start);
-      const e = parseToDate(end) || s;
-      if(!s) return false;
-      const monthStart = new Date(y, m-1, 1, 0,0,0,0), monthEnd = new Date(y, m, 0, 23,59,59,999);
-      return e >= monthStart && s <= monthEnd;
+    function attStatusBadge(tag){
+      const t = String(tag||'').trim().toLowerCase();
+      let label = t || '—';
+      if(t==='annual') label='特休'; if(t==='sick') label='病假'; if(t==='personal') label='事假';
+      if(t==='birthday') label='生日假'; if(t==='comp') label='補休'; if(t==='outing') label='外出';
+      if(t==='ot') label='加班'; if(t==='correction') label='補卡';
+      if(t==='in') label='上班中'; if(t==='out') label='已下班';
+
+      if(label.includes('上班中') || label.includes('正常') || label.includes('已下班') || label.includes('加班')) return { cls:'ok', label };
+      if(label.includes('休') || label.includes('假') || label.includes('外出') || label.includes('遲到') || label.includes('早退')) return { cls:'warn', label };
+      if(label.includes('曠職') || label.includes('缺卡') || label.includes('未打卡')) return { cls:'danger', label };
+      return { cls:'warn', label };
     }
 
-    // 網頁開啟時，自動預設當前月份並載入
-    getFilterState();
-    loadCurrentTab(false);
+    // 初始載入
+    document.getElementById("monthPick").value = `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
+    reloadAll(false);
   </script>
 </body>
 </html>

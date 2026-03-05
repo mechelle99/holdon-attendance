@@ -201,40 +201,40 @@
       }
     }
 
-    // ✅ 徹底重構：100% 防疫 Safari 破圖、時區錯亂的暴力解析法
-    // ✅ 終極防禦版 formatDT：完全不依賴 new Date()，純字串處理，保證不跑掉
+    // ✅ 終極防禦版：標準解析 Date 後，用純數學 +8 小時轉成台灣時間
     function formatDT(v){
       if(!v) return '—';
       let s = String(v).trim();
       if(s === '--:--' || !s) return s;
 
-      // 如果已經是 "YYYY-MM-DD HH:mm" 的格式，直接回傳
+      // 如果已經是漂亮的本地字串，直接回傳
       if (/^\d{4}[\/\-]\d{2}[\/\-]\d{2}\s\d{2}:\d{2}(:\d{2})?$/.test(s)) {
         return s.replace(/\//g, '-').substring(0, 16);
       }
 
-      // 如果是 ISO 格式 (如 "2026-03-05T03:37:00.000Z")，直接硬切出字串，不管時區
-      if (s.includes('T')) {
-        let parts = s.split('T');
-        let datePart = parts[0];
-        let timePart = parts[1].substring(0, 5); // 只取 HH:mm
-        return `${datePart} ${timePart}`;
-      }
-      
-      // 如果是純數字時間戳 (13碼)，這是唯一的例外需要 new Date()
+      let d;
+      // 處理 13 碼時間戳
       if (/^\d{10,13}$/.test(s)) {
-        let d = new Date(Number(s));
-        if (isNaN(d.getTime())) return s;
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        const h = String(d.getHours()).padStart(2, '0');
-        const min = String(d.getMinutes()).padStart(2, '0');
-        return `${y}-${m}-${day} ${h}:${min}`;
+        d = new Date(Number(s));
+      } else {
+        // 處理 ISO 字串或一般日期字串 (Safari 相容)
+        let dStr = s;
+        if (!dStr.includes('T')) dStr = dStr.replace(/\-/g, '/');
+        d = new Date(dStr);
       }
 
-      // 如果以上都不是，直接回傳原字串的前16個字元
-      return s.substring(0, 16);
+      if (isNaN(d.getTime())) return s;
+
+      // 🎯 核心修復：把取得的絕對毫秒數，強制加上 8 小時的毫秒數 (台灣時間)
+      // 然後全部用 getUTC... 系列取值，這樣就 100% 無視手機本身的時區！
+      const twDate = new Date(d.getTime() + (8 * 3600000));
+      const y = twDate.getUTCFullYear();
+      const m = String(twDate.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(twDate.getUTCDate()).padStart(2, '0');
+      const h = String(twDate.getUTCHours()).padStart(2, '0');
+      const min = String(twDate.getUTCMinutes()).padStart(2, '0');
+      
+      return `${y}-${m}-${day} ${h}:${min}`;
     }
 
     // ✅ 日期比對工具：同樣升級為 100% 瀏覽器相容寫法

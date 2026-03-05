@@ -9,27 +9,26 @@
     *{box-sizing:border-box}
     body{ margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans TC",sans-serif; background:var(--bg); color:var(--text); padding: 18px 18px calc(90px + env(safe-area-inset-bottom)) 18px; }
     .toast{ position: fixed; left: 16px; right: 16px; top: calc(16px + env(safe-area-inset-top)); background: #111827; color:#fff; padding: 12px 14px; border-radius: 14px; box-shadow: var(--shadow2); display:none; z-index: 9999; font-size: 13px; line-height: 1.4; text-align:center;}
-    
+
     .hero{ background: linear-gradient(135deg, #4F46E5, #7C3AED); border-radius: 26px; padding: 18px; box-shadow: var(--shadow); color:#fff; margin-bottom: 14px; }
     .hero h2{ margin:0; font-size: 22px; font-weight: 900; letter-spacing: .2px; }
     .hero .sub{ margin-top: 8px; font-size: 13px; opacity: .95; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
     .pill{ background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.3); padding: 6px 12px; border-radius: 999px; font-weight: 700; }
-    
+
     .filters{ display:flex; gap:10px; flex-wrap:wrap; margin: 12px 0 14px 0; align-items:center; }
     .filters input, .filters select{ border:none; background:#fff; border-radius: 14px; padding: 10px 12px; box-shadow: var(--shadow2); font-size: 13px; outline:none; font-weight: 700; color: #374151;}
     .filters button{ border:none; background: var(--primary); color:#fff; border-radius: 14px; padding: 10px 16px; font-weight: 900; cursor:pointer; box-shadow: var(--shadow2); transition: 0.1s;}
     .filters button:active{ transform: scale(.95); }
-    
+
     .seg{ background:#fff; border-radius: 20px; box-shadow: var(--shadow2); padding: 8px; display:flex; gap:8px; align-items:center; margin-bottom: 14px; position: sticky; top: calc(10px + env(safe-area-inset-top)); z-index: 50; }
     .seg-btn{ flex:1; border:none; background: transparent; border-radius: 14px; padding: 10px; font-weight: 900; font-size: 15px; cursor:pointer; display:flex; justify-content:center; align-items:center; gap:8px; color:#9CA3AF; transition: 0.2s;}
     .seg-btn .count{ background:#F3F4F6; color: #6B7280; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 900; min-width: 32px; text-align:center; transition: 0.2s;}
     .seg-btn.active{ color: var(--primary); background: rgba(79,70,229,.10); }
     .seg-btn.active .count{ background:var(--primary); color: #fff;}
-    
+
     .panel{ display:none; animation: fadeIn 0.3s ease;} .panel.active{ display:block; }
     @keyframes fadeIn { from{opacity:0; transform:translateY(5px);} to{opacity:1; transform:translateY(0);} }
-    
-    /* 💰 專為薪資計算打造的儀表板 */
+
     .stats-wrap { background: var(--card); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow2); margin-bottom: 16px; border: 1px solid rgba(17,24,39,.04); }
     .stats-wrap h3 { margin: 0 0 12px 0; font-size: 15px; font-weight: 900; color: var(--primary); display:flex; align-items:center; gap:6px;}
     .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
@@ -42,7 +41,7 @@
     .section-title{ display:flex; justify-content:space-between; align-items:center; margin: 0 0 12px 0; }
     .section-title h3{ margin:0; font-size: 16px; font-weight: 900; color: #111827; }
     .section-title .small{ font-size: 12px; color: var(--muted); font-weight: 800; background: #E5E7EB; padding: 4px 10px; border-radius: 999px;}
-    
+
     .list{ display:flex; flex-direction:column; gap:12px; }
     .item{ background: var(--card); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow2); border: 1px solid rgba(17,24,39,.05); position: relative; overflow:hidden; }
     .item:before{ content:""; position:absolute; left:0; top:0; bottom:0; width: 5px; background: #E5E7EB; }
@@ -53,7 +52,7 @@
     .badge.ok{ background: rgba(16,185,129,.15); color:#065F46; } .badge.warn{ background: rgba(245,158,11,.15); color:#92400E; } .badge.danger{ background: rgba(239,68,68,.15); color:#991B1B; }
     .meta{ font-size: 13px; color: var(--muted); line-height: 1.6; font-weight: 700; word-break: break-word; }
     .empty{ text-align:center; padding: 30px 20px; color: #9CA3AF; font-weight: 900; background: rgba(255,255,255,.6); border: 2px dashed rgba(17,24,39,.08); border-radius: 18px; font-size: 14px;}
-    
+
     .nav{ position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 18px; padding-bottom: max(12px, env(safe-area-inset-bottom)); background: rgba(255,255,255,.92); backdrop-filter: blur(10px); border-top-left-radius: 26px; border-top-right-radius: 26px; box-shadow: 0 -10px 30px rgba(17,24,39,.08); display:flex; justify-content: space-around; z-index: 1000; }
     .nav-item{ text-decoration:none; color:#9CA3AF; display:flex; flex-direction:column; align-items:center; gap: 4px; font-size: 10px; font-weight: 900; }
     .nav-item.active{ color: var(--primary); } .nav-icon{ font-size: 22px; }
@@ -137,7 +136,6 @@
     const empId = localStorage.getItem("empId") || localStorage.getItem("employeeId") || "";
     const empName = (localStorage.getItem("empName") || "").trim();
     const isManager = localStorage.getItem("isManager") === "true";
-
     if(!empId){ location.href="index.html"; }
 
     if (isManager) {
@@ -180,10 +178,10 @@
         webhookKey: (window.CONFIG && window.CONFIG.WEBHOOK_KEY) ? window.CONFIG.WEBHOOK_KEY : ""
       });
 
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 25000);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 25000);
 
+      try {
         const response = await fetch(ENDPOINT, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -196,137 +194,107 @@
         if (!response.ok) throw new Error(`連線異常: ${response.status}`);
         return await response.json();
       } catch (error) {
+        clearTimeout(timeoutId);
         if (error.name === 'AbortError') throw new Error("網路連線逾時，請稍後再試");
         throw new Error(error.message || "無法連線到伺服器");
       }
     }
 
-    // ==========================================================
-    // ✅ 時區修正（前端統一顯示「台北時間」）
-    // - ISO 2026-03-05T03:37:00.000Z  → 轉 +8 → 2026-03-05 11:37
-    // - 已是 "yyyy/MM/dd HH:mm:ss" 或 "yyyy-MM-dd HH:mm:ss" → 視為台北時間直接顯示
-    // - 13 碼 timestamp → 用 UTC getter 算 +8 後顯示（不吃手機時區）
-    // ==========================================================
+    // =========================================================
+    // ✅ 時區修復核心：任何輸入 -> 先轉「UTC毫秒」-> 固定輸出台北時間
+    // =========================================================
     const TPE_OFFSET_MS = 8 * 60 * 60 * 1000;
 
     function pad2(n){ return String(n).padStart(2,'0'); }
 
-    function toTpePartsFromUtcMs_(utcMs){
-      const t = new Date(utcMs + TPE_OFFSET_MS);
-      // 用 UTC getter 取值，避免手機時區干擾
-      return {
-        y: t.getUTCFullYear(),
-        mo: t.getUTCMonth() + 1,
-        d: t.getUTCDate(),
-        hh: t.getUTCHours(),
-        mm: t.getUTCMinutes()
-      };
+    // 把「台北本地時間字串」轉成 UTC 毫秒（不吃手機時區）
+    function parseTaipeiLocalToUtcMs_(y, mo, d, hh, mm, ss){
+      // 台北 = UTC+8，所以 UTC = 台北 - 8 小時
+      return Date.UTC(y, mo-1, d, (hh||0) - 8, mm||0, ss||0, 0);
     }
 
-    function formatYmdHm_(p){
-      return `${p.y}-${pad2(p.mo)}-${pad2(p.d)} ${pad2(p.hh)}:${pad2(p.mm)}`;
-    }
+    // 任何輸入(ISO含Z/offset、或台北字串、或timestamp) -> UTC ms
+    function parseAnyToUtcMs(v){
+      if(v === null || v === undefined || v === '') return NaN;
 
-    function parseKnownLocalTpeString_(s){
-      // 1) yyyy/MM/dd HH:mm(:ss) 或 yyyy-MM-dd HH:mm(:ss)
-      let m = s.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})\s(\d{2}):(\d{2})(?::(\d{2}))?$/);
-      if (m) {
-        return { y:+m[1], mo:+m[2], d:+m[3], hh:+m[4], mm:+m[5] };
+      if (typeof v === 'number' && isFinite(v)) {
+        // 10/13 位 timestamp
+        if (v < 1e12) return v * 1000;
+        return v;
       }
-      // 2) yyyy/MM/dd 或 yyyy-MM-dd
-      m = s.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})$/);
-      if (m) {
-        return { y:+m[1], mo:+m[2], d:+m[3], hh:0, mm:0 };
+
+      const s = String(v).trim();
+      if(!s) return NaN;
+
+      // 13碼/10碼 timestamp
+      if (/^\d{13}$/.test(s)) return Number(s);
+      if (/^\d{10}$/.test(s)) return Number(s) * 1000;
+
+      // ISO 有 Z 或 +hh:mm / -hh:mm -> 直接用 Date.parse 取得絕對 ms（UTC）
+      if (/[zZ]$/.test(s) || /[+\-]\d{2}:\d{2}$/.test(s) || /[+\-]\d{4}$/.test(s)) {
+        const ms = Date.parse(s);
+        return isNaN(ms) ? NaN : ms;
       }
-      return null;
+
+      // ISO 但沒有時區 (2026-03-05T10:00:00) -> 當成台北時間
+      let m = s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/);
+      if (m) {
+        return parseTaipeiLocalToUtcMs_(+m[1], +m[2], +m[3], +m[4], +m[5], +(m[6]||0));
+      }
+
+      // 台北字串：YYYY/MM/DD HH:mm:ss 或 YYYY-MM-DD HH:mm:ss
+      m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?/);
+      if (m) {
+        return parseTaipeiLocalToUtcMs_(+m[1], +m[2], +m[3], +m[4], +m[5], +(m[6]||0));
+      }
+
+      // 只有日期：YYYY/MM/DD 或 YYYY-MM-DD -> 當台北 00:00
+      m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+      if (m) {
+        return parseTaipeiLocalToUtcMs_(+m[1], +m[2], +m[3], 0, 0, 0);
+      }
+
+      return NaN;
     }
 
-    function parseIsoToUtcMs_(s){
-      // 支援：2026-03-05T03:37:00.000Z / 2026-03-05T03:37:00+00:00 / ...+08:00
-      // 交給 Date 解析 ISO（這是標準行為），再用 getTime() 取 UTC 絕對毫秒
-      const d = new Date(s);
-      const ms = d.getTime();
-      return isNaN(ms) ? null : ms;
+    // UTC ms -> 台北時間字串 YYYY-MM-DD HH:mm
+    function formatUtcMsToTpe_(ms){
+      if(!isFinite(ms)) return '—';
+      const tw = new Date(ms + TPE_OFFSET_MS);
+      // 用 UTC getter，確保「無視手機時區」
+      const y = tw.getUTCFullYear();
+      const mo = pad2(tw.getUTCMonth()+1);
+      const d = pad2(tw.getUTCDate());
+      const hh = pad2(tw.getUTCHours());
+      const mm = pad2(tw.getUTCMinutes());
+      return `${y}-${mo}-${d} ${hh}:${mm}`;
     }
 
+    // ✅ history 顯示用：任何輸入值 -> 台北時間
     function formatDT(v){
-      if(v === null || v === undefined) return '—';
-      let s = String(v).trim();
-      if(!s || s === '--:--') return s || '—';
-
-      // 已經是台北時間字串（後端 Utilities.formatDate(Asia/Taipei) 出來的）
-      const local = parseKnownLocalTpeString_(s);
-      if (local) {
-        return formatYmdHm_(local);
-      }
-
-      // ISO
-      if (s.includes('T')) {
-        const utcMs = parseIsoToUtcMs_(s);
-        if (utcMs !== null) {
-          return formatYmdHm_(toTpePartsFromUtcMs_(utcMs));
-        }
-        // 若解析失敗，最後保底截字
-        return s.replace(/\//g,'-').substring(0,16);
-      }
-
-      // timestamp (秒/毫秒)
-      if (/^\d{10}$/.test(s)) {
-        const utcMs = Number(s) * 1000;
-        return formatYmdHm_(toTpePartsFromUtcMs_(utcMs));
-      }
-      if (/^\d{13}$/.test(s)) {
-        const utcMs = Number(s);
-        return formatYmdHm_(toTpePartsFromUtcMs_(utcMs));
-      }
-
-      // 其他：盡量取前 16
-      return s.replace(/\//g,'-').substring(0,16);
+      const ms = parseAnyToUtcMs(v);
+      return formatUtcMsToTpe_(ms);
     }
 
-    // ✅ overlapsMonth：支援跨月（只用年月日，不吃手機時區）
-    function ymdKey_(y, mo, d){ return y*10000 + mo*100 + d; }
-
-    function parseYmd_(v){
-      const s = String(v||'').trim();
-      if(!s) return null;
-
-      // 先抓 yyyy-mm-dd 或 yyyy/mm/dd（忽略後面時間/時區）
-      let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-      if (m) return { y:+m[1], mo:+m[2], d:+m[3] };
-
-      m = s.match(/^(\d{4})\/(\d{2})\/(\d{2})/);
-      if (m) return { y:+m[1], mo:+m[2], d:+m[3] };
-
-      // ISO 但可能被壓成其它格式：嘗試用 Date 轉 UTC，再 +8 取台北日
-      if (s.includes('T')) {
-        const utcMs = parseIsoToUtcMs_(s);
-        if (utcMs !== null) {
-          const p = toTpePartsFromUtcMs_(utcMs);
-          return { y:p.y, mo:p.mo, d:p.d };
-        }
-      }
-      return null;
-    }
-
+    // ✅ 月份重疊判斷：用「台北月份」算，不吃手機時區
     function overlapsMonth(start, end, y, m){
-      const s0 = parseYmd_(start);
-      const e0 = parseYmd_(end) || s0;
-      if(!s0) return false;
+      const sMs = parseAnyToUtcMs(start);
+      if(!isFinite(sMs)) return false;
+      const eMs = isFinite(parseAnyToUtcMs(end)) ? parseAnyToUtcMs(end) : sMs;
 
-      const sKey = ymdKey_(s0.y, s0.mo, s0.d);
-      const eKey = ymdKey_(e0.y, e0.mo, e0.d);
+      // 台北 y-m-01 00:00 -> UTC ms
+      const monthStart = parseTaipeiLocalToUtcMs_(y, m, 1, 0, 0, 0);
+      // 台北 y-m 最後一天 23:59:59.999 -> UTC ms
+      const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+      const monthEnd = Date.UTC(y, m-1, lastDay, 23-8, 59, 59, 999);
 
-      const monthStartKey = ymdKey_(y, m, 1);
-      const monthEndKey = ymdKey_(y, m, 31); // 用 31 上限足夠判斷 overlap
-
-      return eKey >= monthStartKey && sKey <= monthEndKey;
+      return (eMs >= monthStart) && (sMs <= monthEnd);
     }
 
     function buildDateKeyFromDaily(d, y, m){
       const ds = String(d.date||'').trim();
       if(/^\d{4}-\d{2}-\d{2}$/.test(ds)) return ds;
-      return `${y}-${String(m).padStart(2,'0')}-${String(d.date).padStart(2,'0')}`;
+      return `${y}-${pad2(m)}-${pad2(d.date)}`;
     }
 
     let currentTab = 'att';
@@ -339,16 +307,14 @@
       if (mVal) {
         [y, m] = mVal.split('-').map(Number);
       } else {
-        const d = new Date();
-        y = d.getFullYear();
-        m = d.getMonth() + 1;
-        document.getElementById("monthPick").value = `${y}-${String(m).padStart(2,'0')}`;
+        const d = new Date(); y = d.getFullYear(); m = d.getMonth() + 1;
+        document.getElementById("monthPick").value = `${y}-${pad2(m)}`;
       }
 
       const sel = document.getElementById("empFilter");
       const targetEmpId = (isManager && sel && sel.value) ? sel.value : "";
 
-      document.getElementById("rangeTag").textContent = `篩選：${y}-${String(m).padStart(2,'0')}`;
+      document.getElementById("rangeTag").textContent = `篩選：${y}-${pad2(m)}`;
       if (targetEmpId && sel.selectedIndex > 0) {
         document.getElementById("who").textContent = `員工：${sel.options[sel.selectedIndex].text}`;
       } else {
@@ -443,7 +409,7 @@
 
       let hrsPersonal = 0, hrsSick = 0, hrsAnnual = 0, hrsOT = 0;
       reqList.forEach(r => {
-        const isMonth = overlapsMonth(r.start ?? r.startAt ?? r.from, r.end ?? r.endAt ?? r.to, state.y, state.m);
+        const isMonth = overlapsMonth(r.startStr || r.start || r.startIso, r.endStr || r.end || r.endIso, state.y, state.m);
         const st = String(r.status||'').trim().toUpperCase();
 
         if (isMonth && (st === 'APPROVED' || st.includes('核准'))) {
@@ -500,7 +466,7 @@
       const filterVal = document.getElementById("reqStatusFilter").value;
 
       const filtered = list.filter(r => {
-        const isMonth = overlapsMonth(r.start ?? r.startAt ?? r.from, r.end ?? r.endAt ?? r.to, state.y, state.m);
+        const isMonth = overlapsMonth(r.startStr || r.start || r.startIso, r.endStr || r.end || r.endIso, state.y, state.m);
         if (!isMonth) return false;
 
         let st = String(r.status||'').trim().toUpperCase();
@@ -514,7 +480,7 @@
       const el = document.getElementById("reqList");
       document.getElementById("reqCount").textContent = `${filtered.length} 筆`;
 
-      const totalMonthCount = list.filter(r => overlapsMonth(r.start ?? r.startAt ?? r.from, r.end ?? r.endAt ?? r.to, state.y, state.m)).length;
+      const totalMonthCount = list.filter(r => overlapsMonth(r.startStr || r.start || r.startIso, r.endStr || r.end || r.endIso, state.y, state.m)).length;
       document.getElementById("reqCountTop").textContent = `${totalMonthCount}`;
 
       if(filtered.length === 0){ el.innerHTML = `<div class="empty">📭 沒有符合狀態的申請單</div>`; return; }
@@ -574,7 +540,7 @@
       return { cls:'warn', label };
     }
 
-    document.getElementById("monthPick").value = `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
+    document.getElementById("monthPick").value = `${new Date().getFullYear()}-${pad2(new Date().getMonth()+1)}`;
     reloadAll(false);
   </script>
 </body>

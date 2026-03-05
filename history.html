@@ -88,7 +88,6 @@
   </div>
 
   <section class="panel active" id="panelAtt">
-    
     <div class="stats-wrap" id="statsWrap" style="display:none;">
       <h3>💰 本月計薪輔助總結</h3>
       <div class="stats-grid">
@@ -176,9 +175,8 @@
       const ENDPOINT = window.CONFIG && (window.CONFIG.GAS_ENDPOINT || window.CONFIG.API_BASE || window.CONFIG.API_URL);
       if(!ENDPOINT){ throw new Error("找不到系統連線網址"); }
 
-      const currentEmpId = localStorage.getItem("empId") || localStorage.getItem("employeeId") || "";
       const payloadObj = Object.assign({}, data, {
-        empId: currentEmpId,
+        empId: empId,
         webhookKey: (window.CONFIG && window.CONFIG.WEBHOOK_KEY) ? window.CONFIG.WEBHOOK_KEY : ""
       });
 
@@ -203,32 +201,42 @@
       }
     }
 
-    // 日期處理工具
+    // ✅ 徹底重構：100% 防疫 Safari 破圖、時區錯亂的暴力解析法
     function formatDT(v){
-      if(v === null || v === undefined) return '—';
-      const str = String(v).trim();
-      if(!str || str === '--:--') return str;
-      if (/^\d{4}[\/\-]\d{2}[\/\-]\d{2}\s\d{2}:\d{2}(:\d{2})?$/.test(str)) return str.replace(/\//g,'-').substring(0,16);
+      if(!v) return '—';
+      let s = String(v).trim();
+      if(s === '--:--' || !s) return s;
 
-      let d = (/^\d{10,13}$/.test(str)) ? new Date(Number(str)) : new Date(str);
-      if (!d || isNaN(d.getTime())) return str;
+      // 如果格式已經漂漂亮亮是 YYYY-MM-DD HH:mm，就直接截斷返回
+      if (/^\d{4}[\/\-]\d{2}[\/\-]\d{2}\s\d{2}:\d{2}(:\d{2})?$/.test(s)) {
+        return s.replace(/\//g, '-').substring(0, 16);
+      }
 
-      const parts = new Intl.DateTimeFormat('sv-SE', {
-        timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit', hour12: false
-      }).formatToParts(d);
+      // 將 - 替換成 / 來適應 Safari，但避開帶有 T (ISO格式) 的字串
+      let dStr = s;
+      if (!dStr.includes('T')) dStr = dStr.replace(/\-/g, '/');
+      
+      let d = (/^\d{10,13}$/.test(dStr)) ? new Date(Number(dStr)) : new Date(dStr);
+      if (isNaN(d.getTime())) return s;
 
-      const get = (t)=> parts.find(p=>p.type===t)?.value || '';
-      return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}`;
+      // 原生提取本地時間，完全不依賴 Intl.DateTimeFormat
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const h = String(d.getHours()).padStart(2, '0');
+      const min = String(d.getMinutes()).padStart(2, '0');
+      
+      return `${y}-${m}-${day} ${h}:${min}`;
     }
 
+    // ✅ 日期比對工具：同樣升級為 100% 瀏覽器相容寫法
     function parseToDate(v){
       if(!v) return null;
-      if(Object.prototype.toString.call(v) === '[object Date]' && !isNaN(v.getTime())) return v;
-      const s0 = String(v).trim();
-      let m = s0.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})[\sT](\d{1,2}):(\d{2})/);
-      if (m) return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], 0);
-      return isNaN(new Date(s0).getTime()) ? null : new Date(s0);
+      if(v instanceof Date && !isNaN(v.getTime())) return v;
+      let s = String(v).trim();
+      if (!s.includes('T')) s = s.replace(/\-/g, '/');
+      let d = new Date(s);
+      return isNaN(d.getTime()) ? null : d;
     }
 
     function overlapsMonth(start, end, y, m){
@@ -245,9 +253,6 @@
       return `${y}-${String(m).padStart(2,'0')}-${String(d.date).padStart(2,'0')}`;
     }
 
-    // ========================================
-    // 🚀 核心邏輯區
-    // ========================================
     let currentTab = 'att';
     const attCache = {}; 
     const reqCache = {}; 
@@ -258,7 +263,7 @@
       if (mVal) {
         [y, m] = mVal.split('-').map(Number);
       } else {
-        const d = new Date(); y = d.getFullYear(); m = d.d.getMonth() + 1;
+        const d = new Date(); y = d.getFullYear(); m = d.getMonth() + 1;
         document.getElementById("monthPick").value = `${y}-${String(m).padStart(2,'0')}`;
       }
       
@@ -292,16 +297,12 @@
     function onFilterChange() { reloadAll(false); }
     function onRefreshClick() { reloadAll(true); toast("重新拉取最新資料..."); }
 
-    // 平行發出請求，一次更新所有資料，並計算計薪輔助總結
     function reloadAll(forceFetch){
       const state = getFilterState();
-      
-      // 兵分兩路，同時拉取打卡與申請單
       Promise.all([
         fetchAtt(state.y, state.m, state.targetEmpId, forceFetch, state.key),
         fetchReq(state.y, state.m, state.targetEmpId, forceFetch, state.key)
       ]).then(() => {
-        // 兩邊都拉完後，精準計算計薪統計
         calcCombinedStats(state);
       });
     }
@@ -348,14 +349,10 @@
       }
     }
 
-    // ========================================
-    // 💰 核心：計薪輔助運算邏輯 (交叉比對)
-    // ========================================
     function calcCombinedStats(state) {
       const attList = attCache[state.key] || [];
       const reqList = reqCache[state.key] || [];
 
-      // 1. 從打卡紀錄算天數(曠職、遲到)
       let countMiss = 0, countLate = 0;
       attList.forEach(r => {
         const hasIn = r.in !== '--:--', hasOut = r.out !== '--:--';
@@ -366,11 +363,8 @@
         if (finalTag.includes('遲到') || finalTag.includes('早退')) countLate++;
       });
 
-      // 2. 從已核准的申請單算時數(事假、病假、特休、加班)
       let hrsPersonal = 0, hrsSick = 0, hrsAnnual = 0, hrsOT = 0;
-      
       reqList.forEach(r => {
-        // 只統計這一個月的，且必須是「已核准 (APPROVED)」的單據才列入計薪
         const isMonth = overlapsMonth(r.start ?? r.startAt ?? r.from, r.end ?? r.endAt ?? r.to, state.y, state.m);
         const st = String(r.status||'').trim().toUpperCase();
         
@@ -386,7 +380,6 @@
         }
       });
 
-      // 更新畫面
       document.getElementById('stMiss').innerHTML = `${countMiss}<small>天</small>`;
       document.getElementById('stLate').innerHTML = `${countLate}<small>次</small>`;
       document.getElementById('stPersonal').innerHTML = `${hrsPersonal}<small>h</small>`;
@@ -394,13 +387,9 @@
       document.getElementById('stAnnual').innerHTML = `${hrsAnnual}<small>h</small>`;
       document.getElementById('stOT').innerHTML = `${hrsOT}<small>h</small>`;
       
-      // 顯示儀表板
       document.getElementById('statsWrap').style.display = 'block';
     }
 
-    // ========================================
-    // 🎨 UI 渲染與過濾
-    // ========================================
     function renderAttUI(list) {
       const el = document.getElementById("attList");
       document.getElementById("attCount").textContent = `${list.length} 筆`;
@@ -432,7 +421,6 @@
       const list = reqCache[state.key] || [];
       const filterVal = document.getElementById("reqStatusFilter").value;
       
-      // 前端瞬間過濾，不再發送 API
       const filtered = list.filter(r => {
         const isMonth = overlapsMonth(r.start ?? r.startAt ?? r.from, r.end ?? r.endAt ?? r.to, state.y, state.m);
         if (!isMonth) return false;
@@ -508,7 +496,6 @@
       return { cls:'warn', label };
     }
 
-    // 初始載入
     document.getElementById("monthPick").value = `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
     reloadAll(false);
   </script>

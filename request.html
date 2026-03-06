@@ -225,7 +225,8 @@
 
     function parseLocalInput(v){
       if(!v) return null;
-      const m = String(v).match(/^(\d{4})-(\d{1,2})-(\d{1,2})T(\d{1,2}):(\d{2})$/);
+      // ✅ 升級防呆：即使 Android 手機雞婆加上秒數 (:00) 也能正確解析
+      const m = String(v).match(/^(\d{4})-(\d{1,2})-(\d{1,2})T(\d{1,2}):(\d{2})(?::\d{2}(?:\.\d+)?)?$/);
       if(!m) return null;
       const y = Number(m[1]), mo = Number(m[2]), d = Number(m[3]), hh = Number(m[4]), mm = Number(m[5]);
       const dt = new Date(y, mo-1, d, hh, mm, 0, 0);

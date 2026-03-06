@@ -81,8 +81,11 @@
       throw new Error("Missing CONFIG.GAS_ENDPOINT");
     }
 
-    // 保留原本 manager.html 專屬的欄位組裝邏輯
-    const payloadObj = Object.assign({}, data, { empId: uid, webhookKey: (window.CONFIG && window.CONFIG.WEBHOOK_KEY) ? window.CONFIG.WEBHOOK_KEY : "" });
+    // 保留原本 manager.html 專屬的欄位組裝邏輯，確保 empId 一定會帶出去
+    const payloadObj = Object.assign({}, data, { 
+      empId: uid, 
+      webhookKey: (window.CONFIG && window.CONFIG.WEBHOOK_KEY) ? window.CONFIG.WEBHOOK_KEY : "" 
+    });
 
     const payloadBody = {
       action: action,
@@ -229,17 +232,32 @@
     el.innerHTML = h;
   }
 
+  // ✅ 完美修復：確保強制更新時，把 empId 和 userId 一併帶給後端
   async function loadManagerInit(silent = false, forceRefresh = false) {
     if (!silent) {
       document.getElementById("teamStats").innerHTML = '<div style="text-align:center;color:#999;padding:20px;">更新中...</div>';
       document.getElementById("pendingList").innerHTML = '<div style="text-align:center;color:#999;padding:20px;">檢查中...</div>';
     }
     try {
-      const res = await api("get_manager_init", { noCache: forceRefresh });
-      if(res && res.ok) { renderStats(res.stats || []); renderPending(res.pending || []); }
-      else if (!silent) { document.getElementById("teamStats").innerHTML = `<div style="text-align:center;color:red;">讀取失敗</div>`; document.getElementById("pendingList").innerHTML = `<div style="text-align:center;color:red;">讀取失敗</div>`; }
+      const res = await api("get_manager_init", { 
+        empId: uid, 
+        userId: uid, 
+        noCache: forceRefresh 
+      });
+      
+      if(res && res.ok) { 
+        renderStats(res.stats || []); 
+        renderPending(res.pending || []); 
+      }
+      else if (!silent) { 
+        document.getElementById("teamStats").innerHTML = `<div style="text-align:center;color:red;">讀取失敗: ${res ? res.message : '未知錯誤'}</div>`; 
+        document.getElementById("pendingList").innerHTML = `<div style="text-align:center;color:red;">讀取失敗</div>`; 
+      }
     } catch (err) {
-      if (!silent) { document.getElementById("teamStats").innerHTML = `<div style="text-align:center;color:red;">連線失敗</div>`; document.getElementById("pendingList").innerHTML = `<div style="text-align:center;color:red;">連線失敗</div>`; }
+      if (!silent) { 
+        document.getElementById("teamStats").innerHTML = `<div style="text-align:center;color:red;">連線失敗</div>`; 
+        document.getElementById("pendingList").innerHTML = `<div style="text-align:center;color:red;">連線失敗</div>`; 
+      }
     }
   }
 
@@ -258,6 +276,8 @@
       if(res && res.ok) {
         if(card) card.remove();
         if(document.querySelectorAll('.req-item').length === 0) document.getElementById("pendingList").innerHTML = `<div style="text-align:center;color:#999;padding:20px;">已全部審核完畢 ✅</div>`;
+        
+        // 審核完強制重刷
         loadManagerInit(true, true); 
       } else {
         alert("操作失敗: " + ((res && res.message) || '未知錯誤'));
@@ -269,6 +289,7 @@
     }
   }
 
+  // ✅ 完美修復：一鍵全准也要帶入 empId 和強制重刷
   async function approveAll() {
     if(!isMgr) return alert("你不是主管權限，無法操作。");
     if(!confirm("確定核准「本月所有」待審核單據？")) return;
@@ -278,7 +299,13 @@
 
     const now = new Date();
     try {
-      const res = await api("approve_month_all", { year: now.getFullYear(), month: now.getMonth()+1, managerEmpId: uid });
+      const res = await api("approve_month_all", { 
+        year: now.getFullYear(), 
+        month: now.getMonth()+1, 
+        managerEmpId: uid,
+        empId: uid
+      });
+      
       alert(res && res.ok ? `已核准 ${res.count} 筆單據` : ("操作失敗: " + ((res && res.message) || "")));
       await loadManagerInit(false, true);
     } catch (err) {

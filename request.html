@@ -213,11 +213,10 @@
     }
 
     /* ==============================
-     * 3) 🛠️ 自訂時間讀取/寫入工具 (相容性升級版)
+     * 3) 🛠️ 完美修復的時間讀取工具 (徹底殺死舊變數)
      * ============================== */
     function dateToYmd(d){ return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
 
-    // 完美防呆的日期解析器，避免舊版手機出現 NaN
     function combineDateTime(dStr, hStr, mStr) {
       if(!dStr || !hStr || !mStr) return null;
       const parts = String(dStr).split('-');
@@ -228,32 +227,18 @@
 
     function getStartDateTime(){
       return combineDateTime(
-        document.getElementById("startDate").value,
-        document.getElementById("startHour").value,
+        document.getElementById("startDate").value, 
+        document.getElementById("startHour").value, 
         document.getElementById("startMinute").value
       );
     }
 
     function getEndDateTime(){
       return combineDateTime(
-        document.getElementById("endDate").value,
-        document.getElementById("endHour").value,
+        document.getElementById("endDate").value, 
+        document.getElementById("endHour").value, 
         document.getElementById("endMinute").value
       );
-    }
-
-    function getStartRaw(){
-      const d = document.getElementById("startDate").value;
-      const h = document.getElementById("startHour").value;
-      const m = document.getElementById("startMinute").value;
-      return (d && h && m) ? `${d}T${h}:${m}` : "";
-    }
-
-    function getEndRaw(){
-      const d = document.getElementById("endDate").value;
-      const h = document.getElementById("endHour").value;
-      const m = document.getElementById("endMinute").value;
-      return (d && h && m) ? `${d}T${h}:${m}` : "";
     }
 
     function setStartDateTime(dt){
@@ -296,8 +281,8 @@
         return;
       }
       if(cat === "LEAVE"){ noteBox.textContent = extraText || "請確認資訊後再送出。"; return; }
-      if(cat === "OUTING"){ noteBox.textContent = extraText || "外出：依區間計算（0.5 小時），非出差最多 8 小時。"; return; }
-      if(cat === "OT"){ noteBox.textContent = extraText || "加班：依區間計算（0.5 小時）。"; return; }
+      if(cat === "OUTING"){ noteBox.textContent = extraText || "外出：依區間計算（0.5 小時為單位），非出差最多 8 小時。"; return; }
+      if(cat === "OT"){ noteBox.textContent = extraText || "加班：依區間計算（0.5 小時為單位）。"; return; }
       noteBox.textContent = extraText || "";
     }
 
@@ -344,7 +329,7 @@
     }
 
     /* ==============================
-     * 5) Roster 班表與計算
+     * 5) Roster 班表自動帶入
      * ============================== */
     const __rosterCache = new Map(); 
     function ymKey_(y, m){ return `${y}-${pad2(m)}`; }
@@ -383,32 +368,39 @@
     async function applyLeaveAutoTimeByRoster(){
       const cat = document.getElementById("cat").value;
       if(cat !== "LEAVE") return;
+      
+      // ✅ 修復關鍵點：正確使用 getStartDateTime()，不再呼叫舊的幽靈變數
       const s = getStartDateTime();
       if(!s) return;
+      
       const y = s.getFullYear(), m = s.getMonth()+1, d = s.getDate();
       let shiftKey = null;
       try{
         const roster = await getRosterMonth_(y, m);
         shiftKey = getMyShiftKeyForDay_(roster, d);
       }catch(e){}
+      
       if (!shiftKey) shiftKey = (s.getHours() >= 12) ? 'LATE' : 'EARLY';
+      
       const rule = getShiftRuleByKey_(shiftKey);
       const startH = rule.off ? 10 : rule.inH, startM = rule.off ? 0 : (rule.inM||0);
       const endH   = rule.off ? 18 : rule.outH, endM   = rule.off ? 0 : (rule.outM||0);
+      
       setStartDateTime(new Date(y, m-1, d, startH, startM, 0, 0));
       setEndDateTime(new Date(y, m-1, d, endH, endM, 0, 0));
+      
       await calcHoursSmart_();
     }
 
     let __calcTimer = null;
     let __calcSeq = 0;
 
+    // ✅ 修復關鍵點二：確保 OT / OUTING 也不會呼叫舊的幽靈變數
     async function calcHoursByServer_(){
       const mySeq = ++__calcSeq;
       const cat = document.getElementById("cat").value;
       if(cat === "CORRECTION"){ document.getElementById("hours").value = "0.0"; return; }
       
-      const sVal = getStartRaw(); const eVal = getEndRaw();
       const s = getStartDateTime(); const e = getEndDateTime();
 
       if(!s || !e || e <= s){ document.getElementById("hours").value = "0.0"; return; }
@@ -428,9 +420,8 @@
 
       try{
         const res = await api("calc_hours", {
-          start: toServerDateTimeStr_(s), end: toServerDateTimeStr_(e),
           startServer: toServerDateTimeStr_(s), endServer: toServerDateTimeStr_(e),
-          category: cat, leaveType: leaveType, startRaw: sVal, endRaw: eVal
+          category: cat, leaveType: leaveType
         });
         if (mySeq !== __calcSeq) return;
         if(res && res.ok){
@@ -443,12 +434,10 @@
           setNote();
         }else{
           document.getElementById("hours").value = Number(fallbackH).toFixed(1);
-          setNote("系統時數計算暫時不可用（已用本機備援計算）。最終仍以系統審核規則為準。");
         }
       }catch(e){
         if (mySeq !== __calcSeq) return;
         document.getElementById("hours").value = Number(fallbackH).toFixed(1);
-        setNote("系統時數計算逾時（已用本機備援計算）。最終仍以系統審核規則為準。");
       }
     }
 
@@ -505,8 +494,8 @@
     async function calcHoursSmart_(){
       const cat = document.getElementById("cat").value;
       if(cat === "CORRECTION"){ document.getElementById("hours").value = "0.0"; return; }
-      const s = getStartDateTime(); const e = getEndDateTime();
       
+      const s = getStartDateTime(); const e = getEndDateTime();
       if(!s || !e || e <= s){ document.getElementById("hours").value = "0.0"; return; }
 
       if(cat === "LEAVE"){
@@ -547,6 +536,7 @@
       const cat = document.getElementById("cat").value;
       btn.disabled = true; btn.innerText = "送出中...";
 
+      // ✅ 修復關鍵點三：送出時一樣完全杜絕舊幽靈變數
       const sObj = getStartDateTime();
       const eObj = (cat === "CORRECTION") ? sObj : getEndDateTime();
 
@@ -592,7 +582,7 @@
 
       const safeRecalc = () => { debounceCalc(); };
 
-      // 日期智慧連動：當開始日期往後調，結束日期自動跟上，避免卡在 0 小時
+      // 日期智慧連動：當開始日期往後調，結束日期自動跟上
       document.getElementById("startDate").addEventListener("change", function(){
          const sVal = this.value;
          const eEl = document.getElementById("endDate");
@@ -604,7 +594,7 @@
         const el = document.getElementById(id);
         if (el) {
           el.addEventListener("change", safeRecalc);
-          el.addEventListener("input", safeRecalc); // 雙重綁定確保 Android 立即反應
+          el.addEventListener("input", safeRecalc);
         }
       });
 

@@ -158,7 +158,7 @@
     if (!uid) location.href = "index.html";
 
     /* ==============================
-     * 1) API (升級版：使用現代 fetch API 發送 POST 請求)
+     * 1) API
      * ============================== */
     async function api(action, data = {}) {
       const ENDPOINT = window.CONFIG && (window.CONFIG.GAS_ENDPOINT || window.CONFIG.API_BASE || window.CONFIG.API_URL);
@@ -167,7 +167,6 @@
         throw new Error("Missing CONFIG.GAS_ENDPOINT");
       }
 
-      // 保留原本 request.html 專屬的欄位組裝邏輯
       const payloadObj = Object.assign({}, data, {
         empId: empId || undefined,
         userId: userId || undefined
@@ -225,8 +224,7 @@
 
     function parseLocalInput(v){
       if(!v) return null;
-      // ✅ 升級防呆：即使 Android 手機雞婆加上秒數 (:00) 也能正確解析
-      const m = String(v).match(/^(\d{4})-(\d{1,2})-(\d{1,2})T(\d{1,2}):(\d{2})(?::\d{2}(?:\.\d+)?)?$/);
+      const m = String(v).match(/^(\d{4})-(\d{1,2})-(\d{1,2})T(\d{1,2}):(\d{2})$/);
       if(!m) return null;
       const y = Number(m[1]), mo = Number(m[2]), d = Number(m[3]), hh = Number(m[4]), mm = Number(m[5]);
       const dt = new Date(y, mo-1, d, hh, mm, 0, 0);
@@ -333,24 +331,22 @@
     }
 
     /* ==============================
-     * 5) roster 前端快取 + 班別規則（EARLY/LATE/OFF）
+     * 5) roster 前端快取 + 班別規則
      * ============================== */
 
     const __rosterCache = new Map(); 
 
     function ymKey_(y, m){ return `${y}-${pad2(m)}`; }
 
-    // ✅ 修改：防呆時間推斷（如果沒有排班，會透過這裡回傳 null，讓後續處理）
     function normalizeShiftValue(v){
       const s = String(v||'').trim().toLowerCase();
-      if(!s) return null; // 讓系統知道找不到
+      if(!s) return null;
       if (s.includes('休') || s.includes('off')) return 'OFF';
       if (s.includes('午') || s.includes('late')) return 'LATE';
       if (s.includes('早') || s.includes('early')) return 'EARLY';
       return null;
     }
 
-    // 早班 10-18（無休）；午班 12-21（休 16-17）；休假 OFF
     function getShiftRuleByKey_(shiftKey){
       if(shiftKey === 'OFF') return { off:true, name:'休' };
       if(shiftKey === 'LATE') return { inH:12, inM:0, outH:21, outM:0, breakStartH:16, breakStartM:0, breakEndH:17, breakEndM:0, name:'午' };
@@ -374,7 +370,6 @@
       return normalizeShiftValue(val);
     }
 
-    // 只負責「帶入該日班表時間」
     async function applyLeaveAutoTimeByRoster(){
       const cat = document.getElementById("cat").value;
       if(cat !== "LEAVE") return;
@@ -393,7 +388,6 @@
         shiftKey = getMyShiftKeyForDay_(roster, d);
       }catch(e){}
 
-      // ✅ 動態推斷：如果找不到班別，依據開始時間是否過 12 點決定
       if (!shiftKey) {
          shiftKey = (s.getHours() >= 12) ? 'LATE' : 'EARLY';
       }
@@ -565,7 +559,6 @@
             shiftKey = getMyShiftKeyForDay_(roster, d);
         }catch(err){}
 
-        // ✅ 動態判斷：依據此區段的開始時間，決定是用午班還是早班
         if (!shiftKey) {
             shiftKey = (segStart.getHours() >= 12) ? 'LATE' : 'EARLY';
         }
@@ -731,7 +724,7 @@
     }
 
     /* ==============================
-     * 10) 綁定事件
+     * 10) 綁定事件 (抓鬼特製版)
      * ============================== */
     (function bindAll() {
       const startEl = document.getElementById("start");
@@ -746,15 +739,28 @@
 
       const safeRecalc = () => { debounceCalc(); };
 
+      // 🕵️‍♂️ 抓鬼程式碼核心區段：安全監聽，只在 change 跳窗
       [startEl, endEl].forEach(el => {
         if (!el) return;
-        el.addEventListener("change", safeRecalc);
+
+        ["input", "change", "blur"].forEach(evt => {
+          el.addEventListener(evt, (e) => {
+            const v = e.target.value;
+            // 默默把所有動作寫入 Console
+            console.log(`【抓鬼測試】事件=${evt} 欄位=${e.target.id} 值=${v}`);
+
+            // 為了避免 alert 觸發 blur 導致手機無限迴圈當機，只在確認改變 (change) 時跳視窗
+            if (evt === "change") {
+              alert(`【抓鬼測試 驗屍報告】\n欄位：${e.target.id}\n事件：${evt}\n手機底層硬塞給網頁的值：\n${v || "空值"}`);
+              safeRecalc();
+            }
+          });
+        });
       });
 
-      // 監聽手動修改時數
       if(hoursEl) {
           hoursEl.addEventListener("input", () => {
-              // 標記為手動修改，防止自動計算覆蓋（如果需要可以做更複雜的標記）
+              // 防呆
           });
       }
 
@@ -767,14 +773,8 @@
         }
       });
 
-      if(typeEl){
-        typeEl.addEventListener("change", () => {
-          debounceCalc();
-        });
-      }
-      if(correctionTypeEl){
-        correctionTypeEl.addEventListener("change", () => setNote());
-      }
+      if(typeEl) typeEl.addEventListener("change", () => debounceCalc());
+      if(correctionTypeEl) correctionTypeEl.addEventListener("change", () => setNote());
       if(isTripEl) isTripEl.addEventListener("change", debounceCalc);
       if(autoClockEl) autoClockEl.addEventListener("change", debounceCalc);
 

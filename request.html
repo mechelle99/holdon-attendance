@@ -19,7 +19,6 @@
       background:#fff; font-size:16px; box-sizing:border-box; -webkit-appearance:none;
     }
     input:focus, select:focus, textarea:focus { outline:none; border-color:var(--primary); box-shadow:0 0 0 3px rgba(79,70,229,.12); }
-    input[readonly] { background: #F3F4F6; color: #6B7280; cursor: not-allowed; } 
     textarea { resize:vertical; min-height:86px; }
 
     .chiprow { display:flex; gap:10px; flex-wrap:wrap; }
@@ -54,7 +53,7 @@
     .nav-item.active { color:var(--primary); }
     .nav-icon { font-size:22px; }
 
-    /* ✅ 強制 24 小時制的排版：日期 + 小時選單 + 分鐘選單 */
+    /* 日期與時間並排顯示 */
     .datetime-row { display: flex; gap: 6px; align-items: center; }
     .datetime-row input[type="date"] { flex: 5; padding: 10px; }
     .datetime-row select { flex: 2; padding: 10px; text-align: center; }
@@ -166,7 +165,7 @@
     if (!uid) location.href = "index.html";
 
     /* ==============================
-     * 1) 注入自訂 24 小時制選單 (00~23, 00~59)
+     * 1) 注入自訂 24 小時制選單
      * ============================== */
     function pad2(n) { return String(n).padStart(2, '0'); }
 
@@ -187,10 +186,7 @@
      * ============================== */
     async function api(action, data = {}) {
       const ENDPOINT = window.CONFIG && (window.CONFIG.GAS_ENDPOINT || window.CONFIG.API_BASE || window.CONFIG.API_URL);
-      if (!ENDPOINT) {
-        alert("系統設定錯誤：找不到 CONFIG.GAS_ENDPOINT");
-        throw new Error("Missing CONFIG.GAS_ENDPOINT");
-      }
+      if (!ENDPOINT) { alert("系統設定錯誤"); throw new Error("Missing ENDPOINT"); }
 
       const payloadObj = Object.assign({}, data, { empId: empId || undefined, userId: userId || undefined });
       if (window.CONFIG && window.CONFIG.WEBHOOK_KEY && payloadObj.webhookKey == null) {
@@ -211,32 +207,39 @@
         if (!response.ok) throw new Error(`HTTP 錯誤狀態碼: ${response.status}`);
         return await response.json();
       } catch (error) {
-        if (error.name === 'AbortError') throw new Error("網路連線逾時，請稍後再試");
-        throw new Error("無法連線到伺服器，請檢查網路或防護外掛設定");
+        if (error.name === 'AbortError') throw new Error("網路連線逾時");
+        throw new Error("連線伺服器失敗");
       }
     }
 
     /* ==============================
-     * 3) 🛠️ 自訂時間讀取/寫入工具
+     * 3) 🛠️ 自訂時間讀取/寫入工具 (相容性升級版)
      * ============================== */
     function dateToYmd(d){ return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
 
-    function getStartDateTime(){
-      const d = document.getElementById("startDate").value;
-      const h = document.getElementById("startHour").value;
-      const m = document.getElementById("startMinute").value;
-      if(!d || !h || !m) return null;
-      const dt = new Date(`${d}T${h}:${m}:00`);
+    // 完美防呆的日期解析器，避免舊版手機出現 NaN
+    function combineDateTime(dStr, hStr, mStr) {
+      if(!dStr || !hStr || !mStr) return null;
+      const parts = String(dStr).split('-');
+      if(parts.length !== 3) return null;
+      const dt = new Date(Number(parts[0]), Number(parts[1])-1, Number(parts[2]), Number(hStr), Number(mStr), 0, 0);
       return isNaN(dt.getTime()) ? null : dt;
     }
 
+    function getStartDateTime(){
+      return combineDateTime(
+        document.getElementById("startDate").value,
+        document.getElementById("startHour").value,
+        document.getElementById("startMinute").value
+      );
+    }
+
     function getEndDateTime(){
-      const d = document.getElementById("endDate").value;
-      const h = document.getElementById("endHour").value;
-      const m = document.getElementById("endMinute").value;
-      if(!d || !h || !m) return null;
-      const dt = new Date(`${d}T${h}:${m}:00`);
-      return isNaN(dt.getTime()) ? null : dt;
+      return combineDateTime(
+        document.getElementById("endDate").value,
+        document.getElementById("endHour").value,
+        document.getElementById("endMinute").value
+      );
     }
 
     function getStartRaw(){
@@ -306,9 +309,6 @@
       const endWrap = document.getElementById("endWrap");
       const extraGroup = document.getElementById("extraGroup");
       const startLabel = document.getElementById("startLabel");
-      const hoursInput = document.getElementById("hours");
-
-      hoursInput.readOnly = (cat !== "LEAVE");
 
       if (cat === "CORRECTION") {
         typeGroup.style.display = "none";
@@ -317,7 +317,7 @@
         endWrap.style.display = "none";
         extraGroup.style.display = "none";
         startLabel.textContent = "補卡時間";
-        hoursInput.value = "0.0";
+        document.getElementById("hours").value = "0.0";
       } else if (cat === "OUTING") {
         typeGroup.style.display = "none";
         correctionTypeGroup.style.display = "none";
@@ -506,6 +506,7 @@
       const cat = document.getElementById("cat").value;
       if(cat === "CORRECTION"){ document.getElementById("hours").value = "0.0"; return; }
       const s = getStartDateTime(); const e = getEndDateTime();
+      
       if(!s || !e || e <= s){ document.getElementById("hours").value = "0.0"; return; }
 
       if(cat === "LEAVE"){
@@ -591,10 +592,20 @@
 
       const safeRecalc = () => { debounceCalc(); };
 
-      // 綁定全新的日期、小時、分鐘選單
-      ["startDate", "startHour", "startMinute", "endDate", "endHour", "endMinute"].forEach(id => {
+      // 日期智慧連動：當開始日期往後調，結束日期自動跟上，避免卡在 0 小時
+      document.getElementById("startDate").addEventListener("change", function(){
+         const sVal = this.value;
+         const eEl = document.getElementById("endDate");
+         if (sVal && (!eEl.value || eEl.value < sVal)) { eEl.value = sVal; }
+         safeRecalc();
+      });
+
+      ["startHour", "startMinute", "endDate", "endHour", "endMinute"].forEach(id => {
         const el = document.getElementById(id);
-        if (el) el.addEventListener("change", safeRecalc);
+        if (el) {
+          el.addEventListener("change", safeRecalc);
+          el.addEventListener("input", safeRecalc); // 雙重綁定確保 Android 立即反應
+        }
       });
 
       catEl.addEventListener("change", async () => {

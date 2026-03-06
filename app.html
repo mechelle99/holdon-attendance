@@ -320,7 +320,7 @@
       const name = (res.empName || "").trim() || empId;
       document.getElementById("hello").textContent = `Hi, ${name}`;
       document.getElementById("subline").textContent =
-        `員工編號：${res.empId || empId}` + (res.isManager ? "｜主管" : "");
+        `編號：${res.empId || empId}` + (res.isManager ? "｜主管" : "");
 
       // 相容餘額結構
       let annual = 0, comp = 0;
